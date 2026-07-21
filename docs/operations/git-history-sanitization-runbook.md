@@ -1,6 +1,6 @@
 # Git History Sanitization Runbook
 
-This procedure removes the revoked Supabase credential from reachable Git history. Run it from a fresh mirror clone. Do not use an existing working copy.
+This procedure removes the revoked Supabase credential from reachable Git history. Run it from a fresh clone. Do not use an existing working copy.
 
 ## Preconditions
 
@@ -17,7 +17,7 @@ $RepoUrl = "https://github.com/muhamedsohaib/gemini-trading.git"
 $CleanupRoot = Join-Path $HOME "Desktop\gemini-trading-history-cleanup"
 
 Remove-Item -Recurse -Force $CleanupRoot -ErrorAction SilentlyContinue
-git clone --mirror $RepoUrl $CleanupRoot
+git clone $RepoUrl $CleanupRoot
 Set-Location $CleanupRoot
 
 git filter-repo --sensitive-data-removal --invert-paths `
@@ -26,10 +26,12 @@ git filter-repo --sensitive-data-removal --invert-paths `
   --path test_ledger.py
 ```
 
-`git-filter-repo` may remove the `origin` remote as a safety measure. Restore it before pushing:
+`--sensitive-data-removal` fetches refs needed for the cleanup. `git-filter-repo` may remove the `origin` remote as a safety measure. Restore it before pushing:
 
 ```powershell
-git remote remove origin 2>$null
+if ((git remote) -contains "origin") {
+    git remote remove origin
+}
 git remote add origin $RepoUrl
 ```
 
@@ -76,7 +78,7 @@ Failures for `refs/pull/*` are expected because GitHub pull-request refs are rea
 3. Open a new pull request from the rewritten security branch.
 4. Require every existing clone to be deleted and cloned again, or carefully cleaned without merging old history.
 5. Contact GitHub Support with the repository name, affected pull-request count, first changed commit reported by `git-filter-repo`, and any orphaned LFS report so cached views and pull-request refs can be evaluated for removal.
-6. Delete the mirror clone after verification.
+6. Delete the cleanup clone after verification.
 
 ## Abort Conditions
 
@@ -85,5 +87,5 @@ Do not push if:
 - any removed path still appears in `git log`;
 - the exact revoked credential is still found;
 - unexpected branches or tags appear in `.git/filter-repo/changed-refs`;
-- collaborators have pushed after the mirror clone was created;
+- collaborators have pushed after the cleanup clone was created;
 - any non-pull-request ref fails to update.

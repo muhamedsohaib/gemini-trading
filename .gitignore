@@ -1,1 +1,14 @@
-.env.local
+# Virtual Environments
+venv/
+ENV/
+
+# Sensitive API Keys and Environment Variables
+.env
+*.pem
+*.key
+config.json
+
+# Python Cache & Logs
+__pycache__/
+*.pyc
+*.log

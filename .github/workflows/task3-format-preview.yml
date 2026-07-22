@@ -1,0 +1,34 @@
+name: Task 3 Format Preview
+
+on:
+  push:
+    branches: [feature/market-data-core]
+
+permissions:
+  contents: read
+
+jobs:
+  format-preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.11.25"
+          enable-cache: true
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - run: >-
+          uv run ruff format
+          tests/unit/data/validation/test_candles.py
+          tests/property/test_candle_validation.py
+      - uses: actions/upload-artifact@v4.6.2
+        with:
+          name: task3-formatted-tests
+          path: |
+            tests/unit/data/validation/test_candles.py
+            tests/property/test_candle_validation.py
+          if-no-files-found: error
+          retention-days: 1

@@ -35,7 +35,7 @@ The first deterministic acceptance case uses `ETHUSDT` at `4h`, but the implemen
 - Incomplete candles: preserved in raw evidence but excluded from canonical output.
 - Failure policy: bounded retries for transient failures, then fail closed.
 - Raw storage: one immutable JSON response file per page plus a retrieval manifest.
-- Canonical storage: deterministic JSON Lines plus a dataset manifest.
+- Canonical storage: deterministic JSON Lines, a deterministic dataset manifest, and per-run provenance receipts.
 - Dataset identity: content-addressed SHA-256 identity derived from schema version and canonical bytes.
 - Current storage: immutable local filesystem store.
 - Deferred storage: database-backed ingestion tracked by GitHub issue #7.
@@ -74,6 +74,8 @@ Canonical validation
 Deterministic JSONL dataset writer
         ↓
 Content-addressed dataset manifest
+        ↓
+Immutable retrieval provenance receipt
 ```
 
 Responsibilities are separated so each component is independently testable and replaceable.
@@ -135,7 +137,7 @@ Domain modules must not import HTTP, filesystem, CLI, or Binance-specific code.
 - base asset;
 - quote asset.
 
-It rejects empty or malformed values. The first implementation may require explicit base and quote assets rather than attempting ambiguous symbol parsing.
+It rejects empty or malformed values. The first implementation requires explicit base and quote assets rather than attempting ambiguous symbol parsing.
 
 ### 5.2 Timeframe
 
@@ -152,7 +154,7 @@ Each value exposes:
 - deterministic cursor advancement behavior;
 - continuity rules.
 
-Weekly candles are validated against Binance-aligned weekly boundaries rather than arbitrary local calendar assumptions.
+The adapter does not request a non-UTC kline timezone. For `1w`, the first accepted provider candle establishes the alignment and every subsequent open time must advance by exactly seven days.
 
 ### 5.3 RetrievalRequest
 
@@ -182,10 +184,11 @@ Requirements:
 - open, high, low, and close as `Decimal`;
 - volume as `Decimal`;
 - completion state;
-- source provider;
-- source page identity.
+- source provider.
 
 Trusted canonical datasets may contain only completed candles.
+
+Retrieval-run IDs, page numbers, and page hashes are provenance, not canonical candle values. They must not alter canonical JSONL bytes or the dataset identity.
 
 ### 5.5 RawPage
 
@@ -221,21 +224,40 @@ A failed retrieval manifest never authorizes canonical dataset creation.
 
 ### 5.7 DatasetManifest
 
-The canonical dataset manifest records:
+The deterministic canonical dataset manifest records only content-derived or request-stable values:
 
 - schema version;
 - dataset ID;
-- source retrieval-run ID;
 - provider;
 - instrument and timeframe;
 - requested window;
 - actual first and last candle times;
 - candle count;
-- canonical file SHA-256 hash;
-- ordered source-page hashes;
-- creation timestamp.
+- canonical file SHA-256 hash.
 
-The dataset ID is content addressed. Identical canonical bytes under the same schema version produce the same identity.
+It excludes retrieval-run IDs, page hashes, and wall-clock creation timestamps. Therefore the same canonical bytes cannot create conflicting dataset manifests.
+
+The dataset ID is defined as:
+
+```text
+sha256(utf8(schema_version) + b"\n" + canonical_jsonl_bytes)
+```
+
+Identical canonical bytes under the same schema version produce the same identity.
+
+### 5.8 DatasetProvenance
+
+A separate immutable provenance receipt links one completed retrieval run to one canonical dataset. It records:
+
+- provenance schema version;
+- dataset ID;
+- source retrieval-run ID;
+- ordered raw-page hashes;
+- retrieval-manifest hash;
+- deterministic linkage status;
+- receipt creation timestamp.
+
+A dataset may have multiple provenance receipts when independent retrieval runs produce the same canonical content. An existing receipt identity cannot be overwritten with different content.
 
 ## 6. Interfaces
 
@@ -278,7 +300,9 @@ The writer:
 - serializes decimals as exact strings;
 - serializes timestamps in canonical UTC form;
 - computes canonical bytes before deriving the dataset identity;
-- writes files without overwriting conflicting content.
+- writes the deterministic dataset manifest;
+- writes a separate provenance receipt;
+- never overwrites conflicting content.
 
 ### 6.4 IngestionService
 
@@ -292,8 +316,8 @@ capture server time
 → normalize records
 → validate candles
 → validate continuity and window completeness
-→ write canonical dataset
-→ write dataset manifest
+→ write canonical dataset and deterministic manifest
+→ write retrieval provenance receipt
 ```
 
 It contains no Binance parsing rules and no direct filesystem operations.
@@ -324,9 +348,11 @@ A canonical dataset is emitted only when the completed-candle portion of the req
 
 An intentional partial boundary is distinguishable from an internal missing candle. An internal gap always fails the run.
 
+A request producing zero completed candles raises `IncompleteWindowError` and emits no canonical dataset.
+
 ### 7.4 Partial failures
 
-Successfully fetched raw pages remain preserved after failure. The retrieval manifest records the failed status and safe reason. No canonical dataset or successful dataset manifest is written.
+Successfully fetched raw pages remain preserved after failure. The retrieval manifest records the failed status and safe reason. No canonical dataset, successful dataset manifest, or provenance receipt is written.
 
 ## 8. Validation Rules
 
@@ -354,7 +380,8 @@ Dataset-level validation requires:
 - no candle outside the requested window;
 - no incomplete canonical candle;
 - no malformed provider record;
-- no internal gap.
+- no internal gap;
+- at least one completed candle.
 
 For fixed-duration intervals, continuity requires:
 
@@ -362,7 +389,7 @@ For fixed-duration intervals, continuity requires:
 next.open_time == current.open_time + interval_duration
 ```
 
-Weekly continuity uses the approved provider-aligned weekly rule.
+For `1w`, `interval_duration` is exactly seven days and alignment is inherited from the first accepted provider candle.
 
 ## 9. Retry and Error Handling
 
@@ -433,14 +460,18 @@ data/
 └── canonical/
     └── <dataset-id>/
         ├── candles.jsonl
-        └── dataset-manifest.json
+        ├── dataset-manifest.json
+        └── provenance/
+            └── <run-id>.json
 ```
+
+The JSONL bytes and dataset manifest are deterministic for a dataset identity. Provenance receipts may accumulate without changing those canonical files.
 
 `data/raw/` and `data/canonical/` are ignored by Git. Only small sanitized public-data fixtures needed for deterministic tests may be committed.
 
 ### 10.3 Deferred database adapter
 
-Database-backed storage is deferred to issue #7. The future adapter must preserve provider and storage interfaces, immutable raw semantics, canonical byte equality, dataset identities, migrations, rollback, and benchmark evidence.
+Database-backed storage is deferred to issue #7. The future adapter must preserve provider and storage interfaces, immutable raw semantics, canonical byte equality, dataset identities, provenance receipts, migrations, rollback, and benchmark evidence.
 
 The intended progression is local immutable files, then SQLite when justified, then PostgreSQL only when concurrent or deployed workloads require it.
 
@@ -459,7 +490,7 @@ gemini-trading market-data verify
 Inputs:
 
 - provider;
-- symbol and explicit base/quote identity where required;
+- symbol and explicit base/quote identity;
 - interval;
 - UTC start and end;
 - configurable storage root.
@@ -471,14 +502,14 @@ Safe output includes:
 - raw-page count;
 - canonical candle count;
 - dataset ID;
-- manifest paths;
+- manifest and provenance paths;
 - safe failure reason.
 
 The CLI never prints unrestricted raw responses or sensitive environment values.
 
 ### 11.2 Replay
 
-`replay` rebuilds canonical output from preserved raw pages without external network access. Replaying the same valid raw evidence under the same schema version must reproduce identical canonical bytes and dataset ID.
+`replay` rebuilds canonical output from preserved raw pages without external network access. Replaying the same valid raw evidence under the same schema version must reproduce identical canonical bytes, dataset manifest, and dataset ID. It also verifies or recreates the matching provenance receipt without changing canonical content.
 
 ### 11.3 Verify
 
@@ -488,9 +519,10 @@ The CLI never prints unrestricted raw responses or sensitive environment values.
 - retrieval-manifest linkage;
 - canonical file hash;
 - dataset identity;
+- deterministic dataset-manifest content;
+- provenance-receipt linkage;
 - candle order and continuity;
-- completed-candle guarantees;
-- source-run linkage.
+- completed-candle guarantees.
 
 Any failure returns a non-zero process exit code.
 
@@ -508,6 +540,8 @@ Unit tests cover:
 - duplicate, order, and gap detection;
 - immutable conflict handling;
 - deterministic serialization and hashing;
+- deterministic manifest generation;
+- provenance receipt isolation;
 - retry classification;
 - pagination cursor behavior.
 
@@ -521,6 +555,7 @@ Hypothesis verifies:
 - duplicate timestamps are rejected;
 - changing one canonical value changes the dataset hash;
 - identical candle sequences produce identical bytes and IDs;
+- changing retrieval-run metadata does not change canonical bytes or dataset ID;
 - naive or non-UTC timestamps never enter the canonical layer.
 
 ### 12.3 Provider-contract tests
@@ -549,7 +584,8 @@ Sanitized public Binance fixtures cover:
 - rate limiting;
 - transient failure followed by success;
 - retry exhaustion;
-- raw-storage conflict.
+- raw-storage conflict;
+- two retrieval runs producing one canonical dataset with separate provenance receipts.
 
 Ordinary CI does not depend on internet availability.
 
@@ -567,7 +603,8 @@ The first end-to-end acceptance case ingests a fixed historical `ETHUSDT` `4h` w
 - output is ordered and gap free;
 - decimals remain exact strings;
 - the dataset ID is a valid SHA-256 content identity;
-- replay reproduces identical bytes and identity;
+- replay reproduces identical canonical bytes, manifest, and identity;
+- provenance remains linked without contaminating canonical identity;
 - replay requires no network.
 
 The implementation remains generic and must contain no ETH-specific validation, pagination, storage, or hashing logic.
@@ -583,6 +620,7 @@ No canonical dataset is emitted when:
 - an immutable raw identity conflicts;
 - a provider response is malformed;
 - the requested window is invalid;
+- zero completed candles are available;
 - completed-candle window requirements cannot be satisfied.
 
 ## 13. Milestone Trust Gates
@@ -596,9 +634,10 @@ The milestone is accepted only when:
 5. canonical output is reproducible byte for byte;
 6. no incomplete candle reaches canonical output;
 7. preserved raw evidence reconstructs canonical output;
-8. storage implementation does not alter canonical results;
-9. unsafe execution modes remain rejected;
-10. no profitability claim is made from this milestone alone.
+8. independent retrieval provenance does not change dataset identity;
+9. storage implementation does not alter canonical results;
+10. unsafe execution modes remain rejected;
+11. no profitability claim is made from this milestone alone.
 
 ## 14. Completion Condition
 

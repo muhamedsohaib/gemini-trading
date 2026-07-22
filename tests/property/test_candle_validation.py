@@ -21,11 +21,9 @@ def _sequence(count: int) -> tuple[Candle, ...]:
             instrument=_INSTRUMENT,
             timeframe=Timeframe.H4,
             open_time=_START + index * Timeframe.H4.duration,
-            close_time=(
-                _START
-                + (index + 1) * Timeframe.H4.duration
-                - timedelta(milliseconds=1)
-            ),
+            close_time=_START
+            + (index + 1) * Timeframe.H4.duration
+            - timedelta(milliseconds=1),
             open=Decimal("100"),
             high=Decimal("110"),
             low=Decimal("90"),

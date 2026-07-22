@@ -72,9 +72,7 @@ def _replace_price(candle: Candle, field_name: str, value: Decimal) -> Candle:
 
 @pytest.mark.parametrize("field_name", ["open", "high", "low", "close"])
 @pytest.mark.parametrize("invalid_value", [Decimal("0"), Decimal("-0.01")])
-def test_validate_candle_rejects_non_positive_ohlc(
-    field_name: str, invalid_value: Decimal
-) -> None:
+def test_validate_candle_rejects_non_positive_ohlc(field_name: str, invalid_value: Decimal) -> None:
     with pytest.raises(CandleValidationError, match=field_name):
         validate_candle(_replace_price(_candle(), field_name, invalid_value))
 

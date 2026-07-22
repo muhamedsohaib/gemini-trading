@@ -78,9 +78,11 @@ def normalize_binance_klines(
     rows = cast(list[object], decoded)
     candles: list[Candle] = []
     for item in rows:
-        if not isinstance(item, list) or len(item) < _MINIMUM_ROW_FIELDS:
+        if not isinstance(item, list):
             raise ProviderSchemaError("Binance kline row must contain at least 7 fields")
         row = cast(list[object], item)
+        if len(row) < _MINIMUM_ROW_FIELDS:
+            raise ProviderSchemaError("Binance kline row must contain at least 7 fields")
 
         try:
             candle = Candle(

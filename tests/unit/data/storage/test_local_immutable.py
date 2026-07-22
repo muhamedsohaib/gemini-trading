@@ -24,7 +24,7 @@ def _page(
     *,
     run_id: str = "run-001",
     sequence: int = 1,
-    response_bytes: bytes = b"[[1,\"100.00\"]]",
+    response_bytes: bytes = b'[[1,"100.00"]]',
 ) -> RawPage:
     return RawPage(
         run_id=run_id,
@@ -197,7 +197,7 @@ def test_read_run_fails_when_a_manifest_page_file_is_missing(tmp_path: Path) -> 
     page = _page()
     store.write_retrieval_manifest(_manifest(page))
 
-    with pytest.raises(FileNotFoundError, match="page-000001.json"):
+    with pytest.raises(FileNotFoundError, match=r"page-000001\.json"):
         store.read_run("run-001")
 
 
@@ -236,7 +236,7 @@ def test_canonical_conflict_preserves_existing_dataset_bytes(tmp_path: Path) -> 
 def test_canonical_reads_require_all_expected_files(tmp_path: Path) -> None:
     store = LocalImmutableStore(tmp_path)
 
-    with pytest.raises(FileNotFoundError, match="candles.jsonl"):
+    with pytest.raises(FileNotFoundError, match=r"candles\.jsonl"):
         store.read_dataset(_DATASET_ID)
-    with pytest.raises(FileNotFoundError, match="run-001.json"):
+    with pytest.raises(FileNotFoundError, match=r"run-001\.json"):
         store.read_provenance(_DATASET_ID, "run-001")

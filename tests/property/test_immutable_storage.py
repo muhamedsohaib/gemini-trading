@@ -1,3 +1,5 @@
+"""Property contracts for immutable local market-data storage."""
+
 import hashlib
 from pathlib import Path
 from tempfile import TemporaryDirectory

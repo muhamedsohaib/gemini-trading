@@ -41,6 +41,9 @@ exclude = ["legacy"]
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
 
+[tool.ruff.lint.isort]
+known-first-party = ["gemini_trading"]
+
 [tool.pyright]
 include = ["src", "tests"]
 pythonVersion = "3.12"

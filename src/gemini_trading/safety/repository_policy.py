@@ -18,9 +18,7 @@ GENERATED_MARKET_DATA_PREFIXES = ("data/raw/", "data/canonical/")
 def _reject_generated_market_data(raw_path: str) -> None:
     normalized = PurePosixPath(raw_path.replace("\\", "/")).as_posix()
     if normalized.startswith(GENERATED_MARKET_DATA_PREFIXES):
-        raise RepositoryPolicyViolation(
-            f"generated market data must not be tracked: {raw_path}"
-        )
+        raise RepositoryPolicyViolation(f"generated market data must not be tracked: {raw_path}")
 
 
 def validate_tracked_paths(paths: Iterable[str]) -> None:

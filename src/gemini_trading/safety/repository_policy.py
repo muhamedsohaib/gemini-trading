@@ -12,15 +12,26 @@ class RepositoryPolicyViolation(ValueError):
 
 _PROHIBITED_NAMES = {".env", ".env.local", "q_table.json", "config.json"}
 _PROHIBITED_SUFFIXES = {".key", ".pem", ".p12", ".pfx", ".pyc"}
+GENERATED_MARKET_DATA_PREFIXES = ("data/raw/", "data/canonical/")
+
+
+def _reject_generated_market_data(raw_path: str) -> None:
+    normalized = PurePosixPath(raw_path.replace("\\", "/")).as_posix()
+    if normalized.startswith(GENERATED_MARKET_DATA_PREFIXES):
+        raise RepositoryPolicyViolation(
+            f"generated market data must not be tracked: {raw_path}"
+        )
 
 
 def validate_tracked_paths(paths: Iterable[str]) -> None:
-    """Reject tracked paths that contain secrets, certificates, caches, or runtime state."""
+    """Reject tracked paths that contain secrets, caches, or generated runtime state."""
 
     violations: list[str] = []
     for raw_path in paths:
-        path = PurePosixPath(raw_path)
-        if raw_path == ".env.example":
+        _reject_generated_market_data(raw_path)
+        normalized = raw_path.replace("\\", "/")
+        path = PurePosixPath(normalized)
+        if normalized == ".env.example":
             continue
         if path.name in _PROHIBITED_NAMES:
             violations.append(raw_path)

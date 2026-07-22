@@ -87,3 +87,35 @@ This append-only log records fresh task and checkpoint evidence for GitHub issue
 - `completed_candles` uses `dataclasses.replace(..., completed=True)` only for rows with `close_time < server_time` and does not mutate input candles.
 - No provider, network, storage, strategy, signal, order, credential, or execution behavior was introduced.
 - Limitation: this Task 3 gate was observed on GitHub-hosted Ubuntu; a fresh Windows-local run is deferred to the next operator checkpoint and final exact-head verification.
+
+## Task 4 — Strict Binance kline normalization
+
+### Tooling stabilization
+
+- Commit `0d7f5932927132b746410e00537cd4e2eab94ba1` configured Ruff isort with `known-first-party = ["gemini_trading"]`, preventing import-group changes when RED tests reference not-yet-created first-party submodules.
+- GitHub Actions run `29965042940` passed the complete quality and Gitleaks gates before Task 4 tests were added.
+
+### RED phase
+
+- Test-only RED head: `7f982e2bb574bc67b1b20bf62af26ebbe0e85b2f`.
+- GitHub Actions run: `29965299346`.
+- Frozen dependency sync, Ruff format, and Ruff lint passed; strict Pyright failed on the intentionally absent `gemini_trading.data.normalization.binance_klines` module. Pytest and later quality steps were skipped. `gitleaks` passed.
+- Sanitized fixtures covered a valid two-row page, a short malformed row, and an invalid decimal marker used to prove safe error messages.
+- Unit tests covered exact field mapping, Decimal exponent preservation, invalid UTF-8, invalid JSON, non-list roots and rows, non-integer millisecond types including booleans, non-finite decimals, safe messages, provider/completion metadata, and a far-future exact-millisecond regression.
+- Hypothesis properties covered exact integer-millisecond round trips without float precision loss, exact decimal value/exponent preservation, and rejection of non-integer timestamp values.
+
+### GREEN phase
+
+- Initial implementation head: `619d522074f57a5c338137d6a46f4a7d99f26c7c`.
+- GitHub Actions run `29965466455` passed sync, Ruff format, and Ruff lint, then failed strict Pyright because `len` received `list[Unknown]`; pytest and later steps were skipped. `gitleaks` passed.
+- A temporary read-only diagnostic workflow exported the exact Pyright message. Commit `8004d825ba1122cebd2fe272fc4fe40ff3c33d99` narrowed each row to `list[object]` before checking its length and removed the workflow.
+- Final GitHub Actions run: `29965626579`.
+- Observed `quality` result: passed frozen dependency sync, Ruff format, Ruff lint, strict Pyright, the full pytest suite including Hypothesis properties, package build, pip-audit, tracked-file policy validation, and detect-secrets.
+- Observed `gitleaks` result: passed.
+- Net diff review found only the normalization package, three sanitized fixtures, one unit-test file, and one property-test file; temporary diagnostic workflows were absent.
+- The parser decodes strict UTF-8, uses `json.loads(..., parse_float=str)` to prevent JSON decimal tokens from entering a float path, rejects non-standard JSON constants, requires a list root and list rows with at least seven fields, and reads only Binance indices `0` through `6`.
+- Milliseconds are converted exactly with `datetime(1970, 1, 1, tzinfo=UTC) + timedelta(milliseconds=value)` after rejecting booleans and non-integers; no division or timestamp float conversion is used.
+- Numeric fields use `Decimal(str(value))`, require finiteness, preserve decimal exponents, and never call `float`.
+- Output candles are immutable candidates with `completed=False` and `source_provider="binance_spot"`; malformed rows fail closed with generic `ProviderSchemaError` messages that do not include raw payload content.
+- No credentials, authorization headers, private endpoints, network access, strategy, signal, order, or execution behavior was introduced.
+- Limitation: this Task 4 gate was observed on GitHub-hosted Ubuntu; a fresh Windows-local run is deferred to the next operator checkpoint and final exact-head verification.

@@ -43,9 +43,7 @@ def completed_candles(
 
     require_utc(server_time, "server_time")
     return tuple(
-        replace(candle, completed=True)
-        for candle in candles
-        if candle.close_time < server_time
+        replace(candle, completed=True) for candle in candles if candle.close_time < server_time
     )
 
 

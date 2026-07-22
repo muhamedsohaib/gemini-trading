@@ -1,6 +1,7 @@
 from dataclasses import FrozenInstanceError
 
 import pytest
+
 from gemini_trading.domain.instrument import Instrument
 
 

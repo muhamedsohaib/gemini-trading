@@ -1,4 +1,5 @@
 import pytest
+
 from gemini_trading.data.errors import (
     CandleGapError,
     CandleValidationError,

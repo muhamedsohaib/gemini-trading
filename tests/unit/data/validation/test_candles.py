@@ -3,17 +3,17 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
-from gemini_trading.data.validation.candles import (
-    completed_candles,
-    validate_candle,
-    validate_candle_sequence,
-)
 
 from gemini_trading.data.errors import (
     CandleGapError,
     CandleValidationError,
     DuplicateCandleError,
     OutOfOrderCandleError,
+)
+from gemini_trading.data.validation.candles import (
+    completed_candles,
+    validate_candle,
+    validate_candle_sequence,
 )
 from gemini_trading.domain.candle import Candle
 from gemini_trading.domain.dataset import RetrievalRequest

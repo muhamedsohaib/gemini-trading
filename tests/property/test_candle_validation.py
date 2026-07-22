@@ -2,11 +2,11 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
-from gemini_trading.data.validation.candles import validate_candle_sequence
 from hypothesis import given
 from hypothesis import strategies as st
 
 from gemini_trading.data.errors import CandleGapError, DuplicateCandleError, OutOfOrderCandleError
+from gemini_trading.data.validation.candles import validate_candle_sequence
 from gemini_trading.domain.candle import Candle
 from gemini_trading.domain.dataset import RetrievalRequest
 from gemini_trading.domain.instrument import Instrument

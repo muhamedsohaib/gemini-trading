@@ -74,7 +74,9 @@ def _parse_server_time(payload: bytes) -> datetime:
     try:
         return _UNIX_EPOCH + timedelta(milliseconds=server_time)
     except (OverflowError, ValueError):
-        raise ProviderSchemaError("Binance server-time value is outside the supported range") from None
+        raise ProviderSchemaError(
+            "Binance server-time value is outside the supported range"
+        ) from None
 
 
 class BinanceSpotProvider:

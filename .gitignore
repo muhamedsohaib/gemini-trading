@@ -33,6 +33,10 @@ secrets/
 *.sqlite3
 q_table.json
 
+# Generated market-data evidence and canonical datasets
+data/raw/
+data/canonical/
+
 # Editors and operating systems
 .vscode/
 .idea/

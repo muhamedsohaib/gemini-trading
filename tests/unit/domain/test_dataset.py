@@ -2,7 +2,6 @@ from dataclasses import FrozenInstanceError
 from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
-
 from gemini_trading.domain.dataset import RetrievalRequest
 from gemini_trading.domain.instrument import Instrument
 from gemini_trading.domain.timeframe import Timeframe

@@ -3,7 +3,6 @@ from datetime import UTC, datetime, timedelta, timezone
 from decimal import Decimal
 
 import pytest
-
 from gemini_trading.domain.candle import Candle
 from gemini_trading.domain.instrument import Instrument
 from gemini_trading.domain.timeframe import Timeframe

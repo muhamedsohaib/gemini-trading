@@ -1,0 +1,47 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gemini-trading"
+version = "0.1.0"
+description = "Hybrid open-core trading research and paper-execution platform"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Gemini Trading Contributors" }]
+dependencies = []
+
+[dependency-groups]
+dev = [
+  "build>=1.2",
+  "detect-secrets>=1.5",
+  "hypothesis>=6.130",
+  "pip-audit>=2.8",
+  "pre-commit>=4.2",
+  "pyright>=1.1.400",
+  "pytest>=8.3",
+  "pytest-cov>=6.1",
+  "ruff>=0.12",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gemini_trading"]
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-config --strict-markers --cov=gemini_trading --cov-report=term-missing"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
+
+[tool.pyright]
+include = ["src", "tests"]
+pythonVersion = "3.12"
+typeCheckingMode = "strict"
+reportMissingTypeStubs = "warning"

@@ -35,7 +35,6 @@ def test_prohibited_tracked_paths_are_rejected(path: str) -> None:
 )
 def test_generated_market_data_must_not_be_tracked(path: str) -> None:
     with pytest.raises(
-        RepositoryPolicyViolation,
-        match="generated market data must not be tracked",
+        RepositoryPolicyViolation, match="generated market data must not be tracked"
     ):
         validate_tracked_paths([path])

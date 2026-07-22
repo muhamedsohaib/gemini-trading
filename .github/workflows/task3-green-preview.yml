@@ -1,0 +1,49 @@
+name: Task 3 Green Preview
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  green-preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.11.25"
+          enable-cache: true
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - name: Apply repository-pinned Ruff
+        run: |
+          uv run ruff format \
+            src/gemini_trading/data/validation \
+            tests/unit/data/validation/test_candles.py \
+            tests/property/test_candle_validation.py
+          uv run ruff check --fix \
+            src/gemini_trading/data/validation \
+            tests/unit/data/validation/test_candles.py \
+            tests/property/test_candle_validation.py
+          uv run ruff format \
+            src/gemini_trading/data/validation \
+            tests/unit/data/validation/test_candles.py \
+            tests/property/test_candle_validation.py
+          uv run ruff check \
+            src/gemini_trading/data/validation \
+            tests/unit/data/validation/test_candles.py \
+            tests/property/test_candle_validation.py
+      - uses: actions/upload-artifact@v4.6.2
+        with:
+          name: task3-green-files
+          path: |
+            src/gemini_trading/data/validation/__init__.py
+            src/gemini_trading/data/validation/candles.py
+            tests/unit/data/validation/test_candles.py
+            tests/property/test_candle_validation.py
+          if-no-files-found: error
+          retention-days: 1

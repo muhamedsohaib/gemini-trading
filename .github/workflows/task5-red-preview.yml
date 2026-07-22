@@ -1,0 +1,48 @@
+name: Task 5 RED Preview
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  red-preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.11.25"
+          enable-cache: true
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - name: Apply repository-pinned Ruff
+        run: |
+          uv run ruff format \
+            tests/unit/data/providers/test_http.py \
+            tests/unit/data/providers/test_binance_spot.py \
+            tests/integration/test_binance_provider_contract.py
+          uv run ruff check --fix \
+            tests/unit/data/providers/test_http.py \
+            tests/unit/data/providers/test_binance_spot.py \
+            tests/integration/test_binance_provider_contract.py
+          uv run ruff format \
+            tests/unit/data/providers/test_http.py \
+            tests/unit/data/providers/test_binance_spot.py \
+            tests/integration/test_binance_provider_contract.py
+          uv run ruff check \
+            tests/unit/data/providers/test_http.py \
+            tests/unit/data/providers/test_binance_spot.py \
+            tests/integration/test_binance_provider_contract.py
+      - uses: actions/upload-artifact@v4.6.2
+        with:
+          name: task5-red-tests
+          path: |
+            tests/unit/data/providers/test_http.py
+            tests/unit/data/providers/test_binance_spot.py
+            tests/integration/test_binance_provider_contract.py
+          if-no-files-found: error
+          retention-days: 1

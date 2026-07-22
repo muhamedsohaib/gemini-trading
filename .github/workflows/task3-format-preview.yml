@@ -1,8 +1,7 @@
 name: Task 3 Format Preview
 
 on:
-  push:
-    branches: [feature/market-data-core]
+  pull_request:
 
 permissions:
   contents: read

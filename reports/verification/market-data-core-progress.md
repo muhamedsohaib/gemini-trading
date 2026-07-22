@@ -59,3 +59,31 @@ This append-only log records fresh task and checkpoint evidence for GitHub issue
 - Diff review against the Task 1 evidence base found only the intended Ruff-version alignment, eight domain/data production files, and five contract-test files. No provider, network, storage, strategy, signal, order, or execution behavior was introduced.
 - Public contract review confirmed frozen slotted dataclasses, explicit instrument identity, curated timeframes, UTC-only timestamps, finite Decimal enforcement, safe provider-error metadata, and the approved retrieval/dataset/provenance field shapes.
 - Limitation: auxiliary dataset-manifest and provenance validation branches are not yet exhaustively unit-tested; deeper cross-field consistency, deterministic serialization, and content/hash linkage are deferred to their dedicated later tasks.
+
+## Task 3 — Pure candle validation
+
+### RED phase
+
+- Initial test-only commit: `e94e823d7083447a63bd7d17538579bd4227312c`.
+- GitHub Actions run `29959804527` stopped at Ruff formatting before reaching the intended failure; this run was rejected as RED evidence. `gitleaks` passed.
+- Repository-pinned Ruff formatting and lint fixes were exported through temporary read-only workflows and applied to the two tests; all temporary workflow and placeholder files were removed from the final tree.
+- Final test-only RED head: `7907e5f0b3139e749d59e78de934a9d40d712986`.
+- GitHub Actions run: `29961406243`.
+- Frozen dependency sync, Ruff format, and Ruff lint passed; strict Pyright then failed on the intentionally absent `gemini_trading.data.validation.candles` module. Pytest and later quality steps were skipped. `gitleaks` passed.
+- Unit tests covered non-positive OHLC, negative and zero volume behavior, open/close range geometry, strict completion filtering, empty sequences, identity mismatch, request-window containment, incomplete canonical rows, duplicates, reversals, and gaps.
+- Hypothesis tests mutated valid sequences into duplicates, reversals, and internal gaps and required the corresponding specialized exception.
+
+### GREEN phase
+
+- Initial implementation head: `d275bd3f64af1717d09102174f6033cb0620d530`.
+- GitHub Actions run `29964524157` stopped at Ruff formatting; no later quality step was treated as evidence. `gitleaks` passed.
+- The repository-pinned Ruff output was applied in commit `e3e0a32d986dda709a6bc8c896cea2e63a75b5f7`; its full GitHub gate passed in run `29964657279`.
+- Review then removed an untested UTC guard from `completed_candles` so the implementation remained strictly minimal and matched the Task 3 contract. Final tested implementation head: `a8955e62cf4ac8a13f2bd16ce802323e9ca6c5ff`.
+- Final GitHub Actions run: `29964789124`.
+- Observed `quality` result: passed frozen dependency sync, Ruff format, Ruff lint, strict Pyright, the full pytest suite including Hypothesis properties, package build, pip-audit, tracked-file policy validation, and detect-secrets.
+- Observed `gitleaks` result: passed.
+- Diff review confirmed only the validation package and its two intended tests remained in the net Task 3 change; temporary workflows and placeholders were absent.
+- Contract review confirmed the required check order: non-empty, per-candle geometry, identity consistency, request containment, completed flag, duplicate detection, strict ordering, then exact timeframe continuity.
+- `completed_candles` uses `dataclasses.replace(..., completed=True)` only for rows with `close_time < server_time` and does not mutate input candles.
+- No provider, network, storage, strategy, signal, order, credential, or execution behavior was introduced.
+- Limitation: this Task 3 gate was observed on GitHub-hosted Ubuntu; a fresh Windows-local run is deferred to the next operator checkpoint and final exact-head verification.

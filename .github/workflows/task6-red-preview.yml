@@ -16,15 +16,16 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync --all-groups --frozen
-      - name: Apply repository-pinned Ruff
+      - name: Format and capture Ruff diagnostics
         run: |
           uv run ruff format tests/unit/data/storage/test_local_immutable.py tests/property/test_immutable_storage.py
-          uv run ruff check --fix tests/unit/data/storage/test_local_immutable.py tests/property/test_immutable_storage.py
+          uv run ruff check --fix tests/unit/data/storage/test_local_immutable.py tests/property/test_immutable_storage.py > task6-ruff.txt 2>&1 || true
       - uses: actions/upload-artifact@v4.6.2
         with:
           name: task6-red-tests
           path: |
             tests/unit/data/storage/test_local_immutable.py
             tests/property/test_immutable_storage.py
+            task6-ruff.txt
           if-no-files-found: error
           retention-days: 1

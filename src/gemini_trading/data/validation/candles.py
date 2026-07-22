@@ -12,7 +12,6 @@ from gemini_trading.data.errors import (
 )
 from gemini_trading.domain.candle import Candle
 from gemini_trading.domain.dataset import RetrievalRequest
-from gemini_trading.domain.time import require_utc
 
 
 def validate_candle(candle: Candle) -> None:
@@ -41,7 +40,6 @@ def completed_candles(
 ) -> tuple[Candle, ...]:
     """Return only candles strictly closed before the shared server-time snapshot."""
 
-    require_utc(server_time, "server_time")
     return tuple(
         replace(candle, completed=True) for candle in candles if candle.close_time < server_time
     )

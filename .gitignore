@@ -1,14 +1,40 @@
-# Virtual Environments
+# Python environments and caches
+.venv/
 venv/
 ENV/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.pyright/
+.ruff_cache/
+.coverage
+htmlcov/
 
-# Sensitive API Keys and Environment Variables
+# Builds and packages
+build/
+dist/
+*.egg-info/
+
+# Secrets and local configuration
 .env
+.env.*
+!.env.example
 *.pem
 *.key
+*.p12
+*.pfx
 config.json
+secrets/
 
-# Python Cache & Logs
-__pycache__/
-*.pyc
+# Runtime state and local databases
 *.log
+*.sqlite
+*.sqlite3
+q_table.json
+
+# Editors and operating systems
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

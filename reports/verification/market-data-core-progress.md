@@ -24,4 +24,13 @@ This append-only log records fresh task and checkpoint evidence for GitHub issue
 
 ### GREEN phase
 
-Pending fresh verification on the completed Task 1 head.
+- Initial implementation head: `62b308221711d1a7567fd120dd078aec52bf4f02`.
+- GitHub Actions run `29955344061` stopped at `uv run ruff format --check .`; `gitleaks` passed. No later quality steps were treated as evidence because they were skipped.
+- Remediation: applied Ruff-equivalent line wrapping in commits `66b361643d374516be719ab1925fd169908b7b73` and `5829145f849a27d2d60e204361b51f5d1291bc0b`.
+- Final tested implementation head: `5829145f849a27d2d60e204361b51f5d1291bc0b`.
+- GitHub Actions run: `29955458684`.
+- Observed `quality` result: passed.
+- Observed quality steps: frozen dependency sync, Ruff format check, Ruff lint, Pyright strict checking, full pytest suite, package build, pip-audit, tracked-file policy validation, and detect-secrets all passed.
+- Observed `gitleaks` result: passed.
+- Generated market-data paths are ignored by Git and rejected by the tracked-file policy using the existing `RepositoryPolicyViolation` exception.
+- Limitation: this task gate was observed on GitHub-hosted Ubuntu; Windows-local verification is deferred to the next operator checkpoint and final exact-head gate.

@@ -1,0 +1,52 @@
+name: Task 5 Evidence Preview
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  evidence-preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - name: Append Task 5 evidence
+        run: |
+          cat >> reports/verification/market-data-core-progress.md <<'EOF'
+
+          ## Task 5 — HTTP transport and Binance Spot provider
+
+          ### RED phase
+
+          - Initial test-only head: `7c39b4940b3fe68969202cb495f0618b48f9f2bd`.
+          - GitHub Actions run `29966036458` stopped at Ruff formatting before reaching the intended missing-module failure; this run was rejected as RED evidence. `gitleaks` passed.
+          - The repository-pinned Ruff formatter was applied through a temporary read-only workflow; all temporary workflow files were removed from the final test tree.
+          - Final test-only RED head: `af1f2776aef0a87abc60d56f021452eb467faf5f`.
+          - GitHub Actions run: `29966201370`.
+          - Frozen dependency sync, Ruff format, and Ruff lint passed; strict Pyright failed on the intentionally absent `gemini_trading.data.providers` modules. Pytest and later quality steps were skipped. `gitleaks` passed.
+          - Unit tests covered exact GET behavior, unchanged response bytes, HTTP-error byte preservation, body-free connection failures, exact public endpoints, sorted bounded query parameters, integer UTC milliseconds, no constructor credential surface, 429 `Retry-After`, retryable 5xx classification, permanent 4xx classification, safe malformed server-time rejection, and injected-transport behavior.
+          - The integration contract test used only an injected fake transport and made no live network request.
+
+          ### GREEN phase
+
+          - Initial implementation head: `de2c3821c483563c447403808d48b96f148b57f3`.
+          - GitHub Actions run `29966364487` stopped at Ruff formatting; no later quality step was treated as evidence. `gitleaks` passed.
+          - Repository-pinned Ruff output was applied in commit `640a1a3a873bbc719bc9b67f514a579a21a61cb9`; run `29966503124` then passed format and lint but failed strict Pyright because positional `urlopen(request, timeout_seconds)` was typed as request data rather than timeout.
+          - A temporary read-only diagnostic workflow exported the exact Pyright output. Final implementation head `5cc0110ce832886ab7ec674e8422576c3c7aa939` changed the call to `urlopen(request, timeout=timeout_seconds)`, aligned the monkeypatched tests, and removed the workflow.
+          - Final GitHub Actions run: `29966661856`.
+          - Observed `quality` result: passed frozen dependency sync, Ruff format, Ruff lint, strict Pyright, full pytest, package build, pip-audit, tracked-file policy validation, and detect-secrets.
+          - Observed `gitleaks` result: passed.
+          - Net diff review found only four provider files, two unit-test files, and one integration-contract test; no temporary workflows or placeholders remained.
+          - `UrllibTransport` uses `urllib.request.Request(method="GET")`, returns exact success and `HTTPError` bytes with status and headers, and maps `URLError`, `TimeoutError`, and `OSError` to a body-free `ProviderConnectionError`.
+          - `BinanceSpotProvider` uses only `/api/v3/time` and `/api/v3/klines`, stable sorted parameters, `[start_time, end_time)` mapping through inclusive `endTime = end_ms - 1`, exact integer UTC-millisecond arithmetic, injected transport and clock dependencies, and safe HTTP/schema classification.
+          - The provider constructor defines no API-key, secret, signature, authorization, or credential parameter and reads no credential environment variable.
+          - No private endpoint, filesystem write, canonical dataset construction, strategy, signal, order, or execution behavior was introduced.
+          - Limitation: this Task 5 gate was observed on GitHub-hosted Ubuntu; a fresh Windows-local run is deferred to the next operator checkpoint and final exact-head verification.
+          EOF
+      - uses: actions/upload-artifact@v4.6.2
+        with:
+          name: task5-evidence-ledger
+          path: reports/verification/market-data-core-progress.md
+          if-no-files-found: error
+          retention-days: 1

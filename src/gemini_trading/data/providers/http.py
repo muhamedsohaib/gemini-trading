@@ -20,7 +20,7 @@ class UrllibTransport:
     def get(self, url: str, timeout_seconds: float) -> HttpResponse:
         request = urllib.request.Request(url, method="GET")
         try:
-            with urllib.request.urlopen(request, timeout_seconds) as response:
+            with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
                 return HttpResponse(
                     status_code=response.status,
                     headers=_header_items(response.headers),

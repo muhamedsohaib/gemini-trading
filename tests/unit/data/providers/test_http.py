@@ -66,7 +66,8 @@ def test_urllib_transport_returns_http_error_status_headers_and_exact_body(
     headers = Message()
     headers["Retry-After"] = "2.5"
 
-    def fake_urlopen(_request: Request, _timeout: float) -> _Response:
+    def fake_urlopen(_request: Request, timeout: float) -> _Response:
+        del timeout
         raise HTTPError(
             "https://example.test/path",
             429,
@@ -92,7 +93,8 @@ def test_urllib_transport_maps_connection_failures_without_leaking_details(
     monkeypatch: pytest.MonkeyPatch,
     failure: BaseException,
 ) -> None:
-    def fake_urlopen(_request: Request, _timeout: float) -> _Response:
+    def fake_urlopen(_request: Request, timeout: float) -> _Response:
+        del timeout
         raise failure
 
     monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)

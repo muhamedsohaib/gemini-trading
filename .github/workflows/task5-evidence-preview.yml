@@ -1,17 +1,19 @@
-name: Task 5 Evidence Preview
+name: Task 5 Evidence Commit
 
 on:
   pull_request:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  evidence-preview:
+  evidence-commit:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2
-      - name: Append Task 5 evidence
+        with:
+          ref: feature/market-data-core
+      - name: Append and commit Task 5 evidence
         run: |
           cat >> reports/verification/market-data-core-progress.md <<'EOF'
 
@@ -44,9 +46,8 @@ jobs:
           - No private endpoint, filesystem write, canonical dataset construction, strategy, signal, order, or execution behavior was introduced.
           - Limitation: this Task 5 gate was observed on GitHub-hosted Ubuntu; a fresh Windows-local run is deferred to the next operator checkpoint and final exact-head verification.
           EOF
-      - uses: actions/upload-artifact@v4.6.2
-        with:
-          name: task5-evidence-ledger
-          path: reports/verification/market-data-core-progress.md
-          if-no-files-found: error
-          retention-days: 1
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add reports/verification/market-data-core-progress.md
+          git commit -m "docs: record Task 5 provider evidence"
+          git push origin HEAD:feature/market-data-core

@@ -140,9 +140,7 @@ def test_http_failures_are_classified_without_leaking_body(
     status_code: int,
     retryable: bool,
 ) -> None:
-    transport = _FakeTransport(
-        [_response(status_code=status_code, body=b"PRIVATE-PROVIDER-BODY")]
-    )
+    transport = _FakeTransport([_response(status_code=status_code, body=b"PRIVATE-PROVIDER-BODY")])
     provider = BinanceSpotProvider(transport=transport, clock=lambda: _RETRIEVED_AT)
 
     with pytest.raises(ProviderResponseError) as exc_info:

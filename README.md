@@ -1,13 +1,37 @@
 # Gemini Trading
 
-Gemini Trading is a hybrid open-core platform for reproducible market research, risk-controlled strategy development, and paper execution.
+Gemini Trading is a hybrid open-core research and paper-execution platform under controlled reconstruction.
 
-## Current status
+## Current Status
 
-The project is under controlled reconstruction. Execution is restricted to research and paper modes until explicit promotion gates, independent risk controls, and forward validation requirements are satisfied.
+- Promotion level: `RESEARCH_ONLY`
+- Supported execution modes: `research`, `paper`
+- Exchange order submission: disabled
+- Profitability: not established
 
-## Public core
+## Public Core
 
-The public repository will contain auditable domain contracts, market-data interfaces, deterministic baselines, backtesting infrastructure, paper execution, independent risk controls, testing, and reproducibility tooling.
+The public repository will contain canonical market-data contracts, deterministic research tools, baseline strategies, portfolio and risk primitives, paper execution, testing, security controls, and reproducible benchmark evidence.
 
-Production credentials, proprietary strategy parameters, private model artifacts, and production execution infrastructure are excluded from the public core.
+Private strategy parameters, trained proprietary artifacts, production credentials, production infrastructure, and investor-only evidence are excluded.
+
+## Safety
+
+The current package fails closed when configured for demo, live, production, or an unknown mode. Historical prototype code is preserved under `legacy/prototype_v0/` and is not supported for execution.
+
+The `main` branch requires pull requests and passing `quality` and `gitleaks` checks. Direct pushes, force pushes, and deletions are blocked by repository rules.
+
+## Development
+
+```bash
+uv sync --all-groups --frozen
+uv run pre-commit run --all-files
+uv run pytest
+uv run pyright
+```
+
+See:
+
+- `docs/superpowers/specs/2026-07-21-hybrid-open-core-reconstruction-design.md` for the approved architecture.
+- `docs/architecture/adr/0001-paper-only-reconstruction-foundation.md` for the paper-only reconstruction decision.
+- `reports/security/foundation-verification.md` for observed foundation-verification evidence and limitations.

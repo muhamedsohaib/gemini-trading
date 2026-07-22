@@ -14,7 +14,7 @@ def test_instrument_normalizes_uppercase_identity() -> None:
 
 
 def test_instrument_requires_symbol_to_match_assets() -> None:
-    with pytest.raises(ValueError, match="must equal base_asset \+ quote_asset"):
+    with pytest.raises(ValueError, match=r"must equal base_asset \+ quote_asset"):
         Instrument(symbol="BTCUSDT", base_asset="ETH", quote_asset="USDT")
 
 

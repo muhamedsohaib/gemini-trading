@@ -34,7 +34,7 @@ secrets/
 q_table.json
 
 # Generated market-data and research evidence
- data/raw/
+data/raw/
 data/canonical/
 data/research/
 

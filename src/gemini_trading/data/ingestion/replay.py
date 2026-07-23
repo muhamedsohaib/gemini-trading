@@ -4,6 +4,8 @@ import hashlib
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from pathlib import Path
+from typing import Protocol
 
 from gemini_trading.data.datasets.canonical_writer import (
     build_dataset_manifest,
@@ -15,7 +17,6 @@ from gemini_trading.data.datasets.canonical_writer import (
 from gemini_trading.data.errors import MarketDataError
 from gemini_trading.data.ingestion.service import IngestionResult
 from gemini_trading.data.normalization.binance_klines import normalize_binance_klines
-from gemini_trading.data.storage.base import CanonicalStore, RawStore
 from gemini_trading.data.storage.local_immutable import serialize_retrieval_manifest
 from gemini_trading.data.validation.candles import completed_candles, validate_candle_sequence
 from gemini_trading.domain.candle import Candle
@@ -32,12 +33,41 @@ _PROVENANCE_SCHEMA_VERSION = "dataset-provenance-v1"
 _PROVIDER = "binance_spot"
 
 
+class ReplayRawStore(Protocol):
+    """Readable immutable raw evidence required for offline replay."""
+
+    def read_run(
+        self,
+        run_id: str,
+    ) -> tuple[RetrievalManifest, tuple[RawPage, ...]]: ...
+
+    def read_retrieval_manifest_bytes(self, run_id: str) -> bytes: ...
+
+
+class ReplayCanonicalStore(Protocol):
+    """Canonical publication operations required by offline replay."""
+
+    def write_dataset(
+        self,
+        dataset_id: str,
+        jsonl_bytes: bytes,
+        manifest_bytes: bytes,
+    ) -> tuple[Path, Path]: ...
+
+    def write_provenance(
+        self,
+        dataset_id: str,
+        run_id: str,
+        receipt_bytes: bytes,
+    ) -> Path: ...
+
+
 def _utc_now() -> datetime:
     return datetime.now(UTC)
 
 
-def _load_verified_run(
-    raw_store: RawStore,
+def load_verified_run(
+    raw_store: ReplayRawStore,
     run_id: str,
 ) -> tuple[RetrievalManifest, tuple[RawPage, ...], bytes]:
     try:
@@ -78,7 +108,7 @@ def _load_verified_run(
     return manifest, pages, manifest_bytes
 
 
-def _reconstruct_completed_candles(
+def reconstruct_completed_candles(
     manifest: RetrievalManifest,
     pages: tuple[RawPage, ...],
 ) -> tuple[Candle, ...]:
@@ -109,15 +139,15 @@ def _reconstruct_completed_candles(
 class ReplayService:
     """Rebuild canonical output without constructing or calling a provider."""
 
-    raw_store: RawStore
-    canonical_store: CanonicalStore
+    raw_store: ReplayRawStore
+    canonical_store: ReplayCanonicalStore
     clock: Callable[[], datetime] = _utc_now
 
     def replay(self, run_id: str) -> IngestionResult:
         """Verify immutable raw evidence and reproduce canonical output offline."""
 
-        manifest, pages, manifest_bytes = _load_verified_run(self.raw_store, run_id)
-        candles = _reconstruct_completed_candles(manifest, pages)
+        manifest, pages, manifest_bytes = load_verified_run(self.raw_store, run_id)
+        candles = reconstruct_completed_candles(manifest, pages)
         canonical_bytes = serialize_candles(candles)
         dataset_manifest = build_dataset_manifest(
             schema_version=_DATASET_SCHEMA_VERSION,

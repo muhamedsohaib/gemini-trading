@@ -94,6 +94,12 @@ def _manifest_payload(manifest: RetrievalManifest) -> dict[str, object]:
     }
 
 
+def serialize_retrieval_manifest(manifest: RetrievalManifest) -> bytes:
+    """Serialize a retrieval manifest using its deterministic storage encoding."""
+
+    return _json_bytes(_manifest_payload(manifest))
+
+
 def _page_metadata_payload(page: RawPage) -> dict[str, object]:
     return {
         "run_id": page.run_id,
@@ -243,7 +249,11 @@ class LocalImmutableStore:
         if manifest.provider != _PROVIDER:
             raise ValueError("unsupported local raw provider")
         path = self._raw_run_directory(manifest.run_id) / "retrieval-manifest.json"
-        return write_immutable(path, _json_bytes(_manifest_payload(manifest)))
+        return write_immutable(path, serialize_retrieval_manifest(manifest))
+
+    def read_retrieval_manifest_bytes(self, run_id: str) -> bytes:
+        path = self._raw_run_directory(run_id) / "retrieval-manifest.json"
+        return path.read_bytes()
 
     def read_run(self, run_id: str) -> tuple[RetrievalManifest, tuple[RawPage, ...]]:
         run_directory = self._raw_run_directory(run_id)

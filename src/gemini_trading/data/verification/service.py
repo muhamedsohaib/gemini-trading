@@ -5,7 +5,7 @@ import json
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
-from typing import cast
+from typing import Protocol, cast
 
 from gemini_trading.data.datasets.canonical_writer import (
     build_dataset_manifest,
@@ -16,10 +16,10 @@ from gemini_trading.data.datasets.canonical_writer import (
 )
 from gemini_trading.data.errors import MarketDataError
 from gemini_trading.data.ingestion.replay import (
-    _load_verified_run,
-    _reconstruct_completed_candles,
+    ReplayRawStore,
+    load_verified_run,
+    reconstruct_completed_candles,
 )
-from gemini_trading.data.storage.base import CanonicalStore, RawStore
 from gemini_trading.data.validation.candles import validate_candle_sequence
 from gemini_trading.domain.candle import Candle
 from gemini_trading.domain.dataset import (
@@ -43,6 +43,14 @@ _CHECKS = (
     "parsed_continuity",
     "completed_state",
 )
+
+
+class VerificationCanonicalStore(Protocol):
+    """Readable canonical artifacts required for independent verification."""
+
+    def read_dataset(self, dataset_id: str) -> tuple[bytes, bytes]: ...
+
+    def read_provenance(self, dataset_id: str, run_id: str) -> bytes: ...
 
 
 def _json_object(raw: bytes, description: str) -> dict[str, object]:
@@ -209,21 +217,19 @@ class VerificationResult:
 class VerificationService:
     """Recompute every persisted integrity claim without network access."""
 
-    raw_store: RawStore
-    canonical_store: CanonicalStore
+    raw_store: ReplayRawStore
+    canonical_store: VerificationCanonicalStore
 
     def verify(self, dataset_id: str, run_id: str) -> VerificationResult:
         """Verify raw evidence, deterministic canonical output, and provenance."""
 
         try:
-            retrieval_manifest, pages, retrieval_manifest_bytes = _load_verified_run(
+            retrieval_manifest, pages, retrieval_manifest_bytes = load_verified_run(
                 self.raw_store,
                 run_id,
             )
-            reconstructed = _reconstruct_completed_candles(retrieval_manifest, pages)
-            canonical_bytes, dataset_manifest_bytes = self.canonical_store.read_dataset(
-                dataset_id
-            )
+            reconstructed = reconstruct_completed_candles(retrieval_manifest, pages)
+            canonical_bytes, dataset_manifest_bytes = self.canonical_store.read_dataset(dataset_id)
             provenance_bytes = self.canonical_store.read_provenance(dataset_id, run_id)
 
             parsed_candles = _parse_canonical_candles(canonical_bytes)
@@ -262,9 +268,7 @@ class VerificationService:
             provenance = _parse_provenance(provenance_bytes)
             if provenance.schema_version != _PROVENANCE_SCHEMA_VERSION:
                 raise MarketDataError("unsupported provenance schema")
-            retrieval_manifest_sha256 = hashlib.sha256(
-                retrieval_manifest_bytes
-            ).hexdigest()
+            retrieval_manifest_sha256 = hashlib.sha256(retrieval_manifest_bytes).hexdigest()
             expected_provenance = build_provenance(
                 schema_version=_PROVENANCE_SCHEMA_VERSION,
                 dataset_id=dataset_id,

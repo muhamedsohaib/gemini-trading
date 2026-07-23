@@ -55,9 +55,7 @@ def test_local_store_accepts_identical_rerun_and_rejects_conflicting_bytes(
     second_paths = store.write(artifacts)
     assert first_paths == second_paths
 
-    metrics_path = (
-        tmp_path / "data" / "research" / artifacts.experiment_id / "metrics.json"
-    )
+    metrics_path = tmp_path / "data" / "research" / artifacts.experiment_id / "metrics.json"
     metrics_path.write_bytes(b"{}\n")
 
     with pytest.raises(ArtifactConflictError, match="metrics.json"):

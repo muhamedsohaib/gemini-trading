@@ -1,26 +1,25 @@
-name: Task 9 GREEN Cleanup
+name: Task 9 GREEN Diagnostic 2
 
 on:
   pull_request:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  cleanup:
+  diagnostic:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2
-        with:
-          ref: ${{ github.head_ref }}
       - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
       - uses: actions/setup-python@v6.2.0
         with:
           python-version: "3.12"
       - run: uv sync --all-groups --frozen
-      - name: Apply minimal Task 9 corrections and verify
+      - name: Capture corrected Task 9 outputs
         run: |
-          python - <<'PY'
+          set +e
+          python - <<'PY' > task9-patch2.txt 2>&1
           from pathlib import Path
 
           local = Path("src/gemini_trading/data/storage/local_immutable.py")
@@ -34,16 +33,12 @@ jobs:
               return _json_bytes(_manifest_payload(manifest))
           """
           if "def serialize_retrieval_manifest(" not in content:
-              if function_marker not in content:
-                  raise SystemExit("retrieval serializer insertion point not found")
               content = content.replace(function_marker, function + function_marker, 1)
-          old_write = "return write_immutable(path, _json_bytes(_manifest_payload(manifest)))"
-          if old_write in content:
-              content = content.replace(
-                  old_write,
-                  "return write_immutable(path, serialize_retrieval_manifest(manifest))",
-                  1,
-              )
+          content = content.replace(
+              "return write_immutable(path, _json_bytes(_manifest_payload(manifest)))",
+              "return write_immutable(path, serialize_retrieval_manifest(manifest))",
+              1,
+          )
           method_marker = "    def read_run(self, run_id: str) -> tuple[RetrievalManifest, tuple[RawPage, ...]]:"
           method = (
               "    def read_retrieval_manifest_bytes(self, run_id: str) -> bytes:\n"
@@ -51,50 +46,46 @@ jobs:
               "        return path.read_bytes()\n\n"
           )
           if "def read_retrieval_manifest_bytes(" not in content:
-              if method_marker not in content:
-                  raise SystemExit("retrieval reader insertion point not found")
               content = content.replace(method_marker, method + method_marker, 1)
           local.write_text(content)
 
           replay = Path("src/gemini_trading/data/ingestion/replay.py")
           content = replay.read_text()
           content = content.replace("def _load_verified_run(", "def load_verified_run(")
-          content = content.replace(
-              "def _reconstruct_completed_candles(",
-              "def reconstruct_completed_candles(",
-          )
-          content = content.replace(
-              "_load_verified_run(self.raw_store, run_id)",
-              "load_verified_run(self.raw_store, run_id)",
-          )
-          content = content.replace(
-              "_reconstruct_completed_candles(manifest, pages)",
-              "reconstruct_completed_candles(manifest, pages)",
-          )
+          content = content.replace("def _reconstruct_completed_candles(", "def reconstruct_completed_candles(")
+          content = content.replace("_load_verified_run(self.raw_store, run_id)", "load_verified_run(self.raw_store, run_id)")
+          content = content.replace("_reconstruct_completed_candles(manifest, pages)", "reconstruct_completed_candles(manifest, pages)")
           replay.write_text(content)
 
           verification = Path("src/gemini_trading/data/verification/service.py")
           content = verification.read_text()
-          content = content.replace(
-              "    _load_verified_run,\n    _reconstruct_completed_candles,",
-              "    load_verified_run,\n    reconstruct_completed_candles,",
-          )
+          content = content.replace("    _load_verified_run,\n    _reconstruct_completed_candles,", "    load_verified_run,\n    reconstruct_completed_candles,")
           content = content.replace("_load_verified_run(", "load_verified_run(")
-          content = content.replace(
-              "_reconstruct_completed_candles(",
-              "reconstruct_completed_candles(",
-          )
+          content = content.replace("_reconstruct_completed_candles(", "reconstruct_completed_candles(")
           verification.write_text(content)
+          print("patch applied")
           PY
-          uv run ruff format src/gemini_trading/data/ingestion/replay.py src/gemini_trading/data/verification src/gemini_trading/data/storage/base.py src/gemini_trading/data/storage/local_immutable.py tests/unit/data/ingestion/test_replay.py tests/unit/data/verification/test_service.py tests/integration/test_replay_without_network.py
-          uv run ruff check src/gemini_trading/data/ingestion/replay.py src/gemini_trading/data/verification src/gemini_trading/data/storage/base.py src/gemini_trading/data/storage/local_immutable.py tests/unit/data/ingestion/test_replay.py tests/unit/data/verification/test_service.py tests/integration/test_replay_without_network.py --fix
-          uv run ruff format --check src/gemini_trading/data/ingestion/replay.py src/gemini_trading/data/verification src/gemini_trading/data/storage/base.py src/gemini_trading/data/storage/local_immutable.py tests/unit/data/ingestion/test_replay.py tests/unit/data/verification/test_service.py tests/integration/test_replay_without_network.py
-          uv run ruff check src/gemini_trading/data/ingestion/replay.py src/gemini_trading/data/verification src/gemini_trading/data/storage/base.py src/gemini_trading/data/storage/local_immutable.py tests/unit/data/ingestion/test_replay.py tests/unit/data/verification/test_service.py tests/integration/test_replay_without_network.py
-          uv run pyright
-          uv run pytest tests/unit/data/ingestion/test_replay.py tests/unit/data/verification/test_service.py tests/integration/test_replay_without_network.py tests/unit/data/storage tests/unit/data/datasets tests/unit/data/validation tests/property tests/regression tests/unit/safety -q
-          rm -f .github/workflows/task9-red-pyright.yml .github/workflows/task9-green-cleanup.yml
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/gemini_trading/data/ingestion/replay.py src/gemini_trading/data/verification src/gemini_trading/data/storage/base.py src/gemini_trading/data/storage/local_immutable.py tests/unit/data/ingestion/test_replay.py tests/unit/data/verification/test_service.py tests/integration/test_replay_without_network.py .github/workflows
-          git commit -m "feat: replay and verify canonical market data"
-          git push origin HEAD:${{ github.head_ref }}
+          echo "patch_status=$?" >> task9-patch2.txt
+          uv run ruff format src/gemini_trading/data/ingestion/replay.py src/gemini_trading/data/verification src/gemini_trading/data/storage/base.py src/gemini_trading/data/storage/local_immutable.py tests/unit/data/ingestion/test_replay.py tests/unit/data/verification/test_service.py tests/integration/test_replay_without_network.py > task9-format2.txt 2>&1
+          echo "format_status=$?" >> task9-format2.txt
+          uv run ruff check src/gemini_trading/data/ingestion/replay.py src/gemini_trading/data/verification src/gemini_trading/data/storage/base.py src/gemini_trading/data/storage/local_immutable.py tests/unit/data/ingestion/test_replay.py tests/unit/data/verification/test_service.py tests/integration/test_replay_without_network.py --fix > task9-lint2.txt 2>&1
+          echo "lint_status=$?" >> task9-lint2.txt
+          uv run pyright > task9-pyright2.txt 2>&1
+          echo "pyright_status=$?" >> task9-pyright2.txt
+          uv run pytest tests/unit/data/ingestion/test_replay.py tests/unit/data/verification/test_service.py tests/integration/test_replay_without_network.py tests/unit/data/storage tests/unit/data/datasets tests/unit/data/validation tests/property tests/regression tests/unit/safety -q > task9-pytest2.txt 2>&1
+          echo "pytest_status=$?" >> task9-pytest2.txt
+          exit 0
+      - uses: actions/upload-artifact@v4.6.2
+        with:
+          name: task9-green-diagnostic-2
+          path: |
+            task9-*2.txt
+            src/gemini_trading/data/ingestion/replay.py
+            src/gemini_trading/data/verification
+            src/gemini_trading/data/storage/base.py
+            src/gemini_trading/data/storage/local_immutable.py
+            tests/unit/data/ingestion/test_replay.py
+            tests/unit/data/verification/test_service.py
+            tests/integration/test_replay_without_network.py
+          if-no-files-found: error
+          retention-days: 1

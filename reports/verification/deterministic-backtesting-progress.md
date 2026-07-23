@@ -30,11 +30,11 @@ Implemented:
 - sorted compact UTF-8 JSON with one terminal newline;
 - ordered deterministic JSONL serialization.
 
-Green CI evidence will be appended after a stable implementation checkpoint completes GitHub Actions.
+Checkpoint CI run `29993614209` passed after Task 2 with 245 tests passed, one bounded public live smoke test intentionally skipped, and formatting, linting, strict typing, build, dependency audit, tracked-file policy, secret scan, and gitleaks all passing.
 
 ### Remaining limitations
 
-This task provides only foundational errors and serialization. It does not yet load datasets, simulate orders, calculate account state, or produce backtest results.
+This task provides only foundational errors and serialization. It does not yet simulate orders, calculate account transitions, or produce backtest results.
 
 ## Task 2 — Immutable experiment, order, fill, and account contracts
 
@@ -62,8 +62,43 @@ Implemented:
 - non-negative long-only account state and exact ledger records;
 - SHA-256, Git commit, Decimal, identifier, chronology, and status validation.
 
-Green CI evidence will be appended after the checkpoint workflow completes.
+Checkpoint CI run `29993614209` passed with 245 tests passed and one intentional live-test skip. Two defects were preserved in the history and corrected: a Ruff control-flow finding and a pytest test-module filename collision.
 
 ### Remaining limitations
 
-These are contracts only. Dataset loading, costs, liquidity, execution simulation, accounting transitions, engine orchestration, artifacts, replay, and verification remain unimplemented.
+These are contracts only. Costs, liquidity, execution simulation, accounting transitions, engine orchestration, artifacts, replay, and verification remain unimplemented.
+
+## Task 3 — Verified canonical dataset reader
+
+### Goal
+
+Load immutable Market Data Core datasets without network access and independently verify manifest encoding, content hashes, dataset identity, exact candle schema, chronology, completion, provider identity, and canonical byte encoding.
+
+### Red evidence
+
+- Commit: `2cef5476c029c498f78fb74a6bcb2381479575cd`
+- GitHub Actions run: `29993908820`
+- Result: failed as expected because `gemini_trading.research.dataset_reader` did not exist
+
+### First green attempt and defect
+
+- Implementation commit: `dd29ca47345dc49bb503fddf49c246f9c12ab69d`
+- GitHub Actions run: `29994006856`
+- Formatting, linting, strict typing, and gitleaks passed
+- Pytest exposed that tampered canonical bytes were parsed before their stored hash was checked
+- Observed error was `invalid candle fields` instead of the required canonical-content identity failure
+
+### Remediation and green evidence
+
+- Remediation commit: `f8f8475ffa85513ad1a5db0e462afd78ae782575`
+- Focused diagnostic run: `29994232184` — 5 tests passed
+- Complete CI run: `29994232051` — passed
+- Content SHA-256 and dataset identity are now verified before any candle row is trusted or parsed
+- Exact manifest and candle field sets are enforced
+- Re-serialization must reproduce the persisted canonical bytes
+- Existing completed-candle sequence validation is reused
+- Storage, decoding, and parsing failures are converted to safe `DatasetVerificationError` messages without raw payloads or absolute paths
+
+### Remaining limitations
+
+The reader trusts only local immutable canonical storage in this milestone. It does not add a database adapter, order-book data, trade-level data, strategy logic, or exchange access.

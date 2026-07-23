@@ -52,10 +52,8 @@ def apply_fill(
             raise AccountingInvariantError("buy fill exceeds available cash")
         position_delta = fill.quantity
         resulting_position = account.position_quantity + position_delta
-        existing_cost_basis = account.position_quantity * account.average_entry_price
-        average_entry_price = (existing_cost_basis + fill.notional + fill.fee) / (
-            resulting_position
-        )
+        position_cost_basis = account.position_cost_basis + fill.notional + fill.fee
+        average_entry_price = position_cost_basis / resulting_position
         realized_pnl = account.realized_pnl
         event_type = "fill.buy"
     else:
@@ -64,9 +62,17 @@ def apply_fill(
         cash_delta = fill.notional - fill.fee
         position_delta = -fill.quantity
         resulting_position = account.position_quantity + position_delta
-        cost_basis_released = account.average_entry_price * fill.quantity
+        if resulting_position == 0:
+            cost_basis_released = account.position_cost_basis
+            position_cost_basis = _ZERO
+            average_entry_price = _ZERO
+        else:
+            cost_basis_released = (
+                account.position_cost_basis * fill.quantity / account.position_quantity
+            )
+            position_cost_basis = account.position_cost_basis - cost_basis_released
+            average_entry_price = position_cost_basis / resulting_position
         realized_pnl = account.realized_pnl + cash_delta - cost_basis_released
-        average_entry_price = _ZERO if resulting_position == 0 else account.average_entry_price
         event_type = "fill.sell_to_close"
 
     resulting_cash = account.cash + cash_delta
@@ -88,6 +94,7 @@ def apply_fill(
         marked_equity=marked_equity,
         peak_equity=peak_equity,
         drawdown=_drawdown(marked_equity, peak_equity),
+        position_cost_basis=position_cost_basis,
     )
     ledger_entry = LedgerEntry(
         sequence=sequence,
@@ -156,5 +163,8 @@ def verify_reconciliation(
         raise AccountingInvariantError("terminal position does not reconcile")
     if fee_total != account.cumulative_fees:
         raise AccountingInvariantError("terminal fees do not reconcile")
-    if account.position_quantity == 0 and account.cash != initial_cash + account.realized_pnl:
-        raise AccountingInvariantError("flat-account realized profit does not reconcile")
+    if account.position_quantity == 0:
+        if account.position_cost_basis != 0:
+            raise AccountingInvariantError("flat account retains position cost basis")
+        if account.cash != initial_cash + account.realized_pnl:
+            raise AccountingInvariantError("flat-account realized profit does not reconcile")

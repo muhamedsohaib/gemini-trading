@@ -449,4 +449,3 @@ This append-only log records fresh task and checkpoint evidence for GitHub issue
 - No live Binance request was executed during final verification. The bounded public smoke test remains explicit, credential-free, and opt-in through `GEMINI_TRADING_RUN_LIVE_API_TESTS=1`.
 - The Task 8 cross-store rollback limitation, Task 9 informational-timestamp authenticity boundary, local-filesystem storage scope, issue #7 database deferral, and no-profitability claim remain explicit.
 - The milestone establishes data integrity and reproducibility. It does not establish strategy profitability or authorize live execution.
-

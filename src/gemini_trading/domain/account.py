@@ -38,6 +38,7 @@ class AccountSnapshot:
     marked_equity: Decimal
     peak_equity: Decimal
     drawdown: Decimal
+    position_cost_basis: Decimal = Decimal("0")
 
     def __post_init__(self) -> None:
         _require_non_negative(self.cash, "cash")
@@ -50,13 +51,23 @@ class AccountSnapshot:
         _require_non_negative(self.marked_equity, "marked_equity")
         _require_non_negative(self.peak_equity, "peak_equity")
         _require_non_negative(self.drawdown, "drawdown")
+        _require_non_negative(self.position_cost_basis, "position_cost_basis")
 
         if self.reserved_cash > self.cash:
             raise ValueError("reserved_cash cannot exceed cash")
-        if self.position_quantity == 0 and self.average_entry_price != 0:
-            raise ValueError("average_entry_price must be zero without a position")
-        if self.position_quantity > 0 and self.average_entry_price <= 0:
-            raise ValueError("average_entry_price must be positive with a position")
+        if self.position_quantity == 0:
+            if self.average_entry_price != 0:
+                raise ValueError("average_entry_price must be zero without a position")
+            if self.position_cost_basis != 0:
+                raise ValueError("position_cost_basis must be zero without a position")
+        else:
+            if self.average_entry_price <= 0:
+                raise ValueError("average_entry_price must be positive with a position")
+            if self.position_cost_basis == 0:
+                inferred_cost_basis = self.average_entry_price * self.position_quantity
+                if inferred_cost_basis <= 0:
+                    raise ValueError("position_cost_basis must be positive with a position")
+                object.__setattr__(self, "position_cost_basis", inferred_cost_basis)
         if self.drawdown > 1:
             raise ValueError("drawdown must be between zero and one")
         if self.peak_equity < self.marked_equity:
@@ -69,7 +80,7 @@ class AccountSnapshot:
         if not cash.is_finite() or cash <= 0:
             raise ValueError("cash must be finite and positive")
         zero = Decimal("0")
-        return cls(cash, zero, zero, zero, zero, zero, zero, cash, cash, zero)
+        return cls(cash, zero, zero, zero, zero, zero, zero, cash, cash, zero, zero)
 
 
 @dataclass(frozen=True, slots=True)

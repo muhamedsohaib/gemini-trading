@@ -2,7 +2,7 @@
 
 ## Status
 
-Approved in principle on 2026-07-23. Written specification pending final user review before implementation planning.
+Approved on 2026-07-23. The implementation plan is committed separately and may proceed only through the milestone verification gates.
 
 This milestone is Program 5 in the reconstruction sequence. It follows the verified Market Data Core and precedes the candidate strategy milestone.
 
@@ -386,7 +386,7 @@ The implementation plan must use test-driven development and include:
 - exact Decimal and minimum-notional tests;
 - duplicate-cycle idempotency tests;
 - deterministic rerun and byte-equivalence tests;
-- clean failure-artifact tests.
+- exact pull-request-head and merged-main verification.
 
 The synthetic fixture strategy must be intentionally simple and clearly marked as non-production. It exists only to exercise buy, hold, sell, market, limit, rejection, and partial-fill paths.
 

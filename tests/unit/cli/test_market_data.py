@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -32,11 +33,12 @@ _VALID_INGEST_ARGS = [
 def _decoded_output(text: str) -> dict[str, object]:
     assert text.endswith("\n")
     assert text.count("\n") == 1
-    assert ": " not in text
-    assert ", " not in text
-    value = json.loads(text)
+    value: object = json.loads(text)
     assert isinstance(value, dict)
-    return value
+    assert text == (
+        json.dumps(value, ensure_ascii=False, separators=(",", ":"), sort_keys=True) + "\n"
+    )
+    return cast(dict[str, object], value)
 
 
 def _install_successful_ingestion(
@@ -105,10 +107,11 @@ def test_ingest_requires_every_explicit_identity_and_window_argument(
     assert captured.out == ""
     payload = _decoded_output(captured.err)
     assert payload["status"] == "failed"
-    error = payload["error"]
-    assert isinstance(error, dict)
+    error_value = payload["error"]
+    assert isinstance(error_value, dict)
+    error = cast(dict[str, object], error_value)
     assert error["type"] == "CliUsageError"
-    message = error["message"]
+    message: object = error["message"]
     assert isinstance(message, str)
     for flag in (
         "--symbol",

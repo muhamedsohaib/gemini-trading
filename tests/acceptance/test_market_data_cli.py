@@ -1,6 +1,7 @@
 import json
 import tomllib
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -15,22 +16,29 @@ _DATASET_ID = "a" * 64
 def _payload(text: str) -> dict[str, object]:
     assert text.endswith("\n")
     assert text.count("\n") == 1
-    assert ": " not in text
-    assert ", " not in text
-    decoded = json.loads(text)
+    decoded: object = json.loads(text)
     assert isinstance(decoded, dict)
-    return decoded
+    assert text == (
+        json.dumps(decoded, ensure_ascii=False, separators=(",", ":"), sort_keys=True) + "\n"
+    )
+    return cast(dict[str, object], decoded)
 
 
 def test_project_script_and_help_expose_all_market_data_commands(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     project_root = Path(__file__).parents[2]
-    configuration = tomllib.loads((project_root / "pyproject.toml").read_text(encoding="utf-8"))
-    project = configuration["project"]
-    assert isinstance(project, dict)
-    scripts = project["scripts"]
-    assert isinstance(scripts, dict)
+    configuration_value: object = tomllib.loads(
+        (project_root / "pyproject.toml").read_text(encoding="utf-8")
+    )
+    assert isinstance(configuration_value, dict)
+    configuration = cast(dict[str, object], configuration_value)
+    project_value = configuration["project"]
+    assert isinstance(project_value, dict)
+    project = cast(dict[str, object], project_value)
+    scripts_value = project["scripts"]
+    assert isinstance(scripts_value, dict)
+    scripts = cast(dict[str, object], scripts_value)
     assert scripts["gemini-trading"] == "gemini_trading.cli.main:main"
 
     with pytest.raises(SystemExit) as error:
@@ -173,8 +181,10 @@ def test_live_mode_is_rejected_before_provider_construction(
     assert captured.out == ""
     payload = _payload(captured.err)
     assert payload["status"] == "failed"
-    error = payload["error"]
-    assert isinstance(error, dict)
+    error_value = payload["error"]
+    assert isinstance(error_value, dict)
+    error = cast(dict[str, object], error_value)
     assert error["type"] == "UnsafeExecutionModeError"
-    assert "only research and paper are allowed" in str(error["message"])
+    message: object = error["message"]
+    assert "only research and paper are allowed" in str(message)
     assert "Traceback" not in captured.err

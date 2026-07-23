@@ -6,8 +6,8 @@ from typing import cast
 
 import pytest
 
+import gemini_trading.cli.main as cli_main
 from gemini_trading.cli import research
-from gemini_trading.cli.main import main
 from gemini_trading.safety.execution_mode import UnsafeExecutionModeError
 
 
@@ -25,7 +25,7 @@ def _decoded_output(text: str) -> dict[str, object]:
 def test_research_backtest_requires_every_explicit_argument(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    code = main(["research", "backtest"])
+    code = cli_main.main(["research", "backtest"])
 
     captured = capsys.readouterr()
     assert code == 2
@@ -54,7 +54,7 @@ def test_research_runtime_policy_is_loaded_before_config_or_services(
     monkeypatch.setattr(research, "load_runtime_policy", reject_mode)
     monkeypatch.setattr(research, "_load_config", fail_config)
 
-    code = main(
+    code = cli_main.main(
         [
             "research",
             "backtest",
@@ -87,9 +87,9 @@ def test_unclassified_research_failure_uses_safe_research_message(
     def fail(_arguments: object) -> dict[str, object]:
         raise RuntimeError("sensitive traceback detail")
 
-    monkeypatch.setattr(research, "run_research", fail)
+    monkeypatch.setattr(cli_main, "run_research", fail)
 
-    code = main(
+    code = cli_main.main(
         [
             "research",
             "verify",

@@ -3,7 +3,6 @@
 import hashlib
 from dataclasses import dataclass, replace
 from decimal import Decimal
-from typing import cast
 
 from gemini_trading.domain.account import AccountSnapshot, LedgerEntry
 from gemini_trading.domain.candle import Candle
@@ -31,6 +30,17 @@ from gemini_trading.research.identity import experiment_id
 
 _ACTIVE_STATUSES = {OrderStatus.ACCEPTED, OrderStatus.PARTIALLY_FILLED}
 _ZERO = Decimal("0")
+
+
+def _validated_strategy_intents(value: object) -> tuple[OrderIntent, ...]:
+    if not isinstance(value, tuple):
+        raise StrategyContractError("strategy must return a tuple of OrderIntent values")
+    intents: list[OrderIntent] = []
+    for item in value:
+        if not isinstance(item, OrderIntent):
+            raise StrategyContractError("strategy must return a tuple of OrderIntent values")
+        intents.append(item)
+    return tuple(intents)
 
 
 @dataclass(frozen=True, slots=True)
@@ -312,12 +322,7 @@ class BacktestEngine:
             account=self._account,
             active_orders=self._active_orders(),
         )
-        raw_intents: object = self._strategy.on_candle(context)
-        if not isinstance(raw_intents, tuple) or not all(
-            isinstance(intent, OrderIntent) for intent in raw_intents
-        ):
-            raise StrategyContractError("strategy must return a tuple of OrderIntent values")
-        intents = cast(tuple[OrderIntent, ...], raw_intents)
+        intents = _validated_strategy_intents(self._strategy.on_candle(context))
         decision_sequence = len(self._decisions) + 1
         decision = StrategyDecision(
             decision_sequence=decision_sequence,

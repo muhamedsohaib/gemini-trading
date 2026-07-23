@@ -2,9 +2,8 @@
 
 from pathlib import Path
 
-from research_fixture_support import write_completed_fixture_experiment
-
 from gemini_trading.research.verification import ResearchVerificationService
+from research_fixture_support import write_completed_fixture_experiment
 
 
 def test_verification_recomputes_result_and_returns_sorted_checks(tmp_path: Path) -> None:

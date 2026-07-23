@@ -1,0 +1,33 @@
+name: Debug Format Output
+
+# Temporary diagnostic workflow; remove after Task 4 is green.
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  debug-format:
+    if: github.event.pull_request.number == 13
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.10.0"
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - name: Capture formatter diff
+        shell: bash
+        run: |
+          uv run ruff format .
+          git diff -- . ':!uv.lock' > format-output.diff
+      - uses: actions/upload-artifact@v4
+        with:
+          name: format-output
+          path: format-output.diff
+          if-no-files-found: error
+          retention-days: 1

@@ -33,7 +33,7 @@ def test_market_data_documentation_covers_the_verified_operator_contract() -> No
         "data/raw/binance_spot/<run_id>/",
         "data/canonical/<dataset_id>/",
         "candle-dataset-v1",
-        "sha256(utf8(schema_version) + b\"\\n\" + canonical_jsonl_bytes)",
+        'sha256(utf8(schema_version) + b"\\n" + canonical_jsonl_bytes)',
         "GEMINI_TRADING_RUN_LIVE_API_TESTS=1",
     ):
         assert required_contract in combined

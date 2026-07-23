@@ -3,6 +3,7 @@
 import hashlib
 from dataclasses import dataclass, replace
 from decimal import Decimal
+from typing import cast
 
 from gemini_trading.domain.account import AccountSnapshot, LedgerEntry
 from gemini_trading.domain.candle import Candle
@@ -311,11 +312,12 @@ class BacktestEngine:
             account=self._account,
             active_orders=self._active_orders(),
         )
-        intents = self._strategy.on_candle(context)
-        if not isinstance(intents, tuple) or not all(
-            isinstance(intent, OrderIntent) for intent in intents
+        raw_intents: object = self._strategy.on_candle(context)
+        if not isinstance(raw_intents, tuple) or not all(
+            isinstance(intent, OrderIntent) for intent in raw_intents
         ):
             raise StrategyContractError("strategy must return a tuple of OrderIntent values")
+        intents = cast(tuple[OrderIntent, ...], raw_intents)
         decision_sequence = len(self._decisions) + 1
         decision = StrategyDecision(
             decision_sequence=decision_sequence,

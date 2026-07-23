@@ -120,7 +120,9 @@ def test_ethusdt_4h_acceptance_matrix_is_byte_reproducible_and_verifiable(
     assert manifest.failure_type is None
     assert manifest.failure_message is None
     assert manifest.server_time_snapshot == _SERVER_TIME
-    assert manifest.page_hashes == tuple(hashlib.sha256(payload).hexdigest() for payload in payloads)
+    assert manifest.page_hashes == tuple(
+        hashlib.sha256(payload).hexdigest() for payload in payloads
+    )
     assert tuple(page.response_bytes for page in raw_pages) == payloads
 
     raw_directory = tmp_path / "data" / "raw" / "binance_spot" / result.run_id
@@ -148,7 +150,9 @@ def test_ethusdt_4h_acceptance_matrix_is_byte_reproducible_and_verifiable(
         "110.000000",
     ]
     assert b'"open_time":"2025-01-01T12:00:00.000Z"' not in canonical_before
-    assert hashlib.sha256(b"candle-dataset-v1\n" + canonical_before).hexdigest() == result.dataset_id
+    assert (
+        hashlib.sha256(b"candle-dataset-v1\n" + canonical_before).hexdigest() == result.dataset_id
+    )
 
     replay = ReplayService(
         raw_store=store,

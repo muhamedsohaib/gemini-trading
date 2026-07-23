@@ -15,6 +15,26 @@ The public repository will contain canonical market-data contracts, deterministi
 
 Private strategy parameters, trained proprietary artifacts, production credentials, production infrastructure, and investor-only evidence are excluded.
 
+## Verified Market Data Core
+
+The repository includes a deterministic public Binance Spot market-data pipeline for research and paper only. Live mode is rejected before provider construction. The pipeline stores exact raw response evidence, validates completed candle sequences, creates deterministic canonical JSONL and dataset identities, supports provider-free replay, and independently verifies persisted evidence.
+
+Command surface:
+
+```text
+gemini-trading market-data ingest
+gemini-trading market-data replay
+gemini-trading market-data verify
+```
+
+The Market Data Core establishes data integrity and reproducibility. It does not establish strategy profitability.
+
+See:
+
+- `docs/architecture/adr/0002-market-data-core.md` for the architecture decision and trust boundaries.
+- `docs/operations/binance-market-data.md` for exact operator commands, supported intervals, storage layout, replay, verification, and the optional bounded public smoke test.
+- `reports/verification/market-data-core-final.md` for final exact-head milestone evidence after Task 12 verification is complete.
+
 ## Safety
 
 The current package fails closed when configured for demo, live, production, or an unknown mode. Historical prototype code is preserved under `legacy/prototype_v0/` and is not supported for execution.

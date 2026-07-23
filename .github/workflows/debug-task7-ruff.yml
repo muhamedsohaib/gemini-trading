@@ -1,6 +1,6 @@
 name: Debug Task 7 Ruff
 
-# Temporary Task 7 diagnostic; remove after the exact lint finding is captured.
+# Temporary Task 7 diagnostic; remove after the exact lint fix is captured.
 on:
   pull_request:
 
@@ -20,17 +20,14 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync --all-groups --frozen
-      - name: Capture Task 7 Ruff output
+      - name: Capture Task 7 Ruff fix
         shell: bash
         run: |
-          set +e
-          uv run ruff check tests/unit/research/test_accounting.py tests/property/test_accounting_invariants.py --output-format=full > task7-ruff-output.txt 2>&1
-          status=$?
-          echo "exit_status=$status" >> task7-ruff-output.txt
-          exit 0
+          uv run ruff check tests/unit/research/test_accounting.py tests/property/test_accounting_invariants.py --fix
+          git diff -- tests/unit/research/test_accounting.py tests/property/test_accounting_invariants.py > task7-ruff-fix.diff
       - uses: actions/upload-artifact@v4
         with:
-          name: task7-ruff-output
-          path: task7-ruff-output.txt
+          name: task7-ruff-fix
+          path: task7-ruff-fix.diff
           if-no-files-found: error
           retention-days: 1

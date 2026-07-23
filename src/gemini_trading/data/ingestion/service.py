@@ -175,9 +175,9 @@ class IngestionService:
 
             while cursor < request.end_time:
                 provider_page = self._call_with_retry(
-                    lambda: self._provider.fetch_klines(
+                    lambda current_cursor=cursor: self._provider.fetch_klines(
                         request,
-                        cursor,
+                        current_cursor,
                         self._page_limit,
                     ),
                     retry_count,
@@ -243,9 +243,7 @@ class IngestionService:
                 status=RetrievalStatus.COMPLETED,
                 failure=None,
             )
-            retrieval_manifest_path = self._raw_store.write_retrieval_manifest(
-                retrieval_manifest
-            )
+            retrieval_manifest_path = self._raw_store.write_retrieval_manifest(retrieval_manifest)
             completed_manifest_written = True
             paths.append(("retrieval_manifest", retrieval_manifest_path))
             retrieval_manifest_sha256 = hashlib.sha256(

@@ -52,7 +52,20 @@ def _seed_verified_dataset(
             RawPage(
                 run_id=run_id,
                 sequence=sequence,
-                request_parameters=(("limit", "1000"), ("symbol", "ETHUSDT")),
+                request_parameters=tuple(
+                    sorted(
+                        (
+                            ("symbol", "ETHUSDT"),
+                            ("interval", "4h"),
+                            (
+                                "startTime",
+                                str(1_735_689_600_000 + (sequence - 1) * 14_400_000),
+                            ),
+                            ("endTime", "1735775999999"),
+                            ("limit", "1000"),
+                        )
+                    )
+                ),
                 retrieved_at=_SERVER_TIME + timedelta(seconds=sequence),
                 server_time_snapshot=_SERVER_TIME,
                 http_status=200,

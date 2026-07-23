@@ -37,7 +37,17 @@ def test_replay_completes_with_network_entry_points_disabled(
         RawPage(
             run_id="run-offline",
             sequence=1,
-            request_parameters=(("limit", "1000"), ("symbol", "ETHUSDT")),
+            request_parameters=tuple(
+                sorted(
+                    (
+                        ("symbol", "ETHUSDT"),
+                        ("interval", "4h"),
+                        ("startTime", "1735689600000"),
+                        ("endTime", "1735703999999"),
+                        ("limit", "1000"),
+                    )
+                )
+            ),
             retrieved_at=_SERVER_TIME,
             server_time_snapshot=_SERVER_TIME,
             http_status=200,

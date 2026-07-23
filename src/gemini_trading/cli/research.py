@@ -259,7 +259,7 @@ def run_research(arguments: Namespace) -> dict[str, object]:
 
     experiment_id = _identity(getattr(arguments, "experiment_id", None), "experiment identity")
 
-    def commit_resolver():
+    def commit_resolver() -> str:
         return resolve_clean_git_commit(project_root)
 
     if command == "replay":

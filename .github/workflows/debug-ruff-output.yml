@@ -1,0 +1,59 @@
+name: Debug Ruff Output
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  debug-ruff:
+    if: github.event.pull_request.number == 13
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.10.0"
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - id: ruff
+        name: Capture Ruff output
+        shell: bash
+        run: |
+          set +e
+          output="$(uv run ruff check . 2>&1)"
+          status=$?
+          {
+            echo "status=$status"
+            echo "output<<RUFF_OUTPUT"
+            printf '%s\n' "$output"
+            echo "RUFF_OUTPUT"
+          } >> "$GITHUB_OUTPUT"
+      - uses: actions/github-script@v8
+        with:
+          script: |
+            const marker = '<!-- deterministic-backtesting-ruff-debug -->';
+            const body = `${marker}\n\n## Temporary Ruff diagnostic\n\nExit status: \`${{ steps.ruff.outputs.status }}\`\n\n\`\`\`text\n${{ steps.ruff.outputs.output }}\n\`\`\``;
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number,
+              per_page: 100,
+            });
+            const existing = comments.find((comment) => comment.body?.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }

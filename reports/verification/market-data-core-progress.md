@@ -182,3 +182,36 @@ This append-only log records fresh task and checkpoint evidence for GitHub issue
 - Property identities are prefixed to avoid Windows-reserved basename flakiness while retaining varied valid-segment coverage.
 - No network access, credentials, private endpoint, strategy, signal, order, or execution behavior was introduced.
 - Limitation: the final Task 6 gate was observed on GitHub-hosted Ubuntu; a fresh Windows-local run remains required at the operator checkpoint and final exact-head verification.
+
+## Task 7 — Deterministic canonical dataset writer
+
+### RED phase
+
+- Initial test files were committed at `b07a5323369cef63c675a4ca75d9775c3d127b3c` and `ac1f9d30e3d14c4a3b0d00ee700e179e4d961b53`.
+- GitHub Actions run `29969257505` stopped at Ruff formatting before the intended missing-module failure; this run was rejected as RED evidence. `gitleaks` passed.
+- Repository-pinned Ruff format and lint fixes were applied through a temporary cleanup workflow, which removed itself from the clean test tree.
+- Bot-authored formatted head `ca967762c14e733ac566eefd406d0d7c480f55bb` was marked `action_required` without jobs. Connector-authored test-only RED head: `22ecd4bf689671257c37ac485e2db6e4142a7552`.
+- GitHub Actions RED run: `29969376593`.
+- Frozen dependency sync, Ruff format, and Ruff lint passed; strict Pyright failed on the intentionally absent `gemini_trading.data.datasets.canonical_writer` module. Pytest and later quality steps were skipped. `gitleaks` passed.
+- Read-only diagnostic run `29969424437` exported the exact Pyright output: 53 diagnostics, all caused by the missing canonical-writer import and the resulting unknown-type cascade; no independent test typing defect was present.
+- Unit tests defined fixed field order, compact JSONL, one newline per row, UTC `Z` millisecond timestamps, preserved decimal trailing zeros, incomplete-row rejection, exact dataset-ID formula, deterministic manifest bytes, non-empty manifest input, provenance bytes, and run/provenance isolation.
+- Hypothesis properties defined stable bytes/manifest/identity for identical candles, changed bytes and identity when a canonical close value changes, and invariant canonical bytes/identity when only run metadata changes.
+
+### GREEN phase
+
+- Initial clean implementation head: `0fa70e2af6684cd717863ec6cd5d48ca6001d77b`.
+- GitHub Actions run `29969519793` passed frozen sync and Ruff formatting, then failed Ruff lint on one `UP012` diagnostic for an unnecessary explicit UTF-8 argument to `encode`; strict Pyright and pytest were skipped. `gitleaks` passed.
+- Read-only diagnostic run `29969556033` isolated that single lint finding. The minimal correction changed `f"{serialized}\n".encode("utf-8")` to `f"{serialized}\n".encode()`; the dataset-ID formula retained explicit UTF-8 encoding as required by the design.
+- Corrected implementation head: `9882f8b922496303c38878e0f356a270fc962bca`.
+- GitHub Actions run `29969647798` passed frozen dependency sync, Ruff format, Ruff lint, strict Pyright, full pytest including Hypothesis properties, package build, pip-audit, tracked-file policy validation, detect-secrets, and `gitleaks`.
+- Final review found one test-evidence gap: `ensure_ascii=False` was implemented but no test explicitly proved non-ASCII text remained UTF-8 rather than `\\u`-escaped. `tests/unit/data/datasets/test_canonical_utf8.py` was added to prove exact UTF-8 bytes.
+- Final implementation head: `5908573f03686d7ddc246eb26e3148c6c0d3b147`.
+- Final GitHub Actions run: `29969747441`.
+- Observed `quality` result: passed frozen dependency sync, Ruff format, Ruff lint, strict Pyright, full pytest including property tests and explicit UTF-8 coverage, package build, pip-audit, tracked-file policy validation, and detect-secrets.
+- Observed `gitleaks` result: passed.
+- Net diff review found only `data/datasets/__init__.py`, `data/datasets/canonical_writer.py`, the deterministic-writer unit suite, the UTF-8 unit test, and the dataset-identity property suite. Temporary workflows and placeholders were absent.
+- Canonical candle rows use fixed insertion order, compact UTF-8 JSON, one trailing newline per row, UTC `Z` milliseconds, and `format(value, "f")` decimal text. Incomplete candles are rejected.
+- Dataset identity is exactly `sha256(utf8(schema_version) + b"\n" + canonical_jsonl_bytes)`. The deterministic manifest contains only schema, content identity/hash, provider, instrument, timeframe, requested window, actual first/last open times, and count.
+- Run ID, page hashes, retrieval-manifest hash, linkage state, and receipt creation time exist only in `DatasetProvenance`; they cannot alter canonical JSONL or dataset identity.
+- No filesystem writes, network access, credentials, private endpoints, strategy, signal, order, or execution behavior was introduced.
+- Limitation: the final Task 7 gate was observed on GitHub-hosted Ubuntu; fresh Windows-local verification remains required at the operator checkpoint and final exact-head verification.

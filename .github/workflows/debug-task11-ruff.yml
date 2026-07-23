@@ -1,6 +1,6 @@
 name: Debug Task 11 Ruff
 
-# Temporary Task 11 diagnostic; remove after exact lint findings are captured.
+# Temporary Task 11 diagnostic; remove after exact lint fixes are captured.
 on:
   pull_request:
 
@@ -20,17 +20,14 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync --all-groups --frozen
-      - name: Capture Task 11 Ruff output
+      - name: Capture Task 11 Ruff fixes
         shell: bash
         run: |
-          set +e
-          uv run ruff check tests/research_fixture_support.py tests/integration/test_backtest_replay_without_network.py tests/unit/research/test_verification.py tests/regression/test_tampered_backtest_artifacts.py tests/unit/research/test_artifacts.py --output-format=full > task11-ruff-output.txt 2>&1
-          status=$?
-          echo "exit_status=$status" >> task11-ruff-output.txt
-          exit 0
+          uv run ruff check tests/integration/test_backtest_replay_without_network.py tests/unit/research/test_verification.py tests/regression/test_tampered_backtest_artifacts.py --fix
+          git diff -- tests/integration/test_backtest_replay_without_network.py tests/unit/research/test_verification.py tests/regression/test_tampered_backtest_artifacts.py > task11-ruff-fix.diff
       - uses: actions/upload-artifact@v4
         with:
-          name: task11-ruff-output
-          path: task11-ruff-output.txt
+          name: task11-ruff-fix
+          path: task11-ruff-fix.diff
           if-no-files-found: error
           retention-days: 1

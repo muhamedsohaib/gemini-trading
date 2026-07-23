@@ -23,9 +23,7 @@ def test_completed_candle_decision_fills_only_on_next_candle() -> None:
             instrument=instrument,
             timeframe=Timeframe.H4,
             open_time=start + timedelta(hours=4 * index),
-            close_time=start
-            + timedelta(hours=4 * (index + 1))
-            - timedelta(milliseconds=1),
+            close_time=start + timedelta(hours=4 * (index + 1)) - timedelta(milliseconds=1),
             open=Decimal("100"),
             high=Decimal("110"),
             low=Decimal("90"),

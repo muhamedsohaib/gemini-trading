@@ -12,6 +12,7 @@ from gemini_trading.data.datasets.canonical_writer import (
     serialize_candles,
     serialize_dataset_manifest,
 )
+from gemini_trading.data.errors import CandleValidationError
 from gemini_trading.data.storage.local_immutable import LocalImmutableStore
 from gemini_trading.data.validation.candles import validate_candle_sequence
 from gemini_trading.domain.candle import Candle
@@ -160,6 +161,19 @@ def _parse_manifest(manifest_bytes: bytes) -> DatasetManifest:
     return manifest
 
 
+def _verify_content_identity(
+    dataset_id_value: str,
+    manifest: DatasetManifest,
+    canonical_bytes: bytes,
+) -> None:
+    if manifest.dataset_id != dataset_id_value:
+        raise DatasetVerificationError("dataset identity mismatch")
+    if hashlib.sha256(canonical_bytes).hexdigest() != manifest.canonical_sha256:
+        raise DatasetVerificationError("canonical content hash mismatch")
+    if dataset_id(manifest.schema_version, canonical_bytes) != dataset_id_value:
+        raise DatasetVerificationError("canonical dataset identity mismatch")
+
+
 def _parse_candle(row_bytes: bytes, manifest: DatasetManifest) -> Candle:
     try:
         loaded: object = json.loads(row_bytes.decode())
@@ -201,18 +215,11 @@ def _parse_candles(canonical_bytes: bytes, manifest: DatasetManifest) -> tuple[C
     return tuple(_parse_candle(row, manifest) for row in rows)
 
 
-def _verify_dataset(
-    dataset_id_value: str,
+def _verify_candle_evidence(
     manifest: DatasetManifest,
     candles: tuple[Candle, ...],
     canonical_bytes: bytes,
 ) -> None:
-    if manifest.dataset_id != dataset_id_value:
-        raise DatasetVerificationError("dataset identity mismatch")
-    if hashlib.sha256(canonical_bytes).hexdigest() != manifest.canonical_sha256:
-        raise DatasetVerificationError("canonical content hash mismatch")
-    if dataset_id(manifest.schema_version, canonical_bytes) != dataset_id_value:
-        raise DatasetVerificationError("canonical dataset identity mismatch")
     if len(candles) != manifest.candle_count:
         raise DatasetVerificationError("canonical candle count mismatch")
     if candles[0].open_time != manifest.first_open_time:
@@ -230,7 +237,7 @@ def _verify_dataset(
     )
     try:
         validate_candle_sequence(candles, request)
-    except ValueError as error:
+    except CandleValidationError as error:
         raise DatasetVerificationError("canonical candle sequence validation failed") from error
 
 
@@ -243,8 +250,9 @@ def load_verified_dataset(
     try:
         canonical_bytes, manifest_bytes = store.read_dataset(dataset_id_value)
         manifest = _parse_manifest(manifest_bytes)
+        _verify_content_identity(dataset_id_value, manifest, canonical_bytes)
         candles = _parse_candles(canonical_bytes, manifest)
-        _verify_dataset(dataset_id_value, manifest, candles, canonical_bytes)
+        _verify_candle_evidence(manifest, candles, canonical_bytes)
     except DatasetVerificationError:
         raise
     except (OSError, TypeError, ValueError) as error:

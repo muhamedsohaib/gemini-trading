@@ -17,7 +17,7 @@ from gemini_trading.domain.order import (
 from gemini_trading.domain.timeframe import Timeframe
 from gemini_trading.research.config import SimulationConfig
 from gemini_trading.research.dataset_reader import VerifiedDataset
-from gemini_trading.research.engine import run_backtest
+from gemini_trading.research.engine import BacktestEvidence, run_backtest
 from gemini_trading.research.fixture_strategy import ScriptedFixtureStrategy
 from gemini_trading.research.identity import build_experiment_manifest
 
@@ -108,7 +108,7 @@ def _run(
     *,
     dataset: VerifiedDataset | None = None,
     config: SimulationConfig | None = None,
-):
+) -> BacktestEvidence:
     selected_dataset = _dataset() if dataset is None else dataset
     selected_config = _config() if config is None else config
     strategy = ScriptedFixtureStrategy(script=script)
@@ -177,9 +177,7 @@ def test_conflicting_simultaneous_intents_are_rejected() -> None:
 
     assert evidence.orders == ()
     assert len(evidence.rejection_records) == 2
-    assert {record["reason"] for record in evidence.rejection_records} == {
-        "conflicting_intents"
-    }
+    assert {record["reason"] for record in evidence.rejection_records} == {"conflicting_intents"}
 
 
 def test_experiment_end_cancels_still_active_order() -> None:

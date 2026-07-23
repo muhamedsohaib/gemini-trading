@@ -75,6 +75,7 @@ jobs:
           if ((git rev-parse HEAD) -ne $head) { throw 'HEAD changed during verification' }
           'PASS: clean working tree and unchanged HEAD' | Tee-Object -FilePath $report -Append
       - uses: actions/upload-artifact@v4.6.2
+        if: always()
         with:
           name: task12-windows-evidence
           path: task12-windows-evidence.txt

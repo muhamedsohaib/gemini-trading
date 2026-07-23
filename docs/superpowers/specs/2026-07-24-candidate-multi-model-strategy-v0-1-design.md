@@ -10,15 +10,15 @@
 
 Design the first non-synthetic strategy candidate for the verified Gemini Trading research platform. The candidate combines bounded trend, mean-reversion, and market-regime specialists behind deterministic arbitration. It consumes only verified point-in-time market data and runs only through the deterministic research and execution-simulation boundaries already accepted by the repository.
 
-The candidate is not presumed profitable. The design exists to make the hypothesis falsifiable, constrain model-selection freedom, prevent leakage, and ensure that failure produces a documented rejection rather than post-hoc tuning.
+The candidate is not presumed profitable. The design makes the hypothesis falsifiable, constrains model-selection freedom, prevents leakage, and ensures that failure produces a documented rejection rather than post-hoc tuning.
 
 ## 2. Research hypothesis
 
 A deterministic ensemble of complementary trend, mean-reversion, and market-regime specialists, using only completed BTC/USDT 4-hour Binance Spot OHLCV candles available at each decision timestamp, can improve net risk-adjusted performance over predeclared simple long/cash baselines after conservative simulated costs.
 
-The ensemble must add measurable value over its strongest standalone specialist. It must abstain when its evidence is weak, conflicting, incompatible with the detected regime, or insufficient to clear costs.
+The ensemble must add measurable value over its strongest standalone specialist. It must abstain when evidence is weak, conflicting, incompatible with the detected regime, or insufficient to clear the cost-aware target.
 
-The hypothesis is rejected when the locked candidate fails any mandatory untouched-test, robustness, integrity, or reproducibility gate defined in this document.
+The hypothesis is rejected when the locked candidate fails any mandatory untouched-test, robustness, integrity, or reproducibility gate in this document.
 
 ## 3. Non-goals
 
@@ -37,7 +37,7 @@ Deferred capabilities require separate design gates.
 
 ## 4. Existing trust boundaries
 
-The design preserves these accepted repository boundaries:
+The implementation must preserve these accepted boundaries:
 
 1. Canonical market data is content-addressed, continuous, completed, immutable, replayable, and independently verifiable.
 2. Strategy decisions see completed candles only.
@@ -48,11 +48,9 @@ The design preserves these accepted repository boundaries:
 7. Diagnostic or optimistic policies are non-promotable.
 8. Real-capital authorization remains a separate human decision.
 
-The strategy implementation may not bypass or redefine these boundaries.
-
 ## 5. Market and dataset scope
 
-### 5.1 Instrument and timeframe
+### 5.1 Locked scope
 
 - Instrument: `BTC/USDT` spot.
 - Timeframe: completed `4h` candles.
@@ -62,624 +60,548 @@ The strategy implementation may not bypass or redefine these boundaries.
 
 ### 5.2 Minimum history
 
-A promotable experiment requires at least six years of continuous completed 4-hour candles after canonical verification. If six years are unavailable at the locked experiment cutoff, the result is `INSUFFICIENT_HISTORY` and cannot be promoted.
+A promotable experiment requires at least seven years of continuous completed 4-hour candles after canonical verification. This supports the locked 18-month untouched test and at least five complete development folds. If seven years are unavailable at the experiment cutoff, the result is `INSUFFICIENT_HISTORY` and cannot be promoted.
 
 ### 5.3 Dataset lock
 
-Before model fitting, the experiment must lock:
+Before fitting any model, lock:
 
 - canonical dataset ID;
-- first and last included candle open times;
+- first and last candle open times;
 - exact candle count;
-- instrument and timeframe identity;
-- canonical schema version;
-- provider identity;
+- instrument, timeframe, schema, and provider identities;
 - repository commit;
-- feature, label, split, model, arbitration, and cost-policy identities.
+- feature, label, split, model, calibration, regime, arbitration, risk, baseline, and cost-policy identities.
 
-No later candle may be appended to the locked experiment. A new cutoff produces a new dataset and experiment identity.
+No later candle may be appended to the locked experiment. A changed cutoff creates a new dataset and experiment identity.
 
 ### 5.4 External replication
 
-OKX and ETH/USDT are not available for selecting, tuning, rescuing, or reinterpreting Candidate v0.1. They are reserved for later independent replication gates after this design is implemented and evaluated.
+OKX and ETH/USDT may not select, tune, rescue, or reinterpret Candidate v0.1. They remain later independent replication gates.
 
 ## 6. Point-in-time feature contract
 
 ### 6.1 General requirements
 
-Every feature must be:
+Every feature must be deterministic, finite, trailing-only, reproducible from the canonical dataset without a network, and based only on candles completed by the decision timestamp. Learned normalization statistics must be fitted inside the current training fold.
 
-- deterministic;
-- finite;
-- based only on candles completed by the decision timestamp;
-- computed with trailing windows only;
-- fitted or normalized within the current training fold only when learned statistics are required;
-- assigned a stable name, version, parameters, lookback, data type, and provenance declaration;
-- reproducible from the canonical dataset without a provider or network.
+Each feature requires a stable name, version, parameter set, lookback, data type, and provenance declaration.
 
-Prohibited operations include centered windows, full-sample scaling, future extrema, future labels, revised future observations, random imputation, backward filling from future values, and any index alignment that exposes later candles.
+Prohibited operations include centered windows, full-sample scaling, future extrema, future labels, backward filling from future values, random imputation, revised future observations, and index alignment that exposes later candles.
 
-A missing, non-finite, insufficient-lookback, or misaligned feature makes that observation ineligible. Silent imputation is prohibited in v0.1.
+A missing, non-finite, insufficient-lookback, or misaligned feature makes the observation ineligible. Silent imputation is prohibited.
 
-### 6.2 Feature registry
+### 6.2 Locked registry
 
-The maximum feature dependency is 42 candles. The locked registry contains:
+Maximum feature dependency is 42 candles.
 
 #### Return and momentum
 
-- log return over 1, 2, 3, 6, 12, 24, and 42 candles;
-- cumulative positive-return fraction over 6, 12, 24, and 42 candles;
-- close-to-close acceleration: 3-candle return minus prior 3-candle return;
+- log returns over 1, 2, 3, 6, 12, 24, and 42 candles;
+- positive-return fraction over 6, 12, 24, and 42 candles;
+- 3-candle return minus the preceding 3-candle return;
 - distance from trailing 12- and 42-candle highs and lows.
 
 #### Trend
 
 - EMA 6, 12, 24, and 42 distances from close;
 - EMA 6/24, 12/42, and 24/42 normalized spreads;
-- trailing EMA slopes over 3 and 6 candles;
-- trend consistency: fraction of same-sign 1-candle returns over 6, 12, and 24 candles.
+- EMA slopes over 3 and 6 candles;
+- same-sign return fraction over 6, 12, and 24 candles.
 
 #### Volatility and candle structure
 
 - realized volatility over 6, 12, 24, and 42 candles;
-- true-range average over 6, 12, and 24 candles;
-- current true range divided by trailing 24-candle average true range;
-- candle body divided by range;
-- upper- and lower-wick fractions;
-- close location within the current candle range;
-- rolling close location within the trailing 12- and 24-candle high-low range.
+- average true range over 6, 12, and 24 candles;
+- current true range divided by trailing ATR 24;
+- candle body/range, upper-wick/range, lower-wick/range, and close location;
+- close location within trailing 12- and 24-candle ranges.
 
 #### Mean-reversion state
 
-- close z-score against trailing 12-, 24-, and 42-candle mean and standard deviation;
-- close distance from trailing 12-, 24-, and 42-candle median, normalized by average true range;
-- drawdown from the trailing 12-, 24-, and 42-candle high;
-- rebound from the trailing 12-, 24-, and 42-candle low.
+- close z-score over 12, 24, and 42 candles;
+- close distance from trailing 12-, 24-, and 42-candle median normalized by ATR 24;
+- drawdown from trailing 12-, 24-, and 42-candle highs;
+- rebound from trailing 12-, 24-, and 42-candle lows.
 
 #### Volume
 
 - log volume change over 1, 3, 6, and 12 candles;
 - volume divided by trailing 12-, 24-, and 42-candle median volume;
-- trailing volume z-score over 24 and 42 candles;
-- signed volume proxy: candle return sign multiplied by normalized volume;
-- price-range multiplied by normalized volume.
+- volume z-score over 24 and 42 candles;
+- return sign multiplied by normalized volume;
+- candle range multiplied by normalized volume.
 
-### 6.3 Specialist feature isolation
+### 6.3 Specialist isolation
 
-The trend specialist receives only return, momentum, trend, volatility, and volume features.
+- Trend specialist: return, momentum, trend, volatility, and volume features only.
+- Mean-reversion specialist: mean-reversion state, candle structure, volatility, and volume features only.
+- Regime specialist: deterministic trend-strength and volatility-state descriptors only.
 
-The mean-reversion specialist receives only mean-reversion state, candle structure, volatility, and volume features.
+This isolation prevents duplicate unrestricted learners.
 
-The regime specialist receives only deterministic trend-strength and volatility-state descriptors defined below.
-
-Feature isolation prevents the specialists from becoming duplicate unrestricted learners.
-
-## 7. Labels and decision horizon
+## 7. Labels and horizon
 
 ### 7.1 Primary horizon
 
-The primary decision horizon is three completed 4-hour candles, or 12 hours, measured from official next-candle execution.
+The decision horizon is three completed 4-hour candles, or 12 hours, measured from official next-candle execution.
 
 For a decision after candle `t`:
 
-- hypothetical entry occurs at the simulator's next-candle market execution for candle `t + 1`;
-- hypothetical evaluation exit occurs at the simulator's market execution after the third held candle;
-- the label uses the same conservative fee, spread, slippage, latency, precision, and minimum-order assumptions as the locked base simulation policy.
+- hypothetical entry uses the simulator's market execution on candle `t + 1`;
+- hypothetical evaluation exit uses market execution after the third held candle;
+- label economics use the locked base fee, spread, slippage, latency, precision, minimum-order, and liquidity assumptions.
 
-### 7.2 Cost hurdle
+### 7.2 Cost-aware positive class
 
-The positive-class hurdle equals:
+The positive-class hurdle is:
 
 ```text
-base estimated round-trip market execution cost + 10 basis points
+estimated base round-trip market execution cost + 10 basis points
 ```
 
-Under the current accepted base assumptions of 10 bps taker fee, 5 bps half-spread, and 10 bps slippage per side, the initial hurdle is 60 bps. The calculation must be derived from the locked simulation configuration rather than duplicated as an unrelated constant. Any cost-policy change creates a new label identity.
+With the currently accepted 10 bps taker fee, 5 bps half-spread, and 10 bps slippage per side, the initial hurdle is 60 bps. The implementation must derive this from the locked simulator configuration. A cost-policy change creates a new label identity.
 
-### 7.3 Shared binary target
+Both learned specialists estimate the probability that the hypothetical 12-hour net return is strictly greater than the hurdle. Returns less than or equal to the hurdle are negative labels.
 
-Both learned specialists estimate the probability that the hypothetical 12-hour trade's net return exceeds the cost hurdle.
+The target itself therefore enforces the cost hurdle; no separate learned expected-return mapping is permitted in v0.1.
 
-- Positive label: net return strictly greater than the hurdle.
-- Negative label: net return less than or equal to the hurdle.
+### 7.3 Mean-reversion eligibility
 
-The mean-reversion specialist is trained only on observations satisfying at least one predeclared downside-stretch condition:
+The mean-reversion specialist is trained and evaluated only when at least one condition is active:
 
-- trailing 24-candle close z-score less than or equal to `-0.75`; or
-- drawdown from trailing 24-candle high greater than or equal to `2%`.
+- trailing 24-candle close z-score is at most `-0.75`; or
+- drawdown from trailing 24-candle high is at least `2%`.
 
-The trend specialist is trained on all eligible observations.
+The trend specialist uses all eligible observations.
 
-### 7.4 Overlap control
+### 7.4 Boundary overlap
 
-Because labels use three future candles, chronological boundaries require a minimum three-candle purge and a three-candle embargo. No observation whose label window crosses a boundary may be used on either side of that boundary.
+The three-candle label horizon requires a three-candle purge and three-candle embargo. An observation whose label crosses a boundary may not appear on either side.
 
 ## 8. Specialist models
 
 ### 8.1 Trend specialist
 
-Model family: elastic-net logistic regression.
+Elastic-net logistic regression with:
 
-Locked training configuration:
-
-- standardized numeric features using training-fold mean and standard deviation only;
-- regularization strength `C = 1.0`;
-- elastic-net mixing `l1_ratio = 0.5`;
-- deterministic solver and iteration limit;
-- fixed random seed `1701` when the implementation requires a seed;
-- no class rebalancing unless the positive-class fraction falls outside `[0.30, 0.70]` in the training fold, in which case deterministic inverse-frequency weights are used and recorded.
+- fold-local standardization;
+- `C = 1.0`;
+- `l1_ratio = 0.5`;
+- `saga` solver;
+- `max_iter = 10000`;
+- tolerance `1e-8`;
+- fixed seed `1701`;
+- single-thread deterministic execution;
+- inverse-frequency class weights only when the training positive fraction is outside `[0.30, 0.70]`.
 
 ### 8.2 Mean-reversion specialist
 
-Model family: shallow gradient-boosted decision trees.
-
-Locked training configuration:
+Deterministic shallow gradient-boosted decision trees with:
 
 - 150 estimators;
 - maximum depth 2;
 - learning rate 0.03;
 - minimum leaf size 100 observations;
-- full deterministic row and feature participation with no stochastic subsampling;
-- fixed random seed `1702`;
-- no unrestricted hyperparameter search.
+- no row or feature subsampling;
+- fixed seed `1702`;
+- single-thread deterministic execution;
+- no hyperparameter search.
+
+The implementation plan must lock the exact library and version. Library identity becomes part of model identity.
 
 ### 8.3 Calibration
 
-Each learned specialist is calibrated with logistic Platt scaling fitted only on the fold's calibration segment.
+Each specialist uses logistic Platt calibration fitted only on the fold calibration segment.
 
-A calibration segment must contain at least 200 eligible observations, at least 40 positive labels, and at least 40 negative labels. Otherwise the fold is invalid and the experiment fails closed.
+A calibration segment requires at least 200 eligible observations, 40 positive labels, and 40 negative labels for that specialist. Otherwise the fold is invalid and the experiment fails closed.
 
-Calibration evidence includes Brier score, log loss, and ten-bin expected calibration error. Calibration statistics are diagnostic; they do not replace economic evaluation.
+Store Brier score, log loss, and ten-bin expected calibration error. These describe probability quality but do not replace economic gates.
 
 ### 8.4 Regime specialist
 
-The regime specialist is deterministic and not fitted to profit labels.
-
-Define:
+The regime classifier is deterministic and not fitted to profit labels.
 
 ```text
 trend_strength = abs(EMA_12 - EMA_42) / ATR_24
 volatility_ratio = realized_volatility_6 / realized_volatility_42
 ```
 
-States are evaluated in this order:
+Evaluate states in order:
 
-1. `UNSTABLE` when `volatility_ratio >= 1.75` or current true-range ratio is at least `2.5`.
-2. `TRENDING` when `trend_strength >= 1.0`, `volatility_ratio < 1.5`, and the EMA 12/42 spread sign is unchanged for the previous three completed candles.
-3. `RANGING` when `trend_strength <= 0.5` and `volatility_ratio <= 1.25`.
-4. `INDETERMINATE` otherwise.
+1. `UNSTABLE`: `volatility_ratio >= 1.75` or current true-range/ATR-24 ratio is at least `2.5`.
+2. `TRENDING`: `trend_strength >= 1.0`, `volatility_ratio < 1.5`, and EMA 12/42 spread sign is unchanged for three completed candles.
+3. `RANGING`: `trend_strength <= 0.5` and `volatility_ratio <= 1.25`.
+4. `INDETERMINATE`: otherwise.
 
-The regime state uses completed candles only and is stored with every strategy decision.
+Store the regime with every decision.
 
 ## 9. Deterministic arbitration
 
-### 9.1 Candidate outputs
+### 9.1 Outputs
 
-The candidate may emit only:
+The candidate may emit only enter long, remain long, exit to cash, or remain in cash.
 
-- enter long;
-- remain long;
-- exit to cash;
-- remain in cash.
+### 9.2 Entry
 
-Abstention is represented by remaining in cash or preserving an existing position only when hold conditions remain valid.
-
-### 9.2 Entry rules
-
-No new entry is permitted during `UNSTABLE` or `INDETERMINATE` regimes.
+No new entry is allowed during `UNSTABLE` or `INDETERMINATE`.
 
 During `TRENDING`:
 
-- trend probability must be at least `0.62`;
-- expected gross edge implied by the development-fold probability/return mapping must exceed the locked cost hurdle plus 10 bps;
-- mean-reversion probability, when available, must not be below `0.45`;
-- the difference between available specialist probabilities must not exceed `0.25` when they imply conflicting economic actions.
+- trend probability is at least `0.62`;
+- mean-reversion probability, when available, is not below `0.45`;
+- conflicting specialist probabilities differ by no more than `0.25`.
 
 During `RANGING`:
 
-- at least one mean-reversion stretch condition must be active;
-- mean-reversion probability must be at least `0.62`;
-- expected gross edge must exceed the locked cost hurdle plus 10 bps;
-- trend probability must not be below `0.45`;
-- specialist disagreement must satisfy the same `0.25` limit.
+- a mean-reversion eligibility condition is active;
+- mean-reversion probability is at least `0.62`;
+- trend probability is not below `0.45`;
+- conflicting specialist probabilities differ by no more than `0.25`.
 
 ### 9.3 Position size
 
-Official strategy comparisons use one long position with a target notional equal to 100% of marked equity at entry, subject to simulator precision, minimums, liquidity participation, and available cash. This normalizes signal evaluation and avoids a separate sizing optimization.
+One long position targets the maximum affordable notional up to 100% of marked equity after reserving simulator-estimated entry costs. Precision, minimums, liquidity participation, and available cash remain simulator-controlled.
 
-Position sizing is research-only and does not imply a future real-capital allocation.
+This normalizes signal evaluation and does not imply a future real-capital allocation.
 
-### 9.4 Hold and exit rules
+### 9.4 Hold and exit
 
-A position is held only while all applicable conditions remain true:
+Hold only while:
 
-- active specialist probability remains at least `0.50`;
-- regime remains compatible with the specialist or becomes `INDETERMINATE` for no more than one candle;
-- no risk-stop, trailing protection, or maximum-hold condition has triggered.
+- active specialist probability is at least `0.50`;
+- regime remains compatible, or is `INDETERMINATE` for no more than one candle;
+- no protection or maximum-hold exit has triggered.
 
-Exit to cash at the next-candle execution when any condition occurs:
+Exit at next-candle execution when:
 
 - active specialist probability is at most `0.45`;
 - regime becomes `UNSTABLE`;
-- regime is incompatible with the active specialist for two consecutive completed candles;
-- completed-candle low breaches the initial or trailing protection level;
-- maximum holding period reaches 18 candles, or 72 hours.
+- regime is incompatible for two consecutive completed candles;
+- a completed-candle low breaches protection;
+- holding period reaches 18 candles, or 72 hours.
 
-Risk protection:
+Protection rules:
 
-- initial protection level: entry price minus `2.5 * ATR_24` measured at the entry decision;
-- trailing protection level after entry: highest completed close since entry minus `3.0 * ATR_24`, never lower than the prior trailing level;
-- a breach is detected from a completed candle and exits no earlier than the next candle.
+- initial level: entry price minus `2.5 * ATR_24` measured at the entry decision;
+- trailing level: highest completed close since entry minus `3.0 * ATR_24`, never lower than its prior value;
+- breach detection uses a completed candle and exits no earlier than the next candle.
 
-Minimum holding period is two candles except for `UNSTABLE` regime or risk-protection exits.
+Minimum hold is two candles except for `UNSTABLE` or protection exits. A two-candle cooldown follows every exit. No pyramiding or discretionary scaling is allowed.
 
-After any exit, a two-candle cooldown prevents re-entry. No pyramiding or partial discretionary scaling is allowed.
+### 9.5 Fail closed
 
-### 9.5 Fail-closed behavior
+Missing output, invalid probability, missing regime, non-finite feature, identity mismatch, stale configuration, or insufficient evidence emits no new order and invalidates required evidence.
 
-Missing specialist output, invalid probability, missing regime state, non-finite feature, identity mismatch, stale configuration, or insufficient history produces no new order and classifies the experiment as invalid when it affects required evidence.
+## 10. Baselines, ablations, and controls
 
-## 10. Baselines and ablations
+All comparisons use identical datasets, timing, costs, precision, liquidity, and accounting.
 
-Every baseline runs through the identical dataset, next-candle execution, cost, precision, liquidity, and accounting policies.
-
-### 10.1 Required baselines
+### 10.1 Simple baselines
 
 1. `cash.v1`: no trade.
-2. `buy_hold.v1`: enter at the first eligible next-candle execution and hold through the evaluation window.
+2. `buy_hold.v1`: enter at the first eligible next-candle execution and hold.
 3. `ema_20_50.v1`: long when EMA 20 is above EMA 50; otherwise cash.
-4. `donchian_20_10.v1`: enter on completed-candle 20-bar high breakout and exit on completed-candle 10-bar low breakout.
-5. `mean_reversion_z24.v1`: enter when trailing 24-bar close z-score is at most `-1.5`; exit when it reaches zero or the common risk stop triggers.
+4. `donchian_20_10.v1`: enter on completed-candle 20-bar high breakout; exit on completed-candle 10-bar low breakout.
+5. `mean_reversion_z24.v1`: enter when z-score 24 is at most `-1.5`; exit at zero or common protection.
 
-### 10.2 Required ablations
+### 10.2 Required ablations and controls
 
-- trend specialist with common risk rules but without regime gating;
-- mean-reversion specialist with common risk rules but without regime gating;
-- deterministic regime gate using the relevant simple baseline instead of a learned specialist;
+- trend specialist without regime gating;
+- mean-reversion specialist without regime gating;
+- regime gate using the relevant simple baseline instead of learned models;
 - ensemble without disagreement abstention;
 - ensemble without volume features;
-- ensemble without risk protection;
-- ensemble with all features delayed by one additional candle;
-- shuffled-label trend and mean-reversion specialists using seed `1799`.
+- ensemble without protection;
+- all features delayed by one additional candle;
+- shuffled labels for both learned specialists using seed `1799`.
 
-A shuffled-label or extra-delayed negative control that appears promotable invalidates the experiment and triggers leakage/integrity investigation.
+A shuffled-label control passing any economic promotion gate invalidates the experiment.
 
-## 11. Chronological evaluation protocol
+## 11. Chronological evaluation
 
 ### 11.1 Final untouched test
 
-The last 18 calendar months of the locked canonical dataset form the final untouched test era.
+The last 18 calendar months form the sealed final test. Dataset ID, time range, and observation count are recorded before training. Model-selection code may not open final-test predictions, metrics, or outcomes.
 
-The final test dataset ID, time range, and expected observation count are sealed before any model training. The implementation must prevent final-test metrics, predictions, and outcomes from being opened by model-selection code.
+The locked candidate is evaluated once. Any later structural, model, feature, or threshold change creates Candidate v0.2 and requires a new future untouched era or independent replication dataset.
 
-The final test is evaluated once for the locked candidate configuration. Failure cannot be repaired by tuning against the final test. Any subsequent change creates Candidate v0.2 and requires a new future untouched era or an explicitly independent replication dataset.
+### 11.2 Development folds
 
-### 11.2 Development era
+All earlier data is the development era. Use expanding walk-forward folds:
 
-All data before the final 18 months forms the development era.
-
-Development uses expanding-window walk-forward folds with:
-
-- minimum initial training window: 24 months;
-- calibration/validation window: 6 months;
-- forward development-test window: 6 months;
-- step size: 6 months;
+- initial training: 24 months;
+- calibration: 6 months;
+- forward development test: 6 months;
+- step: 6 months;
 - purge: 3 candles;
 - embargo: 3 candles.
 
-At least five complete forward development-test folds are required. Otherwise the experiment is `INSUFFICIENT_FOLDS` and cannot be promoted.
+At least five complete forward development-test folds are mandatory.
 
-### 11.3 Selection freedom
+### 11.3 Multiple-testing control
 
-Candidate v0.1 has one locked end-to-end architecture and no performance-driven model-family or hyperparameter search.
+Candidate v0.1 contains one locked architecture with fixed model parameters and thresholds. No performance-driven family, hyperparameter, feature, horizon, or threshold search is allowed.
 
-The only permitted development selection is the learned probability-to-expected-return mapping fitted within each fold. All structural thresholds and model parameters in this design are fixed before the final test.
-
-This design controls multiple testing by pre-registering one primary candidate, five simple baselines, and the required ablations. Sensitivity variants are robustness diagnostics and may not replace the primary candidate.
+Five simple baselines and required ablations are preregistered. Sensitivity variants are diagnostics and cannot replace the primary candidate.
 
 ## 12. Metrics
 
-### 12.1 Existing deterministic economic metrics
-
-Required existing metrics include:
+### 12.1 Required existing metrics
 
 - starting and ending equity;
 - gross and net return;
-- realized and unrealized profit and loss;
-- total fees and execution costs;
+- realized and unrealized P&L;
+- fees and execution costs;
 - maximum drawdown;
-- exposure fraction;
-- order, rejection, fill, partial-fill, and completed-trade counts;
+- exposure;
+- order, rejection, fill, partial-fill, and trade counts;
 - win rate.
 
-### 12.2 Additional deterministic metrics
+### 12.2 Required additional metrics
 
-The strategy milestone must add exact documented definitions for:
+Add exact deterministic definitions for:
 
-- annualized geometric return from 4-hour account snapshots;
+- annualized geometric return using 4-hour account snapshots;
 - annualized volatility;
 - downside deviation;
-- Sortino ratio using zero as the minimum acceptable 4-hour return;
-- return-to-drawdown ratio: annualized geometric return divided by maximum drawdown;
-- turnover as total traded notional divided by average marked equity;
+- Sortino ratio with zero minimum acceptable 4-hour return;
+- return-to-drawdown ratio;
+- turnover;
 - exposure-adjusted net return;
-- average and median completed-trade return;
+- average and median trade return;
 - profit factor;
-- average holding duration;
-- regime-level net return, drawdown, exposure, and trade count;
-- Brier score, log loss, and expected calibration error for each specialist.
+- average hold duration;
+- regime-level return, drawdown, exposure, and trade count;
+- specialist Brier score, log loss, and expected calibration error.
 
-Undefined ratios remain `null`; they may not be replaced with infinity or arbitrary caps.
+Undefined ratios remain `null`.
 
-### 12.3 Primary promotion score
-
-The primary economic comparison is the return-to-drawdown ratio on the untouched final test.
-
-When a comparator has zero maximum drawdown, it is eligible only if its net return is positive; cash remains contextual and cannot become the strongest active baseline through a zero denominator.
+The primary economic score is final-test annualized geometric return divided by maximum drawdown. Cash cannot become the strongest active baseline through a zero denominator.
 
 ## 13. Robustness and uncertainty
 
-### 13.1 Cost sensitivity
+### 13.1 Cost stress
 
-Re-run the locked final-test decisions under:
+Replay locked decisions under base, 1.5-times, and 2-times fee, spread, and slippage. Predictions and decisions remain unchanged.
 
-- base costs;
-- 1.5 times fee, spread, and slippage assumptions;
-- 2.0 times fee, spread, and slippage assumptions.
+### 13.2 Parameter neighbourhood
 
-Model predictions and decisions remain unchanged; only execution economics are stressed.
+Change one item at a time:
 
-### 13.2 Parameter-neighbourhood sensitivity
+- entry probability: `0.59`, `0.65`;
+- exit probability: `0.42`, `0.48`;
+- maximum hold: 12, 24 candles;
+- initial protection: 2.0, 3.0 ATR;
+- cooldown: 1, 3 candles.
 
-Run diagnostic variants changing one item at a time:
-
-- entry threshold: `0.59` and `0.65` instead of `0.62`;
-- exit threshold: `0.42` and `0.48` instead of `0.45`;
-- maximum hold: 12 and 24 candles instead of 18;
-- initial ATR protection: 2.0 and 3.0 instead of 2.5;
-- cooldown: 1 and 3 candles instead of 2.
-
-These variants cannot replace the primary candidate.
+These ten variants cannot replace the primary candidate.
 
 ### 13.3 Block bootstrap
 
-Use 1,000 deterministic moving-block bootstrap replicates with block length 42 candles and seed `1788` on final-test account-return differences between the candidate and the strongest active baseline.
+Use 1,000 deterministic moving-block replicates, block length 42 candles, seed `1788`, on final-test account-return differences against the strongest active baseline.
 
-Report the median and 90% confidence interval for:
-
-- net-return difference;
-- maximum-drawdown difference;
-- return-to-drawdown-ratio difference when defined.
-
-The bootstrap is uncertainty evidence, not permission to override mandatory economic gates.
+Report median and 90% confidence intervals for net-return difference, maximum-drawdown difference, and return-to-drawdown-ratio difference when defined.
 
 ## 14. Mandatory promotion gates
 
-Candidate v0.1 may advance only to a separately designed shadow or paper-consideration gate when every condition passes.
+Advancement is only to a separately designed shadow or paper-consideration gate.
 
-### 14.1 Integrity and reproducibility
+### 14.1 Integrity
 
-- canonical dataset verification passes;
-- no continuity, completion, provenance, or identity failure;
-- no feature or label leakage test failure;
-- exact replay reproduces experiment and result identities and all core artifact bytes;
-- independent verification passes;
-- all required folds, baselines, ablations, sensitivities, and negative controls complete.
+All must pass:
+
+- canonical dataset verification;
+- continuity, completion, provenance, and identity checks;
+- feature, label, normalization, alignment, and split leakage tests;
+- complete folds, baselines, ablations, sensitivities, and controls;
+- exact provider-free replay;
+- independent verification.
 
 ### 14.2 Development stability
 
-- at least five forward development-test folds;
+- at least five folds;
 - at least 60% of folds have positive candidate net return;
-- at least 60% of folds beat the strongest active baseline's return-to-drawdown ratio when both ratios are defined;
-- no single fold contributes more than 50% of summed positive fold profit;
-- the candidate has at least 60 completed development-test trades across folds.
+- at least 60% beat the strongest active baseline's return-to-drawdown ratio when defined;
+- no fold contributes more than 50% of summed positive fold profit;
+- at least 60 completed development-test trades.
 
-### 14.3 Untouched final-test economics
+### 14.3 Final-test economics
 
-- net return is strictly positive under base costs;
+- base-cost net return is positive;
 - at least 30 completed trades;
 - maximum drawdown is at most 25%;
-- maximum drawdown is at most 80% of buy-and-hold maximum drawdown;
+- maximum drawdown is at most 80% of buy-and-hold drawdown;
 - return-to-drawdown ratio is at least 0.50;
-- return-to-drawdown ratio is at least 10% greater than the strongest active simple baseline;
-- net return is not lower than the strongest active simple baseline by more than 2 percentage points;
-- ensemble return-to-drawdown ratio is at least 5% greater than the strongest standalone learned specialist;
-- no single completed trade contributes more than 25% of total positive completed-trade profit;
-- at least two of `TRENDING`, `RANGING`, and `INDETERMINATE` regimes have non-negative net contribution, and no required regime loses more than 25% of aggregate positive profit.
+- return-to-drawdown ratio is at least 10% above the strongest active simple baseline;
+- net return is no more than 2 percentage points below the strongest active simple baseline;
+- ensemble return-to-drawdown ratio is at least 5% above the strongest standalone learned specialist;
+- no trade contributes more than 25% of total positive trade profit;
+- at least two of `TRENDING`, `RANGING`, and `INDETERMINATE` have non-negative contribution;
+- no required regime loses more than 25% of aggregate positive profit.
 
-`UNSTABLE` is expected to remain predominantly cash and is assessed for avoided exposure rather than required profit.
+`UNSTABLE` is assessed for avoided exposure, not required profit.
 
 ### 14.4 Cost robustness
 
-- 1.5-times-cost net return remains strictly positive;
-- 1.5-times-cost maximum drawdown remains at most 27.5%;
-- 2-times-cost net return is no worse than `-5%`;
-- 2-times-cost maximum drawdown remains at most 30%.
+- 1.5-times-cost net return is positive;
+- 1.5-times-cost drawdown is at most 27.5%;
+- 2-times-cost net return is at least `-5%`;
+- 2-times-cost drawdown is at most 30%.
 
 ### 14.5 Sensitivity robustness
 
-Across the ten one-at-a-time parameter-neighbourhood variants:
+Across ten neighbourhood variants:
 
 - at least seven have positive net return;
 - median net return is positive;
-- no variant exceeds 35% maximum drawdown;
-- no single neighbouring value improves final-test net return by more than 100% while the primary candidate is barely positive, because that pattern indicates threshold instability requiring rejection.
+- no drawdown exceeds 35%;
+- when primary net return is at most 2%, no single variant may improve it by more than 100%.
 
-### 14.6 Uncertainty and controls
+### 14.6 Uncertainty and component controls
 
-- moving-block bootstrap median net-return difference versus the strongest active baseline is positive;
-- the 90% interval lower bound for net-return difference is greater than `-2` percentage points;
-- shuffled-label controls fail all economic promotion gates;
-- the extra-delayed-feature control does not outperform the primary candidate's return-to-drawdown ratio by more than 5%;
-- removing disagreement abstention does not reduce trade count while materially improving all risk metrics, because that result would invalidate the claimed value of arbitration;
-- ensemble-without-volume and ensemble-without-risk-protection results are reported and do not expose a hidden dependence on one arbitrary component.
+- bootstrap median net-return difference versus the strongest active baseline is positive;
+- bootstrap 90% lower bound is above `-2` percentage points;
+- shuffled-label controls fail every economic promotion gate;
+- extra-delayed features do not beat the primary return-to-drawdown ratio by more than 5%;
+- removing disagreement abstention must not improve return-to-drawdown by at least 10% while also producing drawdown no higher than the primary candidate;
+- removing volume must not improve return-to-drawdown by at least 10% while also producing drawdown no higher than the primary candidate;
+- removing protection must not improve return-to-drawdown by at least 10% while also reducing maximum drawdown.
 
-## 15. Automatic rejection conditions
+If any of the final three conditions fails, the claimed component is unsupported and Candidate v0.1 is rejected rather than rewritten after final-test observation.
 
-The candidate is rejected or classified inconclusive when any condition occurs:
+## 15. Automatic rejection or inconclusive classification
+
+Reject or classify inconclusive on:
 
 - insufficient history, folds, calibration classes, or final-test trades;
-- point-in-time, look-ahead, label, split, normalization, or alignment leakage;
-- final-test access before the candidate configuration is sealed;
-- any structural or threshold change after final-test observation;
+- any point-in-time, look-ahead, label, split, normalization, or alignment leakage;
+- final-test access before sealing;
+- any change after final-test observation;
 - negative-control promotion;
-- non-deterministic model output or artifact mismatch;
-- base-cost untouched-test net loss;
-- mandatory drawdown, baseline, ensemble-increment, cost, sensitivity, or uncertainty gate failure;
-- outcome depends materially on one fold, trade, arbitrary threshold, or feature family;
-- missing evidence, provider-dependent replay, or failed independent verification;
+- non-deterministic output or artifact mismatch;
+- base-cost final-test loss;
+- any mandatory drawdown, baseline, ensemble-increment, cost, sensitivity, uncertainty, or component gate failure;
+- dependence on one fold, trade, threshold, or feature family beyond declared limits;
+- missing evidence, provider-dependent replay, or failed verification;
 - undocumented exclusion of failed experiments or folds.
 
-A rejected result remains stored as immutable research evidence. It cannot be relabeled successful through narrative interpretation.
+Rejected evidence remains immutable and cannot be relabeled successful through narrative interpretation.
 
 ## 16. Identities and artifacts
 
-### 16.1 Required identities
+### 16.1 Identities
 
-Content-address and persist:
+Content-address:
 
-- dataset identity;
-- feature-registry identity;
-- feature-matrix identity per split;
-- label-policy and label-vector identities;
-- chronological split-plan identity;
-- model-family and fixed-configuration identities;
-- fitted model identity per fold;
-- calibration identity per fold;
-- random-seed policy identity;
-- regime-policy identity;
-- arbitration-policy identity;
-- risk-policy identity;
-- baseline and ablation identities;
-- simulation-cost-policy identity;
-- experiment and result identities.
+- dataset;
+- feature registry and matrices;
+- label policy and vectors;
+- split plan;
+- model family, library, configuration, fitted model, and calibration per fold;
+- seed policy;
+- regime, arbitration, risk, baseline, ablation, and cost policies;
+- experiment and result.
 
-### 16.2 Required artifacts
+### 16.2 Artifacts
 
-Persist immutable canonical artifacts for:
+Persist:
 
-- complete locked configuration;
-- feature registry and point-in-time audit;
-- split plan and boundary audit;
-- fold feature statistics;
-- fold labels;
-- fitted specialist models and calibration parameters;
-- fold and final-test probabilities;
-- regime states;
-- arbitration decisions and reason codes;
-- orders, rejections, fills, account snapshots, completed trades, and metrics;
-- baseline, ablation, negative-control, cost-sensitivity, parameter-sensitivity, and bootstrap results;
-- promotion-gate evaluation with pass/fail reason per gate;
-- replay receipt;
-- independent-verification receipt;
+- locked configuration;
+- point-in-time feature audit;
+- split and boundary audit;
+- fold statistics, labels, models, calibrators, probabilities, and regimes;
+- decisions and reason codes;
+- orders, rejections, fills, accounts, trades, and metrics;
+- baseline, ablation, control, cost, sensitivity, and bootstrap results;
+- gate report with a reason for every pass or failure;
+- replay and independent-verification receipts;
 - limitations and final classification.
 
-Provider-free replay must require no exchange or network access.
+Replay must require no provider or network.
 
 ## 17. Component boundaries
 
-The implementation plan must preserve these independently testable units:
+1. `FeatureRegistry`: trailing point-in-time features.
+2. `LabelPolicy`: cost-aware 12-hour labels isolated from decision-time code.
+3. `ChronologicalSplitPlan`: sealed folds and untouched test.
+4. `TrendSpecialistTrainer`: locked elastic-net model.
+5. `MeanReversionSpecialistTrainer`: locked shallow boosted-tree model.
+6. `ProbabilityCalibrator`: fold-local Platt calibration.
+7. `RegimeClassifier`: deterministic states.
+8. `MultiModelArbiter`: valid outputs and account state to long/cash intents.
+9. `BaselineSuite`: identical-policy comparisons.
+10. `EvaluationSuite`: fold, final, regime, robustness, uncertainty, and gates.
+11. `StrategyArtifactStore`: immutable evidence.
+12. `StrategyReplayVerifier`: reconstruction and independent verification.
 
-1. `FeatureRegistry`: declares and computes trailing point-in-time features.
-2. `LabelPolicy`: derives cost-aware 12-hour labels without exposing them to decision-time code.
-3. `ChronologicalSplitPlan`: seals development folds and final untouched boundaries.
-4. `TrendSpecialistTrainer`: fits the locked elastic-net model.
-5. `MeanReversionSpecialistTrainer`: fits the locked shallow boosted-tree model.
-6. `ProbabilityCalibrator`: fits and applies fold-local Platt calibration.
-7. `RegimeClassifier`: emits deterministic regime states.
-8. `MultiModelArbiter`: converts valid specialist outputs and account state into long/cash intents.
-9. `BaselineSuite`: runs all predeclared comparisons under identical simulation assumptions.
-10. `EvaluationSuite`: computes fold, final, regime, robustness, uncertainty, and promotion evidence.
-11. `StrategyArtifactStore`: serializes immutable model and evaluation evidence.
-12. `StrategyReplayVerifier`: reconstructs and independently verifies the complete experiment.
-
-Model and feature code may not control accounting or simulator fill behavior.
+Model and feature code may not control accounting or fills.
 
 ## 18. Error handling
 
-Errors must be classified, safe, and fail closed. Required classes include:
+Classify and fail closed on:
 
 - insufficient history or lookback;
-- invalid feature value;
+- invalid feature or probability;
 - point-in-time violation;
-- split overlap or boundary violation;
+- split overlap;
 - label leakage;
 - insufficient calibration classes;
 - model determinism failure;
-- probability range violation;
-- strategy configuration mismatch;
+- configuration or identity mismatch;
 - missing artifact;
-- identity mismatch;
 - replay mismatch;
-- required evidence incomplete.
+- incomplete required evidence.
 
-CLI errors must not emit credentials, raw provider bodies, environment dumps, absolute operator paths, or uncontrolled tracebacks.
+CLI errors must not expose credentials, raw provider bodies, environment dumps, absolute operator paths, or uncontrolled tracebacks.
 
-## 19. Testing strategy
+## 19. Testing
 
-### 19.1 Unit tests
+### Unit
 
-Cover every feature, label, regime rule, calibration contract, arbitration threshold, risk rule, metric, identity, and serialization boundary.
+Cover every feature, label, regime rule, calibration contract, threshold, risk rule, metric, identity, and serialization boundary.
 
-### 19.2 Property tests
+### Property
 
 Prove:
 
-- future-candle changes cannot alter prior features or decisions;
-- equivalent canonical inputs produce identical identities and outputs;
-- probabilities remain finite and within `[0, 1]`;
-- no sell can exceed the long position;
-- no order occurs in prohibited regimes or during cooldown;
-- cost increases cannot improve net equity when decisions and fills are otherwise fixed;
-- artifact serialization is deterministic.
+- future candles cannot alter prior features or decisions;
+- equivalent inputs produce identical identities and outputs;
+- probabilities are finite and within `[0, 1]`;
+- no sell exceeds position;
+- no prohibited-regime or cooldown entry occurs;
+- higher costs cannot improve net equity with fixed decisions and fills;
+- serialization is deterministic.
 
-### 19.3 Regression tests
+### Regression
 
-Include explicit regressions for:
+Cover full-sample normalization, label overlap, next-candle off-by-one, feature/label misalignment, premature final-test access, model randomness, negative-control promotion, and artifact tampering.
 
-- full-sample normalization leakage;
-- label overlap at fold boundaries;
-- off-by-one next-candle execution;
-- feature/label index misalignment;
-- final-test access before seal;
-- model randomness despite fixed seeds;
-- negative-control false promotion;
-- tampered model, feature, prediction, or evaluation artifacts.
+### Integration
 
-### 19.4 Integration tests
+Run a deterministic fixture through features, labels, splits, specialists, calibration, regime gating, arbitration, simulation, artifacts, replay, and verification.
 
-Run a small deterministic canonical fixture through features, labels, folds, specialists, calibration, regime gating, arbitration, simulation, artifacts, replay, and verification.
+### Acceptance
 
-### 19.5 Acceptance tests
+Demonstrate a complete historical research run, byte-stable provider-free replay, independent verification, rejection of live/demo/production modes, safe insufficient-evidence classification, final-test sealing, and a complete pass/fail gate report.
 
-Acceptance must demonstrate:
-
-- one complete historical research run;
-- provider-free byte-stable replay;
-- independent verification;
-- safe rejection of live/demo/production modes;
-- safe classification of insufficient evidence;
-- correct final-test sealing;
-- complete gate report containing failures as well as passes.
-
-## 20. Security, governance, and capital boundary
+## 20. Governance and capital boundary
 
 - Runtime remains `RESEARCH_ONLY`.
-- No credentials or private exchange endpoints.
-- No broker, demo, live, or real-capital order submission.
-- No automatic strategy promotion.
-- The assistant may independently review evidence, limitations, and gate status.
+- No credentials, private endpoints, broker, demo, live, or real-capital submission.
+- No automatic promotion.
+- The assistant may independently review evidence and limitations.
 - A human must separately authorize any future shadow, paper, demo, or real-capital stage.
-- Passing this design's gates establishes only research-candidate evidence. It does not establish durable profitability or capital safety.
+- Passing establishes research-candidate evidence only, not durable profitability or capital safety.
 
-## 21. Implementation sequencing constraint
+## 21. Sequencing constraint
 
 No implementation plan or strategy code may begin until:
 
-1. this written specification is explicitly reviewed and approved;
-2. any requested changes are incorporated;
-3. a self-review confirms no placeholders, contradictions, or unresolved scope ambiguity;
+1. this specification is explicitly reviewed and approved;
+2. requested changes are incorporated;
+3. self-review confirms no placeholders, contradictions, or unresolved scope ambiguity;
 4. the approved specification is committed;
 5. a separate implementation plan is written and reviewed.
 
-The implementation must proceed through test-driven, independently verifiable milestones and may not silently broaden this scope.
+Implementation must then proceed through test-driven, independently verifiable milestones without silently broadening scope.

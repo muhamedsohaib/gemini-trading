@@ -11,6 +11,7 @@ from gemini_trading.domain.account import AccountSnapshot, LedgerEntry
 from gemini_trading.domain.experiment import LimitFillPolicy, TimingPolicy
 from gemini_trading.domain.fill import Fill
 from gemini_trading.domain.order import OrderIntent, SimulatedOrder
+from gemini_trading.research.config import SimulationConfig, serialize_simulation_config
 from gemini_trading.research.contracts import StrategyDecision
 from gemini_trading.research.engine import BacktestEvidence
 from gemini_trading.research.errors import ArtifactConflictError
@@ -24,6 +25,7 @@ from gemini_trading.research.metrics import (
 from gemini_trading.research.serialization import canonical_json_bytes, canonical_jsonl_bytes
 
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
+_ARTIFACT_NAME_PATTERN = re.compile(r"^[a-z0-9][a-z0-9.-]{0,127}$")
 _RESULT_SCHEMA_VERSION = "research-result-v1"
 _VERIFICATION_SCHEMA_VERSION = "research-verification-v1"
 
@@ -156,6 +158,18 @@ def _is_promotable(evidence: BacktestEvidence) -> bool:
     )
 
 
+def _validate_artifact_name(name: str) -> str:
+    if (
+        not name
+        or ".." in name
+        or "/" in name
+        or "\\" in name
+        or _ARTIFACT_NAME_PATTERN.fullmatch(name) is None
+    ):
+        raise ValueError("invalid research artifact name")
+    return name
+
+
 @dataclass(frozen=True, slots=True)
 class ResearchArtifacts:
     """Complete deterministic artifact bytes for one successful experiment."""
@@ -176,20 +190,42 @@ class ResearchArtifacts:
         names = tuple(name for name, _ in self.files)
         if names != tuple(sorted(names)) or len(names) != len(set(names)):
             raise ValueError("artifact files must be uniquely sorted by name")
+        for name in names:
+            _validate_artifact_name(name)
         if "result-manifest.json" not in names:
             raise ValueError("result-manifest.json is required")
 
     def artifact_bytes(self, name: str) -> bytes:
         """Return exact stored bytes for one required artifact name."""
 
+        validated_name = _validate_artifact_name(name)
         for artifact_name, content in self.files:
-            if artifact_name == name:
+            if artifact_name == validated_name:
                 return content
-        raise KeyError(name)
+        raise KeyError(validated_name)
 
 
-def build_artifacts(evidence: BacktestEvidence) -> ResearchArtifacts:
+def build_artifacts(
+    evidence: BacktestEvidence,
+    simulation_config: SimulationConfig,
+) -> ResearchArtifacts:
     """Build byte-identical canonical evidence and a content-derived result identity."""
+
+    simulation_config_bytes = serialize_simulation_config(simulation_config)
+    simulation_config_sha256 = hashlib.sha256(simulation_config_bytes).hexdigest()
+    if simulation_config_sha256 != evidence.experiment_manifest.simulation_config_sha256:
+        raise ValueError("simulation configuration does not match experiment manifest")
+    if simulation_config.timing_policy is not evidence.experiment_manifest.timing_policy:
+        raise ValueError("simulation timing policy does not match experiment manifest")
+    if simulation_config.limit_fill_policy is not evidence.experiment_manifest.limit_fill_policy:
+        raise ValueError("simulation limit-fill policy does not match experiment manifest")
+    if (
+        simulation_config.default_time_in_force
+        is not evidence.experiment_manifest.default_time_in_force
+    ):
+        raise ValueError("simulation time-in-force does not match experiment manifest")
+    if simulation_config.max_active_candles != evidence.experiment_manifest.max_active_candles:
+        raise ValueError("simulation order lifetime does not match experiment manifest")
 
     current_experiment_id = experiment_id(evidence.experiment_manifest)
     metrics = calculate_metrics(evidence)
@@ -197,6 +233,7 @@ def build_artifacts(evidence: BacktestEvidence) -> ResearchArtifacts:
     promotable = _is_promotable(evidence)
     core_files: dict[str, bytes] = {
         "experiment-manifest.json": serialize_experiment_manifest(evidence.experiment_manifest),
+        "simulation-config.json": simulation_config_bytes,
         "decisions.jsonl": canonical_jsonl_bytes(
             _decision_payload(decision) for decision in evidence.decisions
         ),
@@ -277,3 +314,23 @@ class LocalResearchStore:
                 ) from None
             paths.append((name, path))
         return tuple(paths)
+
+    def read_artifact(self, experiment_id_value: str, name: str) -> bytes:
+        """Read one persisted artifact using validated identity segments."""
+
+        directory = self._experiment_directory(experiment_id_value)
+        return (directory / _validate_artifact_name(name)).read_bytes()
+
+    def read_artifacts(
+        self,
+        experiment_id_value: str,
+        names: tuple[str, ...],
+    ) -> tuple[tuple[str, bytes], ...]:
+        """Read a deterministic sorted artifact set."""
+
+        validated_names = tuple(sorted(_validate_artifact_name(name) for name in names))
+        if len(validated_names) != len(set(validated_names)):
+            raise ValueError("research artifact names must be unique")
+        return tuple(
+            (name, self.read_artifact(experiment_id_value, name)) for name in validated_names
+        )

@@ -131,11 +131,14 @@ def evaluate_order(
         fee_rate,
     )
     if candidate <= 0:
-        if available_quantity(
-            candle_volume=candle.volume,
-            participation=config.max_volume_participation,
-            already_consumed=consumed_volume,
-        ) <= 0:
+        if (
+            available_quantity(
+                candle_volume=candle.volume,
+                participation=config.max_volume_participation,
+                already_consumed=consumed_volume,
+            )
+            <= 0
+        ):
             return _no_fill(order, "no_liquidity", consumed_volume)
         reason = "insufficient_cash" if order.side is OrderSide.BUY else "insufficient_position"
         return _no_fill(order, reason, consumed_volume)

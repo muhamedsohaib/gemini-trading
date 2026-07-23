@@ -127,6 +127,6 @@ def write_completed_fixture_experiment(
         random_seed=0,
     )
     evidence = run_backtest(dataset, manifest, config, strategy)
-    artifacts = build_artifacts(evidence)
+    artifacts = build_artifacts(evidence, config)
     LocalResearchStore(root).write(artifacts)
     return artifacts.experiment_id, artifacts

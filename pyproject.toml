@@ -34,6 +34,9 @@ packages = ["src/gemini_trading"]
 [tool.pytest.ini_options]
 addopts = "-ra --strict-config --strict-markers --cov=gemini_trading --cov-report=term-missing"
 testpaths = ["tests"]
+markers = [
+  "live_api: bounded public Binance Spot smoke test disabled by default",
+]
 
 [tool.ruff]
 target-version = "py312"

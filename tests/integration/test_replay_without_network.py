@@ -18,10 +18,7 @@ _START = datetime(2025, 1, 1, tzinfo=UTC)
 _END = datetime(2025, 1, 1, 4, tzinfo=UTC)
 _SERVER_TIME = datetime(2025, 1, 1, 10, tzinfo=UTC)
 _FIXTURE = (
-    Path(__file__).parents[1]
-    / "fixtures"
-    / "binance_spot"
-    / "klines_valid_two_pages_page_1.json"
+    Path(__file__).parents[1] / "fixtures" / "binance_spot" / "klines_valid_two_pages_page_1.json"
 )
 
 

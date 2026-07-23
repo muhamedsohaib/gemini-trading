@@ -144,14 +144,7 @@ def test_verification_rejects_every_persisted_tampering_class(
 
 def test_verification_rejects_partial_publication_without_receipt(tmp_path: Path) -> None:
     store, dataset_id, run_id = _seed_verified_dataset(tmp_path)
-    provenance_path = (
-        tmp_path
-        / "data"
-        / "canonical"
-        / dataset_id
-        / "provenance"
-        / f"{run_id}.json"
-    )
+    provenance_path = tmp_path / "data" / "canonical" / dataset_id / "provenance" / f"{run_id}.json"
     provenance_path.unlink()
 
     with pytest.raises(MarketDataError, match="verification failed"):

@@ -137,9 +137,7 @@ def test_replay_has_no_provider_parameter_and_reproduces_exact_dataset(tmp_path:
 
     provenance = json.loads(store.read_provenance(result.dataset_id, "run-001"))
     retrieval_bytes = store.read_retrieval_manifest_bytes("run-001")
-    assert provenance["retrieval_manifest_sha256"] == hashlib.sha256(
-        retrieval_bytes
-    ).hexdigest()
+    assert provenance["retrieval_manifest_sha256"] == hashlib.sha256(retrieval_bytes).hexdigest()
 
 
 def test_equivalent_runs_share_identity_but_keep_separate_receipts(tmp_path: Path) -> None:
@@ -168,14 +166,7 @@ def test_replay_recomputes_raw_hashes_and_writes_no_canonical_data_on_tamper(
 ) -> None:
     store = LocalImmutableStore(tmp_path)
     _seed_run(store, "run-001")
-    raw_path = (
-        tmp_path
-        / "data"
-        / "raw"
-        / "binance_spot"
-        / "run-001"
-        / "page-000001.json"
-    )
+    raw_path = tmp_path / "data" / "raw" / "binance_spot" / "run-001" / "page-000001.json"
     raw_path.write_bytes(raw_path.read_bytes() + b" ")
     service = ReplayService(
         raw_store=store,
@@ -193,12 +184,7 @@ def test_replay_rejects_failed_retrieval_manifest(tmp_path: Path) -> None:
     store = LocalImmutableStore(tmp_path)
     manifest = _seed_run(store, "run-001")
     manifest_path = (
-        tmp_path
-        / "data"
-        / "raw"
-        / "binance_spot"
-        / "run-001"
-        / "retrieval-manifest.json"
+        tmp_path / "data" / "raw" / "binance_spot" / "run-001" / "retrieval-manifest.json"
     )
     content = manifest_path.read_text()
     manifest_path.write_text(content.replace('"status":"completed"', '"status":"failed"'))

@@ -1,26 +1,25 @@
-name: Task 9 GREEN Cleanup
+name: Task 9 GREEN Diagnostic
 
 on:
   pull_request:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  cleanup:
+  diagnostic:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2
-        with:
-          ref: ${{ github.head_ref }}
       - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
       - uses: actions/setup-python@v6.2.0
         with:
           python-version: "3.12"
       - run: uv sync --all-groups --frozen
-      - name: Complete readable store and verify Task 9
+      - name: Capture Task 9 candidate outputs
         run: |
-          python - <<'PY'
+          set +e
+          python - <<'PY' > task9-patch.txt 2>&1
           from pathlib import Path
 
           path = Path("src/gemini_trading/data/storage/local_immutable.py")
@@ -54,16 +53,29 @@ jobs:
               raise SystemExit("retrieval reader insertion point not found")
           content = content.replace(method_marker, method + method_marker, 1)
           path.write_text(content)
+          print("patch applied")
           PY
-          uv run ruff format src/gemini_trading/data/ingestion/replay.py src/gemini_trading/data/verification src/gemini_trading/data/storage/base.py src/gemini_trading/data/storage/local_immutable.py tests/unit/data/ingestion/test_replay.py tests/unit/data/verification/test_service.py tests/integration/test_replay_without_network.py
-          uv run ruff check src/gemini_trading/data/ingestion/replay.py src/gemini_trading/data/verification src/gemini_trading/data/storage/base.py src/gemini_trading/data/storage/local_immutable.py tests/unit/data/ingestion/test_replay.py tests/unit/data/verification/test_service.py tests/integration/test_replay_without_network.py --fix
-          uv run ruff format --check src/gemini_trading/data/ingestion/replay.py src/gemini_trading/data/verification src/gemini_trading/data/storage/base.py src/gemini_trading/data/storage/local_immutable.py tests/unit/data/ingestion/test_replay.py tests/unit/data/verification/test_service.py tests/integration/test_replay_without_network.py
-          uv run ruff check src/gemini_trading/data/ingestion/replay.py src/gemini_trading/data/verification src/gemini_trading/data/storage/base.py src/gemini_trading/data/storage/local_immutable.py tests/unit/data/ingestion/test_replay.py tests/unit/data/verification/test_service.py tests/integration/test_replay_without_network.py
-          uv run pyright
-          uv run pytest tests/unit/data/ingestion/test_replay.py tests/unit/data/verification/test_service.py tests/integration/test_replay_without_network.py tests/unit/data/storage tests/unit/data/datasets tests/unit/data/validation tests/property tests/regression tests/unit/safety -q
-          rm -f .github/workflows/task9-red-pyright.yml .github/workflows/task9-green-cleanup.yml
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/gemini_trading/data/ingestion/replay.py src/gemini_trading/data/verification src/gemini_trading/data/storage/base.py src/gemini_trading/data/storage/local_immutable.py tests/unit/data/ingestion/test_replay.py tests/unit/data/verification/test_service.py tests/integration/test_replay_without_network.py .github/workflows
-          git commit -m "feat: replay and verify canonical market data"
-          git push origin HEAD:${{ github.head_ref }}
+          echo "patch_status=$?" >> task9-patch.txt
+          uv run ruff format src/gemini_trading/data/ingestion/replay.py src/gemini_trading/data/verification src/gemini_trading/data/storage/base.py src/gemini_trading/data/storage/local_immutable.py tests/unit/data/ingestion/test_replay.py tests/unit/data/verification/test_service.py tests/integration/test_replay_without_network.py > task9-format.txt 2>&1
+          echo "format_status=$?" >> task9-format.txt
+          uv run ruff check src/gemini_trading/data/ingestion/replay.py src/gemini_trading/data/verification src/gemini_trading/data/storage/base.py src/gemini_trading/data/storage/local_immutable.py tests/unit/data/ingestion/test_replay.py tests/unit/data/verification/test_service.py tests/integration/test_replay_without_network.py --fix > task9-lint.txt 2>&1
+          echo "lint_status=$?" >> task9-lint.txt
+          uv run pyright > task9-pyright.txt 2>&1
+          echo "pyright_status=$?" >> task9-pyright.txt
+          uv run pytest tests/unit/data/ingestion/test_replay.py tests/unit/data/verification/test_service.py tests/integration/test_replay_without_network.py tests/unit/data/storage tests/unit/data/datasets tests/unit/data/validation tests/property tests/regression tests/unit/safety -q > task9-pytest.txt 2>&1
+          echo "pytest_status=$?" >> task9-pytest.txt
+          exit 0
+      - uses: actions/upload-artifact@v4.6.2
+        with:
+          name: task9-green-diagnostic
+          path: |
+            task9-*.txt
+            src/gemini_trading/data/ingestion/replay.py
+            src/gemini_trading/data/verification
+            src/gemini_trading/data/storage/base.py
+            src/gemini_trading/data/storage/local_immutable.py
+            tests/unit/data/ingestion/test_replay.py
+            tests/unit/data/verification/test_service.py
+            tests/integration/test_replay_without_network.py
+          if-no-files-found: error
+          retention-days: 1

@@ -11,6 +11,7 @@ from gemini_trading.research.errors import ArtifactConflictError
 
 _REQUIRED_ARTIFACTS = {
     "experiment-manifest.json",
+    "simulation-config.json",
     "decisions.jsonl",
     "orders.jsonl",
     "rejections.jsonl",

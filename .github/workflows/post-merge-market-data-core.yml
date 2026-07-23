@@ -17,7 +17,7 @@ jobs:
       - name: Check out exact merged main commit
         uses: actions/checkout@v6.0.2
         with:
-          ref: 777c32f6f6a925687548f15191b6e152e4d0303f
+          ref: 92fe0d06fb0ccbdee5296903b7708771f68e307f
           fetch-depth: 1
       - name: Find tracked UTF-8 files requiring EOF normalization
         id: scan
@@ -70,12 +70,12 @@ jobs:
     needs: newline-diagnostic
     runs-on: ubuntu-latest
     env:
-      TARGET_SHA: 777c32f6f6a925687548f15191b6e152e4d0303f
+      TARGET_SHA: 92fe0d06fb0ccbdee5296903b7708771f68e307f
     steps:
       - name: Check out exact merged main commit
         uses: actions/checkout@v6.0.2
         with:
-          ref: 777c32f6f6a925687548f15191b6e152e4d0303f
+          ref: 92fe0d06fb0ccbdee5296903b7708771f68e307f
           fetch-depth: 0
 
       - name: Prove exact target identity before verification

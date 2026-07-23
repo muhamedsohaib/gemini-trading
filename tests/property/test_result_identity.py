@@ -45,9 +45,7 @@ def _empty_evidence(initial_cash: Decimal) -> BacktestEvidence:
         default_time_in_force=TimeInForce.BAR,
         max_active_candles=3,
         random_seed=0,
-        simulation_config_sha256=hashlib.sha256(
-            serialize_simulation_config(config)
-        ).hexdigest(),
+        simulation_config_sha256=hashlib.sha256(serialize_simulation_config(config)).hexdigest(),
     )
     terminal = AccountSnapshot.initial(initial_cash)
     return BacktestEvidence(

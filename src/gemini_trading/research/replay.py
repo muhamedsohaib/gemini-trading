@@ -262,9 +262,7 @@ def _intent_from_mapping(mapping: dict[str, object]) -> OrderIntent:
     try:
         return OrderIntent(
             side=OrderSide(_required_str(mapping, "side", "fixture strategy intent")),
-            order_type=OrderType(
-                _required_str(mapping, "order_type", "fixture strategy intent")
-            ),
+            order_type=OrderType(_required_str(mapping, "order_type", "fixture strategy intent")),
             quantity=_decimal(
                 mapping.get("quantity"),
                 "quantity",

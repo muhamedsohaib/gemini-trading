@@ -164,9 +164,7 @@ class ResearchVerificationService:
             "terminal_status": terminal_status,
             "promotable": promotable_value,
         }
-        recomputed_result_id = hashlib.sha256(
-            canonical_json_bytes(identity_payload)
-        ).hexdigest()
+        recomputed_result_id = hashlib.sha256(canonical_json_bytes(identity_payload)).hexdigest()
         if recomputed_result_id != recorded_result_id:
             raise ReplayMismatchError("result identity does not match artifact hashes")
         if canonical_json_bytes({**identity_payload, "result_id": recorded_result_id}) != (

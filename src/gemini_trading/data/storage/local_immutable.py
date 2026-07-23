@@ -109,9 +109,12 @@ def _object_mapping(raw: bytes, description: str) -> dict[str, object]:
         loaded: object = json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as error:
         raise ValueError(f"invalid {description} JSON") from error
-    if not isinstance(loaded, dict) or not all(isinstance(key, str) for key in loaded):
+    if not isinstance(loaded, dict):
         raise ValueError(f"invalid {description} JSON object")
-    return cast(dict[str, object], loaded)
+    raw_mapping = cast(dict[object, object], loaded)
+    if not all(isinstance(key, str) for key in raw_mapping):
+        raise ValueError(f"invalid {description} JSON object")
+    return cast(dict[str, object], raw_mapping)
 
 
 def _required_str(mapping: dict[str, object], key: str) -> str:
@@ -139,24 +142,31 @@ def _required_int(mapping: dict[str, object], key: str) -> int:
 
 def _required_mapping(mapping: dict[str, object], key: str) -> dict[str, object]:
     value = mapping.get(key)
-    if not isinstance(value, dict) or not all(isinstance(item, str) for item in value):
+    if not isinstance(value, dict):
         raise ValueError(f"invalid storage metadata field: {key}")
-    return cast(dict[str, object], value)
+    raw_mapping = cast(dict[object, object], value)
+    if not all(isinstance(item, str) for item in raw_mapping):
+        raise ValueError(f"invalid storage metadata field: {key}")
+    return cast(dict[str, object], raw_mapping)
 
 
 def _required_strings(mapping: dict[str, object], key: str) -> tuple[str, ...]:
     value = mapping.get(key)
-    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+    if not isinstance(value, list):
         raise ValueError(f"invalid storage metadata field: {key}")
-    return tuple(cast(list[str], value))
+    raw_values = cast(list[object], value)
+    if not all(isinstance(item, str) for item in raw_values):
+        raise ValueError(f"invalid storage metadata field: {key}")
+    return tuple(cast(list[str], raw_values))
 
 
 def _request_parameters(mapping: dict[str, object]) -> tuple[tuple[str, str], ...]:
     raw_parameters = mapping.get("request_parameters")
     if not isinstance(raw_parameters, list):
         raise ValueError("invalid storage metadata field: request_parameters")
+    raw_parameter_values = cast(list[object], raw_parameters)
     parameters: list[tuple[str, str]] = []
-    for raw_parameter in raw_parameters:
+    for raw_parameter in raw_parameter_values:
         if not isinstance(raw_parameter, list):
             raise ValueError("invalid storage metadata field: request_parameters")
         pair = cast(list[object], raw_parameter)

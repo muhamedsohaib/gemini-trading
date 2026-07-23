@@ -66,9 +66,7 @@ def apply_fill(
         resulting_position = account.position_quantity + position_delta
         cost_basis_released = account.average_entry_price * fill.quantity
         realized_pnl = account.realized_pnl + cash_delta - cost_basis_released
-        average_entry_price = (
-            _ZERO if resulting_position == 0 else account.average_entry_price
-        )
+        average_entry_price = _ZERO if resulting_position == 0 else account.average_entry_price
         event_type = "fill.sell_to_close"
 
     resulting_cash = account.cash + cash_delta

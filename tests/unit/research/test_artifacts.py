@@ -4,10 +4,10 @@ import json
 from pathlib import Path
 
 import pytest
+from test_metrics import known_evidence
 
 from gemini_trading.research.artifacts import LocalResearchStore, build_artifacts
 from gemini_trading.research.errors import ArtifactConflictError
-from test_metrics import known_evidence
 
 _REQUIRED_ARTIFACTS = {
     "experiment-manifest.json",
@@ -58,5 +58,5 @@ def test_local_store_accepts_identical_rerun_and_rejects_conflicting_bytes(
     metrics_path = tmp_path / "data" / "research" / artifacts.experiment_id / "metrics.json"
     metrics_path.write_bytes(b"{}\n")
 
-    with pytest.raises(ArtifactConflictError, match="metrics.json"):
+    with pytest.raises(ArtifactConflictError, match=r"metrics\.json"):
         store.write(artifacts)

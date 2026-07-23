@@ -260,3 +260,58 @@ This append-only log records fresh task and checkpoint evidence for GitHub issue
 - No credential, private endpoint, strategy, signal, order, or execution capability was introduced. Runtime live mode remains rejected.
 - Architectural limitation: the approved `RawStore` and `CanonicalStore` protocols expose separate immutable write operations but no transaction, staging bundle, or rollback contract. The implementation therefore guarantees failed manifests and zero canonical calls for provider, retry, normalization, completion, and validation failures before publication begins, but cannot honestly guarantee cross-store rollback if a filesystem/store failure occurs after completed-manifest or canonical publication has started. A transactional composite publication boundary would be required for that stronger guarantee; this limitation must remain visible during Task 9 verification and milestone acceptance.
 - Platform limitation: the final Task 8 checkpoint and exact-head gates were observed on GitHub-hosted Ubuntu. Fresh Windows-local verification remains required at the operator checkpoint and final exact-head verification.
+
+## Task 9 — Offline replay and independent verification
+
+### RED phase
+
+- Task base: `1fc7aa3841e905c6edceaca1dba6b6a9c64c4436`.
+- Initial test-only head: `1d048f9a3b2244359cba308c368084b92acdadd0`.
+- GitHub Actions run `29973056382` stopped at Ruff formatting before the intended missing-module failure; this run was rejected as RED evidence. `gitleaks` passed.
+- Repository-pinned Ruff formatted and lint-fixed the three Task 9 tests. Clean test-only RED head: `4358c5e98799f086ad25edd6975409c390f894d2`.
+- GitHub Actions RED run: `29973124542`.
+- Frozen dependency sync, Ruff format, Ruff lint, and `gitleaks` passed; strict Pyright failed on the intentionally absent replay and verification modules. Pytest and later quality steps were skipped.
+- Read-only diagnostic run `29973171371` exported the complete strict-Pyright output: all 55 diagnostics resulted from the absent Task 9 modules and the planned exact-manifest-byte reader; no independent test typing defect was present.
+- The RED suite defined provider-free replay, disabled-network execution, exact canonical JSONL/manifest/identity reproduction, equivalent-run identity with separate receipts, raw page hash verification, canonical retrieval-manifest bytes, failed-run rejection, raw/canonical/manifest/provenance tampering rejection, parsed continuity, completed-state validation, and missing-receipt rejection.
+
+### Initial GREEN phase and remediation
+
+- Initial replay and verification modules reused the Task 4 normalizer, Task 3 completion/sequence validation, Task 7 canonical serializers/builders, and immutable local storage.
+- Diagnostic run `29973545694` isolated an indentation error in the newly inserted manifest-byte reader and strict-Pyright private-helper usage. No result from that run was accepted.
+- Diagnostic run `29973683400` passed Ruff and all 105 focused/regression tests, but strict Pyright exposed an architectural regression: extending the global write-oriented storage protocols forced unrelated Task 8 test stores to implement Task 9 read methods.
+- The global `RawStore` and `CanonicalStore` contracts were restored unchanged. Task 9 introduced narrow `ReplayRawStore`, `ReplayCanonicalStore`, and `VerificationCanonicalStore` protocols instead.
+- Cleanup run `29973772860` passed repository-pinned Ruff, strict Pyright, and all 105 focused/regression tests.
+- Clean connector-authored implementation head: `27c7ae8d4fe01239e56a686ffbe6cde886772ad2`.
+- GitHub Actions run `29973841543` passed sync, Ruff, Pyright, and `gitleaks`, then full pytest exposed a collection-only conflict because two non-package test directories both contained `test_service.py`.
+- Read-only diagnostic run `29973878507` confirmed the pytest import mismatch. The verification test was renamed to `test_verification_service.py`; no production behavior changed.
+- Core Task 9 implementation head: `3421968914514d99c213baa97f193cf4baa71dfa`.
+- GitHub Actions run `29973970401` passed frozen sync, Ruff format, Ruff lint, strict Pyright, full pytest, package build, pip-audit, tracked-file policy, detect-secrets, and `gitleaks`.
+
+### Review-added request-metadata linkage regression
+
+- Final review identified a meaningful integrity gap: a canonically rewritten retrieval manifest could change its instrument while persisted provider request metadata still named the original symbol.
+- Clean formatted regression head: `098e82aff54c60b9f915539ed4d789f47053fdd0`.
+- GitHub Actions RED run `29974283509` passed sync, Ruff format, Ruff lint, strict Pyright, and `gitleaks`, then failed pytest.
+- Focused diagnostic run `29974323631` observed the exact expected failure: `Failed: DID NOT RAISE MarketDataError` for mismatched manifest instrument versus persisted request parameters.
+- The minimal correction validates the exact sorted Binance request parameter set (`symbol`, `interval`, `startTime`, `endTime`, `limit`) against the manifest and current cursor, validates bounded canonical limit text, requires each page to begin at its requested cursor, requires forward cursor progress, rejects retrieval-time reversal, rejects pages after a terminal guard, and rejects uncovered requested windows.
+- Metadata GREEN run `29974466041` passed repository-pinned Ruff, strict Pyright, and the complete pytest suite, producing bot-authored implementation head `ab38d6e2288c9073dc8edfa552727296fc762670` and removing its temporary workflows.
+- Final clean connector-authored implementation head: `acc5b0c2215046a4539ad2e7862f59073552b000`.
+- Final implementation CI run: `29974519569`.
+- Observed `quality` result: passed frozen dependency sync, Ruff format, Ruff lint, strict Pyright, full pytest, package build, pip-audit, tracked-file policy validation, and detect-secrets.
+- Observed `gitleaks` result: passed.
+
+### Verified behavior and scope
+
+- `ReplayService` has no provider field or provider constructor parameter. Integration coverage disables `urllib.request.urlopen` and `socket.create_connection`; replay still completes from stored evidence.
+- Replay first verifies canonical retrieval-manifest bytes and recomputes every listed response-body SHA-256 before any normalization.
+- Replay cross-checks persisted Binance request identity, interval, bounded window, cursor, and limit against the retrieval manifest, then reuses the exact normalizer, completion filter, sequence validator, and deterministic canonical writer.
+- Equivalent raw runs reproduce identical canonical JSONL, deterministic manifest bytes, and dataset ID while retaining separate run-specific provenance receipts.
+- `VerificationService` independently parses persisted canonical JSONL, manifest, and provenance; recomputes raw reconstruction, canonical bytes, canonical SHA-256, dataset ID, deterministic manifest bytes, retrieval-manifest SHA-256, provenance linkage, continuity, and completed state.
+- Tampering coverage includes raw response bytes, retrieval-manifest bytes, canonical JSONL, deterministic dataset manifest, provenance linkage, request-metadata identity/window mismatch, and missing provenance. Every tested case fails closed.
+- The net Task 9 diff contains only replay, verification, the exact retrieval-manifest serializer/reader extension in local immutable storage, and four Task 9 test modules. Temporary workflows, trigger files, placeholders, credentials, private endpoints, strategy, signal, order, and execution behavior are absent.
+
+### Remaining trust boundaries
+
+- The Task 8 cross-store publication limitation remains: verification detects missing or inconsistent canonical/provenance artifacts but cannot roll back files after a storage failure once publication has begun.
+- `RawPage.retrieved_at` and `DatasetProvenance.created_at` are informational timestamps, not externally signed timestamps. Verification enforces their schema, UTC/domain validity, deterministic encoding, ordering where applicable, and all derived linkage fields, but cannot prove a valid rewritten informational timestamp against an external authority. These timestamps do not affect canonical JSONL or dataset identity. Stronger adversarial timestamp authenticity would require signatures or an external append-only audit anchor.
+- Final Task 9 evidence was observed on GitHub-hosted Ubuntu. Fresh Windows-local verification remains required at the operator checkpoint and final exact-head milestone verification.

@@ -3,6 +3,7 @@
 import hashlib
 from dataclasses import dataclass, replace
 from decimal import Decimal
+from typing import cast
 
 from gemini_trading.domain.account import AccountSnapshot, LedgerEntry
 from gemini_trading.domain.candle import Candle
@@ -35,7 +36,7 @@ _ZERO = Decimal("0")
 def _validated_strategy_intents(value: object) -> tuple[OrderIntent, ...]:
     if not isinstance(value, tuple):
         raise StrategyContractError("strategy must return a tuple of OrderIntent values")
-    raw_items: tuple[object, ...] = value
+    raw_items = cast(tuple[object, ...], value)
     intents: list[OrderIntent] = []
     for item in raw_items:
         if not isinstance(item, OrderIntent):

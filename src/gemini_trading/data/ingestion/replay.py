@@ -3,7 +3,7 @@
 import hashlib
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Protocol
 
@@ -31,6 +31,8 @@ _RETRIEVAL_SCHEMA_VERSION = "retrieval-manifest-v1"
 _DATASET_SCHEMA_VERSION = "candle-dataset-v1"
 _PROVENANCE_SCHEMA_VERSION = "dataset-provenance-v1"
 _PROVIDER = "binance_spot"
+_EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
+_REQUEST_PARAMETER_KEYS = {"symbol", "interval", "startTime", "endTime", "limit"}
 
 
 class ReplayRawStore(Protocol):
@@ -64,6 +66,45 @@ class ReplayCanonicalStore(Protocol):
 
 def _utc_now() -> datetime:
     return datetime.now(UTC)
+
+
+def _utc_milliseconds(value: datetime) -> int:
+    return (value - _EPOCH) // timedelta(milliseconds=1)
+
+
+def _validate_request_parameters(
+    manifest: RetrievalManifest,
+    page: RawPage,
+    cursor: datetime,
+) -> None:
+    parameters = page.request_parameters
+    if parameters != tuple(sorted(parameters)):
+        raise MarketDataError("raw page request parameters are not sorted")
+    mapping = dict(parameters)
+    if len(mapping) != len(parameters) or set(mapping) != _REQUEST_PARAMETER_KEYS:
+        raise MarketDataError("raw page request parameters do not match retrieval manifest")
+
+    limit_text = mapping["limit"]
+    try:
+        limit = int(limit_text)
+    except ValueError:
+        raise MarketDataError("raw page request parameters contain an invalid limit") from None
+    if not 1 <= limit <= 1000 or str(limit) != limit_text:
+        raise MarketDataError("raw page request parameters contain an invalid limit")
+
+    expected = tuple(
+        sorted(
+            (
+                ("symbol", manifest.instrument.symbol),
+                ("interval", manifest.timeframe.value),
+                ("startTime", str(_utc_milliseconds(cursor))),
+                ("endTime", str(_utc_milliseconds(manifest.end_time) - 1)),
+                ("limit", limit_text),
+            )
+        )
+    )
+    if parameters != expected:
+        raise MarketDataError("raw page request parameters do not match retrieval manifest")
 
 
 def load_verified_run(
@@ -115,15 +156,44 @@ def reconstruct_completed_candles(
     if manifest.server_time_snapshot is None:
         raise MarketDataError("completed retrieval manifest lacks server time")
 
-    candidates = tuple(
-        candle
-        for page in pages
-        for candle in normalize_binance_klines(
+    cursor = manifest.start_time
+    terminal_guard_seen = False
+    candidates: list[Candle] = []
+    previous_retrieved_at: datetime | None = None
+
+    for index, page in enumerate(pages):
+        if terminal_guard_seen:
+            raise MarketDataError("raw evidence continues after a terminal guard page")
+        if previous_retrieved_at is not None and page.retrieved_at < previous_retrieved_at:
+            raise MarketDataError("raw page retrieval times are out of order")
+        previous_retrieved_at = page.retrieved_at
+
+        _validate_request_parameters(manifest, page, cursor)
+        normalized = normalize_binance_klines(
             page.response_bytes,
             manifest.instrument,
             manifest.timeframe,
         )
-    )
+        if not normalized:
+            raise MarketDataError("raw evidence contains an empty non-terminal page")
+        if normalized[0].open_time != cursor:
+            raise MarketDataError("raw evidence does not begin at the requested cursor")
+
+        next_cursor = normalized[-1].open_time + manifest.timeframe.duration
+        if next_cursor <= cursor:
+            raise MarketDataError("raw evidence cursor did not advance")
+        terminal_guard_seen = any(
+            candle.close_time >= manifest.server_time_snapshot for candle in normalized
+        )
+        if terminal_guard_seen and index != len(pages) - 1:
+            raise MarketDataError("raw evidence continues after a terminal guard page")
+
+        candidates.extend(normalized)
+        cursor = next_cursor
+
+    if not terminal_guard_seen and cursor < manifest.end_time:
+        raise MarketDataError("raw evidence does not cover the requested window")
+
     candles = completed_candles(candidates, manifest.server_time_snapshot)
     request = RetrievalRequest(
         instrument=manifest.instrument,

@@ -1,3 +1,5 @@
+"""Property contracts for deterministic canonical dataset identity."""
+
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 

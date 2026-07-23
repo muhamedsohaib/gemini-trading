@@ -115,10 +115,12 @@ def test_research_backtest_replay_and_verify_are_provider_free_and_deterministic
     assert verified["experiment_id"] == experiment_id
     assert verified["result_id"] == result_id
     assert verified["promotable"] is True
-    raw_checks = verified["checks"]
-    assert isinstance(raw_checks, list)
-    assert all(isinstance(check, str) for check in raw_checks)
-    checks = cast(list[str], raw_checks)
+    raw_checks_value = verified["checks"]
+    assert isinstance(raw_checks_value, list)
+    checks: list[str] = []
+    for raw_check in cast(list[object], raw_checks_value):
+        assert isinstance(raw_check, str)
+        checks.append(raw_check)
     assert checks == sorted(checks)
     assert "replay_equivalent" in checks
 

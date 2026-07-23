@@ -1,32 +1,52 @@
-name: Task 8 GREEN Format Diagnostic
+name: Task 8 GREEN Cleanup
 
 on:
   pull_request:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  format-diagnostic:
+  cleanup:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2
+        with:
+          ref: ${{ github.head_ref }}
       - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
       - uses: actions/setup-python@v6.2.0
         with:
           python-version: "3.12"
       - run: uv sync --all-groups --frozen
-      - name: Produce exact Ruff output
+      - name: Bind cursor, format, and verify Task 8
         run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/gemini_trading/data/ingestion/service.py")
+          content = path.read_text()
+          old = """lambda: self._provider.fetch_klines(
+                          request,
+                          cursor,
+                          self._page_limit,
+                      )"""
+          new = """lambda current_cursor=cursor: self._provider.fetch_klines(
+                          request,
+                          current_cursor,
+                          self._page_limit,
+                      )"""
+          if old not in content:
+              raise SystemExit("expected cursor lambda not found")
+          path.write_text(content.replace(old, new, 1))
+          PY
           uv run ruff format src/gemini_trading/data/ingestion tests/unit/data/ingestion
-          uv run ruff check src/gemini_trading/data/ingestion tests/unit/data/ingestion --fix > task8-green-lint.txt 2>&1 || true
-          uv run ruff check src/gemini_trading/data/ingestion tests/unit/data/ingestion >> task8-green-lint.txt 2>&1 || true
-      - uses: actions/upload-artifact@v4.6.2
-        with:
-          name: task8-green-formatted-files
-          path: |
-            src/gemini_trading/data/ingestion
-            tests/unit/data/ingestion
-            task8-green-lint.txt
-          if-no-files-found: error
-          retention-days: 1
+          uv run ruff check src/gemini_trading/data/ingestion tests/unit/data/ingestion --fix
+          uv run ruff format --check src/gemini_trading/data/ingestion tests/unit/data/ingestion
+          uv run ruff check src/gemini_trading/data/ingestion tests/unit/data/ingestion
+          uv run pyright
+          uv run pytest tests/unit/data/ingestion tests/unit/data/datasets tests/unit/data/storage tests/unit/data/validation tests/property tests/regression tests/unit/safety -q
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/gemini_trading/data/ingestion tests/unit/data/ingestion
+          git diff --cached --quiet || git commit -m "fix: bind Task 8 retry cursor"
+          git push origin HEAD:${{ github.head_ref }}

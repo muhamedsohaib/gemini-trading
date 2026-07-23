@@ -17,6 +17,15 @@ def _require_positive_decimal(value: Decimal, field_name: str) -> None:
         raise ValueError(f"{field_name} must be finite and positive")
 
 
+def _validate_limit_price(order_type: "OrderType", limit_price: Decimal | None) -> None:
+    if order_type is OrderType.LIMIT and limit_price is None:
+        raise ValueError("limit_price is required for limit orders")
+    if order_type is OrderType.MARKET and limit_price is not None:
+        raise ValueError("limit_price is forbidden for market orders")
+    if limit_price is not None:
+        _require_positive_decimal(limit_price, "limit_price")
+
+
 class TimeInForce(StrEnum):
     """Supported deterministic order-lifetime policies."""
 
@@ -62,12 +71,7 @@ class OrderIntent:
 
     def __post_init__(self) -> None:
         _require_positive_decimal(self.quantity, "quantity")
-        if self.order_type is OrderType.LIMIT:
-            if self.limit_price is None:
-                raise ValueError("limit_price is required for limit orders")
-            _require_positive_decimal(self.limit_price, "limit_price")
-        elif self.limit_price is not None:
-            raise ValueError("limit_price is forbidden for market orders")
+        _validate_limit_price(self.order_type, self.limit_price)
 
 
 @dataclass(frozen=True, slots=True)
@@ -106,13 +110,7 @@ class SimulatedOrder:
             raise ValueError("filled_quantity must be finite and non-negative")
         if self.filled_quantity > self.requested_quantity:
             raise ValueError("filled_quantity cannot exceed requested quantity")
-
-        if self.order_type is OrderType.LIMIT:
-            if self.limit_price is None:
-                raise ValueError("limit_price is required for limit orders")
-            _require_positive_decimal(self.limit_price, "limit_price")
-        elif self.limit_price is not None:
-            raise ValueError("limit_price is forbidden for market orders")
+        _validate_limit_price(self.order_type, self.limit_price)
 
         if self.status is OrderStatus.ACCEPTED and self.filled_quantity != 0:
             raise ValueError("ACCEPTED order cannot contain filled quantity")

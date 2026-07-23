@@ -1,0 +1,32 @@
+name: Task 11 Precommit Diagnostic
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnostic:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          ref: ${{ github.head_ref }}
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - name: Capture pre-commit output and diff
+        run: |
+          mkdir -p task11-precommit
+          uv run pre-commit run --all-files > task11-precommit/output.txt 2>&1 || true
+          git diff --binary > task11-precommit/diff.patch
+          git status --short > task11-precommit/status.txt
+      - uses: actions/upload-artifact@v4.6.2
+        with:
+          name: task11-precommit-diagnostic
+          path: task11-precommit
+          if-no-files-found: error
+          retention-days: 1

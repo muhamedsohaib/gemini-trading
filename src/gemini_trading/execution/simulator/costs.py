@@ -30,7 +30,6 @@ class FillCosts:
     slippage_cost: Decimal
 
 
-
 def market_fill_costs(
     *,
     reference_price: Decimal,

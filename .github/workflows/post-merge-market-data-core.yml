@@ -9,25 +9,62 @@ permissions:
   contents: read
 
 jobs:
-  newline-diagnostic:
-    name: Newline check — ${{ matrix.path }}
+  determine-newline-candidates:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        path:
-          - reports/verification/market-data-core-final.md
-          - reports/verification/market-data-core-progress.md
+    outputs:
+      paths: ${{ steps.scan.outputs.paths }}
     steps:
       - name: Check out exact merged main commit
         uses: actions/checkout@v6.0.2
         with:
           ref: 777c32f6f6a925687548f15191b6e152e4d0303f
           fetch-depth: 1
-      - name: Require final newline
+      - name: Find tracked UTF-8 files without final newline
+        id: scan
         shell: bash
         run: |
-          python -c "from pathlib import Path; p=Path('${{ matrix.path }}'); data=p.read_bytes(); assert data.endswith(b'\n'), f'{p} has no final newline'"
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import subprocess
+          from pathlib import Path
+
+          bad: list[str] = []
+          paths = subprocess.check_output(["git", "ls-files", "-z"]).split(b"\0")
+          for raw_path in paths:
+              if not raw_path:
+                  continue
+              path = Path(raw_path.decode("utf-8"))
+              data = path.read_bytes()
+              if not data or b"\0" in data:
+                  continue
+              try:
+                  data.decode("utf-8")
+              except UnicodeDecodeError:
+                  continue
+              if not data.endswith(b"\n"):
+                  bad.append(path.as_posix())
+
+          print("paths=" + json.dumps(bad or ["__NONE__"], separators=(",", ":")))
+          PY
+
+  newline-diagnostic:
+    needs: determine-newline-candidates
+    name: Missing final newline — ${{ matrix.path }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        path: ${{ fromJSON(needs.determine-newline-candidates.outputs.paths) }}
+    steps:
+      - name: Report result
+        shell: bash
+        run: |
+          if [ "${{ matrix.path }}" = "__NONE__" ]; then
+            echo "PASS: no tracked UTF-8 file is missing a final newline"
+            exit 0
+          fi
+          echo "::error file=${{ matrix.path }}::Tracked UTF-8 file has no final newline"
+          exit 1
 
   exact-merged-main:
     needs: newline-diagnostic

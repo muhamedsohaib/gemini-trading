@@ -1,13 +1,13 @@
-name: Task 10 GREEN Diagnostic
+name: Task 10 GREEN Cleanup
 
 on:
   pull_request:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  diagnostic:
+  cleanup:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2
@@ -18,11 +18,66 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync --all-groups --frozen
-      - name: Capture strict Pyright output
-        run: uv run pyright > task10-green-pyright.txt 2>&1 || true
-      - uses: actions/upload-artifact@v4.6.2
-        with:
-          name: task10-green-pyright
-          path: task10-green-pyright.txt
-          if-no-files-found: error
-          retention-days: 1
+      - name: Apply strict test narrowing and verify Task 10
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          unit = Path("tests/unit/cli/test_market_data.py")
+          content = unit.read_text(encoding="utf-8")
+          content = content.replace(
+              "from pathlib import Path\n",
+              "from pathlib import Path\nfrom typing import cast\n",
+              1,
+          )
+          content = content.replace(
+              "    value = json.loads(text)\n    assert isinstance(value, dict)\n    return value\n",
+              "    value: object = json.loads(text)\n    assert isinstance(value, dict)\n    return cast(dict[str, object], value)\n",
+              1,
+          )
+          content = content.replace(
+              "    error = payload[\"error\"]\n    assert isinstance(error, dict)\n    assert error[\"type\"] == \"CliUsageError\"\n    message = error[\"message\"]\n",
+              "    error_value = payload[\"error\"]\n    assert isinstance(error_value, dict)\n    error = cast(dict[str, object], error_value)\n    assert error[\"type\"] == \"CliUsageError\"\n    message: object = error[\"message\"]\n",
+              1,
+          )
+          unit.write_text(content, encoding="utf-8")
+
+          acceptance = Path("tests/acceptance/test_market_data_cli.py")
+          content = acceptance.read_text(encoding="utf-8")
+          content = content.replace(
+              "from pathlib import Path\n",
+              "from pathlib import Path\nfrom typing import cast\n",
+              1,
+          )
+          content = content.replace(
+              "    decoded = json.loads(text)\n    assert isinstance(decoded, dict)\n    return decoded\n",
+              "    decoded: object = json.loads(text)\n    assert isinstance(decoded, dict)\n    return cast(dict[str, object], decoded)\n",
+              1,
+          )
+          content = content.replace(
+              "    configuration = tomllib.loads((project_root / \"pyproject.toml\").read_text(encoding=\"utf-8\"))\n    project = configuration[\"project\"]\n    assert isinstance(project, dict)\n    scripts = project[\"scripts\"]\n    assert isinstance(scripts, dict)\n",
+              "    configuration_value: object = tomllib.loads(\n        (project_root / \"pyproject.toml\").read_text(encoding=\"utf-8\")\n    )\n    assert isinstance(configuration_value, dict)\n    configuration = cast(dict[str, object], configuration_value)\n    project_value = configuration[\"project\"]\n    assert isinstance(project_value, dict)\n    project = cast(dict[str, object], project_value)\n    scripts_value = project[\"scripts\"]\n    assert isinstance(scripts_value, dict)\n    scripts = cast(dict[str, object], scripts_value)\n",
+              1,
+          )
+          content = content.replace(
+              "    error = payload[\"error\"]\n    assert isinstance(error, dict)\n    assert error[\"type\"] == \"UnsafeExecutionModeError\"\n    assert \"only research and paper are allowed\" in str(error[\"message\"])\n",
+              "    error_value = payload[\"error\"]\n    assert isinstance(error_value, dict)\n    error = cast(dict[str, object], error_value)\n    assert error[\"type\"] == \"UnsafeExecutionModeError\"\n    message: object = error[\"message\"]\n    assert \"only research and paper are allowed\" in str(message)\n",
+              1,
+          )
+          acceptance.write_text(content, encoding="utf-8")
+          PY
+          uv run ruff format src/gemini_trading/cli tests/unit/cli tests/acceptance/test_market_data_cli.py
+          uv run ruff check src/gemini_trading/cli tests/unit/cli tests/acceptance/test_market_data_cli.py --fix
+          uv run ruff format --check src/gemini_trading/cli tests/unit/cli tests/acceptance/test_market_data_cli.py
+          uv run ruff check src/gemini_trading/cli tests/unit/cli tests/acceptance/test_market_data_cli.py
+          uv run pyright
+          uv run pytest tests/unit/cli tests/acceptance/test_market_data_cli.py tests/unit/data tests/property tests/regression tests/unit/safety -q
+          uv run pytest -q
+          uv run gemini-trading --help >/dev/null
+          uv run gemini-trading market-data --help >/dev/null
+          rm -f .github/workflows/task10-green-diagnostic.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/gemini_trading/cli tests/unit/cli tests/acceptance/test_market_data_cli.py .github/workflows/task10-green-diagnostic.yml
+          git commit -m "test: normalize safe CLI type assertions"
+          git push origin HEAD:${{ github.head_ref }}

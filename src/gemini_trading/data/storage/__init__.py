@@ -1,1 +1,1 @@
-"""Immutable local storage adapters for market-data evidence and datasets."""
+"""Immutable filesystem storage adapters for market-data evidence and datasets."""

@@ -1,0 +1,36 @@
+name: Debug Lint Output
+
+# Temporary diagnostic workflow; remove after Task 4 is green.
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  debug-lint:
+    if: github.event.pull_request.number == 13
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.10.0"
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - name: Capture lint output
+        shell: bash
+        run: |
+          set +e
+          uv run ruff check . > lint-output.txt 2>&1
+          status=$?
+          printf '\nexit_status=%s\n' "$status" >> lint-output.txt
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lint-output
+          path: lint-output.txt
+          if-no-files-found: error
+          retention-days: 1

@@ -41,7 +41,7 @@ def canonical_json_bytes(payload: Mapping[str, object]) -> bytes:
         sort_keys=True,
         default=_default,
     )
-    return f"{encoded}\n".encode("utf-8")
+    return f"{encoded}\n".encode()
 
 
 def canonical_jsonl_bytes(rows: Iterable[Mapping[str, object]]) -> bytes:

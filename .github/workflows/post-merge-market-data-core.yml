@@ -9,7 +9,28 @@ permissions:
   contents: read
 
 jobs:
+  newline-diagnostic:
+    name: Newline check — ${{ matrix.path }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        path:
+          - reports/verification/market-data-core-final.md
+          - reports/verification/market-data-core-progress.md
+    steps:
+      - name: Check out exact merged main commit
+        uses: actions/checkout@v6.0.2
+        with:
+          ref: 777c32f6f6a925687548f15191b6e152e4d0303f
+          fetch-depth: 1
+      - name: Require final newline
+        shell: bash
+        run: |
+          python -c "from pathlib import Path; p=Path('${{ matrix.path }}'); data=p.read_bytes(); assert data.endswith(b'\n'), f'{p} has no final newline'"
+
   exact-merged-main:
+    needs: newline-diagnostic
     runs-on: ubuntu-latest
     env:
       TARGET_SHA: 777c32f6f6a925687548f15191b6e152e4d0303f
@@ -49,32 +70,8 @@ jobs:
       - name: Complete deterministic non-live suite
         run: uv run pytest -m "not live_api"
 
-      - name: Pre-commit — large files
-        run: uv run pre-commit run check-added-large-files --all-files
-
-      - name: Pre-commit — merge conflicts
-        run: uv run pre-commit run check-merge-conflict --all-files
-
-      - name: Pre-commit — TOML
-        run: uv run pre-commit run check-toml --all-files
-
-      - name: Pre-commit — YAML
-        run: uv run pre-commit run check-yaml --all-files
-
-      - name: Pre-commit — end of file
-        run: uv run pre-commit run end-of-file-fixer --all-files
-
-      - name: Pre-commit — trailing whitespace
-        run: uv run pre-commit run trailing-whitespace --all-files
-
-      - name: Pre-commit — Ruff check
-        run: uv run pre-commit run ruff-check --all-files
-
-      - name: Pre-commit — Ruff format
-        run: uv run pre-commit run ruff-format --all-files
-
-      - name: Pre-commit — detect secrets
-        run: uv run pre-commit run detect-secrets --all-files
+      - name: All pre-commit hooks
+        run: uv run pre-commit run --all-files
 
       - name: Strict Pyright
         run: uv run pyright
@@ -97,6 +94,9 @@ jobs:
           from gemini_trading.safety.repository_policy import validate_tracked_paths;
           validate_tracked_paths(subprocess.check_output(['git','ls-files'], text=True).splitlines());
           print('PASS: tracked-file policy')"
+
+      - name: Scan tracked files for secrets
+        run: uv run pre-commit run detect-secrets --all-files
 
       - name: Verify CLI surfaces
         run: |

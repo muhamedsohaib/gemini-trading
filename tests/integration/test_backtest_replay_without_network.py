@@ -4,11 +4,11 @@ import socket
 from pathlib import Path
 
 import pytest
-from research_fixture_support import write_completed_fixture_experiment
 
 from gemini_trading.data.storage.local_immutable import LocalImmutableStore
 from gemini_trading.research.artifacts import LocalResearchStore
 from gemini_trading.research.replay import ReplayService
+from research_fixture_support import write_completed_fixture_experiment
 
 
 def _fail_if_called(*_args: object, **_kwargs: object) -> None:

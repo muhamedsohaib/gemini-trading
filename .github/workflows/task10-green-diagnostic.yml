@@ -1,13 +1,13 @@
-name: Task 10 GREEN Cleanup
+name: Task 10 GREEN Diagnostic 2
 
 on:
   pull_request:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  cleanup:
+  diagnostic:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2
@@ -18,9 +18,11 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync --all-groups --frozen
-      - name: Apply strict test narrowing and verify Task 10
+      - name: Capture Task 10 correction outputs
         run: |
-          python - <<'PY'
+          set +e
+          mkdir -p task10-diagnostic
+          python - <<'PY' > task10-diagnostic/transform.txt 2>&1
           from pathlib import Path
 
           unit = Path("tests/unit/cli/test_market_data.py")
@@ -65,19 +67,27 @@ jobs:
               1,
           )
           acceptance.write_text(content, encoding="utf-8")
+          print("transform complete")
           PY
-          uv run ruff format src/gemini_trading/cli tests/unit/cli tests/acceptance/test_market_data_cli.py
-          uv run ruff check src/gemini_trading/cli tests/unit/cli tests/acceptance/test_market_data_cli.py --fix
-          uv run ruff format --check src/gemini_trading/cli tests/unit/cli tests/acceptance/test_market_data_cli.py
-          uv run ruff check src/gemini_trading/cli tests/unit/cli tests/acceptance/test_market_data_cli.py
-          uv run pyright
-          uv run pytest tests/unit/cli tests/acceptance/test_market_data_cli.py tests/unit/data tests/property tests/regression tests/unit/safety -q
-          uv run pytest -q
-          uv run gemini-trading --help >/dev/null
-          uv run gemini-trading market-data --help >/dev/null
-          rm -f .github/workflows/task10-green-diagnostic.yml
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/gemini_trading/cli tests/unit/cli tests/acceptance/test_market_data_cli.py .github/workflows/task10-green-diagnostic.yml
-          git commit -m "test: normalize safe CLI type assertions"
-          git push origin HEAD:${{ github.head_ref }}
+          echo "transform_exit=$?" >> task10-diagnostic/transform.txt
+          uv run ruff format src/gemini_trading/cli tests/unit/cli tests/acceptance/test_market_data_cli.py > task10-diagnostic/ruff-format.txt 2>&1
+          echo "exit=$?" >> task10-diagnostic/ruff-format.txt
+          uv run ruff check src/gemini_trading/cli tests/unit/cli tests/acceptance/test_market_data_cli.py > task10-diagnostic/ruff-check.txt 2>&1
+          echo "exit=$?" >> task10-diagnostic/ruff-check.txt
+          uv run pyright > task10-diagnostic/pyright.txt 2>&1
+          echo "exit=$?" >> task10-diagnostic/pyright.txt
+          uv run pytest tests/unit/cli tests/acceptance/test_market_data_cli.py -q > task10-diagnostic/focused-pytest.txt 2>&1
+          echo "exit=$?" >> task10-diagnostic/focused-pytest.txt
+          uv run pytest -q > task10-diagnostic/full-pytest.txt 2>&1
+          echo "exit=$?" >> task10-diagnostic/full-pytest.txt
+          uv run gemini-trading --help > task10-diagnostic/help.txt 2>&1
+          echo "exit=$?" >> task10-diagnostic/help.txt
+          uv run gemini-trading market-data --help > task10-diagnostic/market-help.txt 2>&1
+          echo "exit=$?" >> task10-diagnostic/market-help.txt
+          exit 0
+      - uses: actions/upload-artifact@v4.6.2
+        with:
+          name: task10-green-diagnostic-2
+          path: task10-diagnostic
+          if-no-files-found: error
+          retention-days: 1

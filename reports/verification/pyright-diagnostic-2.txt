@@ -1,5 +1,0 @@
-/home/runner/work/gemini-trading/gemini-trading/tests/acceptance/test_research_backtest_cli.py
-  /home/runner/work/gemini-trading/gemini-trading/tests/acceptance/test_research_backtest_cli.py:120:43 - error: Type of "check" is unknown (reportUnknownVariableType)
-1 error, 0 warnings, 0 informations
-
-exit_code=1

@@ -6,8 +6,8 @@ from decimal import Decimal
 
 from gemini_trading.domain.account import AccountSnapshot
 from gemini_trading.domain.candle import Candle
-from gemini_trading.domain.fill import Fill
 from gemini_trading.domain.experiment import LimitFillPolicy
+from gemini_trading.domain.fill import Fill
 from gemini_trading.domain.order import OrderSide, OrderStatus, OrderType, SimulatedOrder
 from gemini_trading.execution.simulator.costs import FillCosts, market_fill_costs
 from gemini_trading.execution.simulator.liquidity import available_quantity

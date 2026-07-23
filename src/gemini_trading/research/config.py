@@ -59,10 +59,9 @@ class SimulationConfig:
             raise InvalidExperimentConfigError("latency_bars must be a non-negative integer")
         if isinstance(self.max_active_candles, bool) or self.max_active_candles < 1:
             raise InvalidExperimentConfigError("max_active_candles must be a positive integer")
-        if (
-            not self.max_volume_participation.is_finite()
-            or not Decimal("0") < self.max_volume_participation <= Decimal("1")
-        ):
+        if not self.max_volume_participation.is_finite() or not Decimal(
+            "0"
+        ) < self.max_volume_participation <= Decimal("1"):
             raise InvalidExperimentConfigError(
                 "max_volume_participation must be greater than zero and no greater than one"
             )

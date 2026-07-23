@@ -6,8 +6,8 @@ import sys
 from collections.abc import Sequence
 from typing import NoReturn, TextIO
 
-from gemini_trading.cli import research
 from gemini_trading.cli.market_data import CliUsageError, run_market_data
+from gemini_trading.cli.research import run_research
 from gemini_trading.data.errors import MarketDataError
 from gemini_trading.domain.timeframe import Timeframe
 from gemini_trading.research.errors import ResearchError
@@ -115,7 +115,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if command == "market-data":
             payload = run_market_data(arguments)
         elif command == "research":
-            payload = research.run_research(arguments)
+            payload = run_research(arguments)
         else:
             raise CliUsageError("unsupported command")
     except (MarketDataError, ResearchError) as error:

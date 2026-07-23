@@ -22,7 +22,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $report = 'task12-windows-evidence.txt'
+          $report = Join-Path $env:RUNNER_TEMP 'task12-windows-evidence.txt'
           $head = git rev-parse HEAD
           "HEAD=$head" | Tee-Object -FilePath $report
           "OS=$([System.Environment]::OSVersion.VersionString)" | Tee-Object -FilePath $report -Append
@@ -78,6 +78,6 @@ jobs:
         if: always()
         with:
           name: task12-windows-evidence
-          path: task12-windows-evidence.txt
+          path: ${{ runner.temp }}/task12-windows-evidence.txt
           if-no-files-found: error
           retention-days: 1

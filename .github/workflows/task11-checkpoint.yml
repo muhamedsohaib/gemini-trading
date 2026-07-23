@@ -1,0 +1,146 @@
+name: Task 11 Acceptance Checkpoint
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  checkpoint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - name: Run complete non-live deterministic suite
+        run: uv run pytest -m "not live_api"
+      - name: Confirm live smoke remains opt-in
+        run: uv run pytest -m live_api -q
+      - name: Run all pre-commit hooks
+        run: uv run pre-commit run --all-files
+      - name: Run strict typing
+        run: uv run pyright
+      - name: Build package
+        run: |
+          rm -rf dist
+          uv run python -m build
+      - name: Audit dependencies
+        run: uv run pip-audit
+      - name: Validate tracked-file policy
+        run: uv run python -c "import subprocess; from gemini_trading.safety.repository_policy import validate_tracked_paths; validate_tracked_paths(subprocess.check_output(['git','ls-files'], text=True).splitlines()); print('PASS: tracked-file policy')"
+      - name: Scan tracked files for secrets
+        run: uv run pre-commit run detect-secrets --all-files
+      - name: Prove live mode fails closed
+        run: |
+          set +e
+          GEMINI_TRADING_MODE=live uv run python -c "from gemini_trading.safety.execution_mode import load_runtime_policy; load_runtime_policy()"
+          code=$?
+          set -e
+          if [ "$code" -eq 0 ]; then
+            echo "live mode was accepted"
+            exit 1
+          fi
+          echo "PASS: live mode rejected with exit code $code"
+      - name: Materialize fixed acceptance dataset
+        env:
+          ACCEPTANCE_ROOT: ${{ runner.temp }}/market-data-acceptance
+        run: |
+          uv run python - <<'PY'
+          import os
+          from datetime import UTC, datetime, timedelta
+          from pathlib import Path
+
+          from gemini_trading.data.ingestion.service import IngestionService
+          from gemini_trading.data.providers.base import HttpResponse, ProviderPage
+          from gemini_trading.data.storage.local_immutable import LocalImmutableStore
+          from gemini_trading.domain.dataset import RetrievalRequest
+          from gemini_trading.domain.instrument import Instrument
+          from gemini_trading.domain.timeframe import Timeframe
+
+          root = Path(os.environ["ACCEPTANCE_ROOT"])
+          fixture_root = Path("tests/fixtures/binance_spot")
+          payloads = (
+              (fixture_root / "ethusdt_4h_acceptance_page_1.json").read_bytes(),
+              (fixture_root / "ethusdt_4h_acceptance_page_2.json").read_bytes(),
+          )
+          epoch = datetime(1970, 1, 1, tzinfo=UTC)
+          server_time = datetime(2025, 1, 1, 14, tzinfo=UTC)
+          request = RetrievalRequest(
+              Instrument("ETHUSDT", "ETH", "USDT"),
+              Timeframe.H4,
+              datetime(2025, 1, 1, tzinfo=UTC),
+              datetime(2025, 1, 2, tzinfo=UTC),
+          )
+
+          class Provider:
+              def __init__(self) -> None:
+                  self.index = 0
+
+              def fetch_server_time(self) -> datetime:
+                  return server_time
+
+              def fetch_klines(
+                  self,
+                  request: RetrievalRequest,
+                  cursor: datetime,
+                  limit: int = 1000,
+              ) -> ProviderPage:
+                  payload = payloads[self.index]
+                  self.index += 1
+                  milliseconds = lambda value: (value - epoch) // timedelta(milliseconds=1)
+                  parameters = tuple(sorted((
+                      ("symbol", request.instrument.symbol),
+                      ("interval", request.timeframe.value),
+                      ("startTime", str(milliseconds(cursor))),
+                      ("endTime", str(milliseconds(request.end_time) - 1)),
+                      ("limit", str(limit)),
+                  )))
+                  return ProviderPage(
+                      request_parameters=parameters,
+                      response=HttpResponse(200, (), payload),
+                      retrieved_at=server_time + timedelta(seconds=self.index),
+                  )
+
+          store = LocalImmutableStore(root)
+          result = IngestionService(
+              provider=Provider(),
+              raw_store=store,
+              canonical_store=store,
+              clock=lambda: server_time,
+              run_id_factory=lambda: "checkpoint-run",
+          ).ingest(request)
+          (root / "dataset-id.txt").write_text(result.dataset_id, encoding="utf-8")
+          print(result.dataset_id)
+          PY
+      - name: Independently calculate fixed dataset identity with PowerShell
+        shell: pwsh
+        env:
+          ACCEPTANCE_ROOT: ${{ runner.temp }}/market-data-acceptance
+        run: |
+          $expected = '9c696d00d7116a7a9ef7d8b7fb7e42b75d7150e4d1254768ef87080869bd1333'
+          $datasetId = (Get-Content (Join-Path $env:ACCEPTANCE_ROOT 'dataset-id.txt') -Raw).Trim()
+          $canonicalPath = Join-Path $env:ACCEPTANCE_ROOT "data/canonical/$datasetId/candles.jsonl"
+          $bytes = [System.IO.File]::ReadAllBytes($canonicalPath)
+          $prefix = [System.Text.Encoding]::UTF8.GetBytes("candle-dataset-v1`n")
+          $combined = New-Object byte[] ($prefix.Length + $bytes.Length)
+          [Array]::Copy($prefix, 0, $combined, 0, $prefix.Length)
+          [Array]::Copy($bytes, 0, $combined, $prefix.Length, $bytes.Length)
+          $sha = [System.Security.Cryptography.SHA256]::Create()
+          try { $hash = $sha.ComputeHash($combined) } finally { $sha.Dispose() }
+          $actual = [Convert]::ToHexString($hash).ToLowerInvariant()
+          if ($datasetId -ne $expected -or $actual -ne $expected) {
+            throw "dataset identity mismatch: result=$datasetId independent=$actual expected=$expected"
+          }
+          Write-Host "PASS: independent dataset identity $actual"
+      - name: Verify clean working tree
+        run: |
+          rm -rf dist
+          git diff --check
+          test -z "$(git status --short)"

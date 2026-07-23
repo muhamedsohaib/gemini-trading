@@ -3,13 +3,13 @@
 from pathlib import Path
 
 import pytest
-from research_fixture_support import write_completed_fixture_experiment
 
 from gemini_trading.data.storage.local_immutable import LocalImmutableStore
 from gemini_trading.research.artifacts import LocalResearchStore
 from gemini_trading.research.errors import ReplayMismatchError
 from gemini_trading.research.replay import ReplayService
 from gemini_trading.research.verification import ResearchVerificationService
+from research_fixture_support import write_completed_fixture_experiment
 
 
 def test_verification_rejects_modified_fill_ledger(tmp_path: Path) -> None:

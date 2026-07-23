@@ -16,7 +16,7 @@ from gemini_trading.research.serialization import (
 def test_canonical_json_is_sorted_compact_utf8_and_newline_terminated() -> None:
     payload = {"z": Decimal("1.2300"), "a": "é"}
 
-    assert canonical_json_bytes(payload) == '{"a":"é","z":"1.2300"}\n'.encode("utf-8")
+    assert canonical_json_bytes(payload) == '{"a":"é","z":"1.2300"}\n'.encode()
 
 
 def test_canonical_jsonl_preserves_row_order() -> None:

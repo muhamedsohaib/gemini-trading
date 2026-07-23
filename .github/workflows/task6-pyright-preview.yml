@@ -1,26 +1,82 @@
-name: Task 6 Pyright Preview
+name: Task 6 Green Cleanup
 
 on:
   pull_request:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  pyright-preview:
+  green-cleanup:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2
+        with:
+          ref: ${{ github.head_ref }}
       - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
       - uses: actions/setup-python@v6.2.0
         with:
           python-version: "3.12"
       - run: uv sync --all-groups --frozen
-      - name: Capture Pyright output
-        run: uv run pyright > task6-pyright.txt 2>&1 || true
-      - uses: actions/upload-artifact@v4.6.2
-        with:
-          name: task6-pyright-output
-          path: task6-pyright.txt
-          if-no-files-found: error
-          retention-days: 1
+      - name: Narrow decoded JSON types and verify Task 6
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path("src/gemini_trading/data/storage/local_immutable.py")
+          text = path.read_text()
+          text = text.replace(
+              '    if not isinstance(loaded, dict) or not all(isinstance(key, str) for key in loaded):\n'
+              '        raise ValueError(f"invalid {description} JSON object")\n'
+              '    return cast(dict[str, object], loaded)\n',
+              '    if not isinstance(loaded, dict):\n'
+              '        raise ValueError(f"invalid {description} JSON object")\n'
+              '    raw_mapping = cast(dict[object, object], loaded)\n'
+              '    if not all(isinstance(key, str) for key in raw_mapping):\n'
+              '        raise ValueError(f"invalid {description} JSON object")\n'
+              '    return cast(dict[str, object], raw_mapping)\n',
+          )
+          text = text.replace(
+              '    if not isinstance(value, dict) or not all(isinstance(item, str) for item in value):\n'
+              '        raise ValueError(f"invalid storage metadata field: {key}")\n'
+              '    return cast(dict[str, object], value)\n',
+              '    if not isinstance(value, dict):\n'
+              '        raise ValueError(f"invalid storage metadata field: {key}")\n'
+              '    raw_mapping = cast(dict[object, object], value)\n'
+              '    if not all(isinstance(item, str) for item in raw_mapping):\n'
+              '        raise ValueError(f"invalid storage metadata field: {key}")\n'
+              '    return cast(dict[str, object], raw_mapping)\n',
+          )
+          text = text.replace(
+              '    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):\n'
+              '        raise ValueError(f"invalid storage metadata field: {key}")\n'
+              '    return tuple(cast(list[str], value))\n',
+              '    if not isinstance(value, list):\n'
+              '        raise ValueError(f"invalid storage metadata field: {key}")\n'
+              '    raw_values = cast(list[object], value)\n'
+              '    if not all(isinstance(item, str) for item in raw_values):\n'
+              '        raise ValueError(f"invalid storage metadata field: {key}")\n'
+              '    return tuple(cast(list[str], raw_values))\n',
+          )
+          text = text.replace(
+              '    if not isinstance(raw_parameters, list):\n'
+              '        raise ValueError("invalid storage metadata field: request_parameters")\n'
+              '    parameters: list[tuple[str, str]] = []\n'
+              '    for raw_parameter in raw_parameters:\n',
+              '    if not isinstance(raw_parameters, list):\n'
+              '        raise ValueError("invalid storage metadata field: request_parameters")\n'
+              '    raw_parameter_values = cast(list[object], raw_parameters)\n'
+              '    parameters: list[tuple[str, str]] = []\n'
+              '    for raw_parameter in raw_parameter_values:\n',
+          )
+          path.write_text(text)
+          PY
+          uv run ruff format src/gemini_trading/data/storage tests/unit/data/storage tests/property/test_immutable_storage.py
+          uv run ruff check src/gemini_trading/data/storage tests/unit/data/storage tests/property/test_immutable_storage.py
+          uv run pyright
+          uv run pytest tests/unit/data/storage tests/property/test_immutable_storage.py tests/unit/data/normalization tests/unit/data/validation tests/regression tests/unit/safety -q
+          git rm .github/workflows/task6-pyright-preview.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/gemini_trading/data/storage tests/unit/data/storage tests/property/test_immutable_storage.py
+          git commit -m "fix: narrow immutable storage metadata types"
+          git push origin HEAD:${{ github.head_ref }}

@@ -13,9 +13,7 @@ def test_quantity_rounds_down_to_step() -> None:
 
 
 def test_buy_price_rounds_up_and_sell_price_rounds_down() -> None:
-    assert round_fill_price(Decimal("100.001"), Decimal("0.01"), OrderSide.BUY) == Decimal(
-        "100.01"
-    )
+    assert round_fill_price(Decimal("100.001"), Decimal("0.01"), OrderSide.BUY) == Decimal("100.01")
     assert round_fill_price(
         Decimal("100.009"), Decimal("0.01"), OrderSide.SELL_TO_CLOSE
     ) == Decimal("100.00")

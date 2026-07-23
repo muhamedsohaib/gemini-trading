@@ -1,0 +1,69 @@
+name: Task 9 GREEN Cleanup
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          ref: ${{ github.head_ref }}
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - name: Complete readable store and verify Task 9
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/gemini_trading/data/storage/local_immutable.py")
+          content = path.read_text()
+          function_marker = "\n\ndef _page_metadata_payload(page: RawPage) -> dict[str, object]:"
+          function = """
+
+          def serialize_retrieval_manifest(manifest: RetrievalManifest) -> bytes:
+              \"\"\"Serialize a retrieval manifest using its deterministic storage encoding.\"\"\"
+
+              return _json_bytes(_manifest_payload(manifest))
+          """
+          if function_marker not in content:
+              raise SystemExit("retrieval serializer insertion point not found")
+          content = content.replace(function_marker, function + function_marker, 1)
+          old_write = "return write_immutable(path, _json_bytes(_manifest_payload(manifest)))"
+          if content.count(old_write) != 1:
+              raise SystemExit("retrieval manifest writer pattern not found")
+          content = content.replace(
+              old_write,
+              "return write_immutable(path, serialize_retrieval_manifest(manifest))",
+              1,
+          )
+          method_marker = "    def read_run(self, run_id: str) -> tuple[RetrievalManifest, tuple[RawPage, ...]]:"
+          method = """    def read_retrieval_manifest_bytes(self, run_id: str) -> bytes:
+              path = self._raw_run_directory(run_id) / \"retrieval-manifest.json\"
+              return path.read_bytes()
+
+          """
+          if method_marker not in content:
+              raise SystemExit("retrieval reader insertion point not found")
+          content = content.replace(method_marker, method + method_marker, 1)
+          path.write_text(content)
+          PY
+          uv run ruff format src/gemini_trading/data/ingestion/replay.py src/gemini_trading/data/verification src/gemini_trading/data/storage/base.py src/gemini_trading/data/storage/local_immutable.py tests/unit/data/ingestion/test_replay.py tests/unit/data/verification/test_service.py tests/integration/test_replay_without_network.py
+          uv run ruff check src/gemini_trading/data/ingestion/replay.py src/gemini_trading/data/verification src/gemini_trading/data/storage/base.py src/gemini_trading/data/storage/local_immutable.py tests/unit/data/ingestion/test_replay.py tests/unit/data/verification/test_service.py tests/integration/test_replay_without_network.py --fix
+          uv run ruff format --check src/gemini_trading/data/ingestion/replay.py src/gemini_trading/data/verification src/gemini_trading/data/storage/base.py src/gemini_trading/data/storage/local_immutable.py tests/unit/data/ingestion/test_replay.py tests/unit/data/verification/test_service.py tests/integration/test_replay_without_network.py
+          uv run ruff check src/gemini_trading/data/ingestion/replay.py src/gemini_trading/data/verification src/gemini_trading/data/storage/base.py src/gemini_trading/data/storage/local_immutable.py tests/unit/data/ingestion/test_replay.py tests/unit/data/verification/test_service.py tests/integration/test_replay_without_network.py
+          uv run pyright
+          uv run pytest tests/unit/data/ingestion/test_replay.py tests/unit/data/verification/test_service.py tests/integration/test_replay_without_network.py tests/unit/data/storage tests/unit/data/datasets tests/unit/data/validation tests/property tests/regression tests/unit/safety -q
+          rm -f .github/workflows/task9-red-pyright.yml .github/workflows/task9-green-cleanup.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/gemini_trading/data/ingestion/replay.py src/gemini_trading/data/verification src/gemini_trading/data/storage/base.py src/gemini_trading/data/storage/local_immutable.py tests/unit/data/ingestion/test_replay.py tests/unit/data/verification/test_service.py tests/integration/test_replay_without_network.py .github/workflows
+          git commit -m "feat: replay and verify canonical market data"
+          git push origin HEAD:${{ github.head_ref }}

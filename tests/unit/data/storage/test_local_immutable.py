@@ -192,6 +192,19 @@ def test_read_run_reconstructs_typed_manifest_and_raw_pages(tmp_path: Path) -> N
     assert all(isinstance(page, RawPage) for page in loaded_pages)
 
 
+def test_read_run_preserves_sub_millisecond_retrieval_timestamp(tmp_path: Path) -> None:
+    store = LocalImmutableStore(tmp_path)
+    retrieved_at = datetime(2025, 1, 1, 12, 34, 56, 789123, tzinfo=UTC)
+    page = replace(_page(), retrieved_at=retrieved_at)
+    store.write_page(page)
+    store.write_retrieval_manifest(_manifest(page))
+
+    _, loaded_pages = store.read_run("run-001")
+
+    assert loaded_pages[0].retrieved_at == retrieved_at
+    assert loaded_pages[0] == page
+
+
 def test_read_run_fails_when_a_manifest_page_file_is_missing(tmp_path: Path) -> None:
     store = LocalImmutableStore(tmp_path)
     page = _page()

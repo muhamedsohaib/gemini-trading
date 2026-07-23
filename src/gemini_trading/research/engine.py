@@ -243,7 +243,7 @@ class BacktestEngine:
 
             identity_input = (
                 f"{self._experiment_id}:{decision_sequence}:{intent_sequence}"
-            ).encode("utf-8")
+            ).encode()
             order_id = hashlib.sha256(identity_input).hexdigest()
             if order_id in self._orders:
                 raise ChronologyViolationError("duplicate deterministic order identity")

@@ -1,0 +1,27 @@
+name: Task 6 Timestamp RED Preview
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  timestamp-red:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - name: Capture focused regression output
+        run: |
+          uv run pytest tests/unit/data/storage/test_local_immutable.py::test_read_run_preserves_sub_millisecond_retrieval_timestamp -q > task6-timestamp-red.txt 2>&1 || true
+      - uses: actions/upload-artifact@v4.6.2
+        with:
+          name: task6-timestamp-red-output
+          path: task6-timestamp-red.txt
+          if-no-files-found: error
+          retention-days: 1

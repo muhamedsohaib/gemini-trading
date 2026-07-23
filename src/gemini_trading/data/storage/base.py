@@ -15,6 +15,8 @@ class RawStore(Protocol):
 
     def read_run(self, run_id: str) -> tuple[RetrievalManifest, tuple[RawPage, ...]]: ...
 
+    def read_retrieval_manifest_bytes(self, run_id: str) -> bytes: ...
+
 
 class CanonicalStore(Protocol):
     """Immutable persistence contract for canonical datasets and provenance."""
@@ -32,3 +34,7 @@ class CanonicalStore(Protocol):
         run_id: str,
         receipt_bytes: bytes,
     ) -> Path: ...
+
+    def read_dataset(self, dataset_id: str) -> tuple[bytes, bytes]: ...
+
+    def read_provenance(self, dataset_id: str, run_id: str) -> bytes: ...

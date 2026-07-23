@@ -50,7 +50,9 @@ def _candle(**overrides: Decimal) -> Candle:
         instrument=Instrument("ETHUSDT", "ETH", "USDT"),
         timeframe=Timeframe.H4,
         open_time=datetime(2025, 1, 1, tzinfo=UTC),
-        close_time=datetime(2025, 1, 1, tzinfo=UTC) + timedelta(hours=4) - timedelta(milliseconds=1),
+        close_time=datetime(2025, 1, 1, tzinfo=UTC)
+        + timedelta(hours=4)
+        - timedelta(milliseconds=1),
         completed=True,
         source_provider="binance_spot",
         **values,

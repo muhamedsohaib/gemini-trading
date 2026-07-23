@@ -1,0 +1,18 @@
+
+==================================== ERRORS ====================================
+_______ ERROR collecting tests/acceptance/test_research_backtest_cli.py ________
+ImportError while importing test module '/home/runner/work/gemini-trading/gemini-trading/tests/acceptance/test_research_backtest_cli.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/acceptance/test_research_backtest_cli.py:11: in <module>
+    from research_fixture_support import write_fixture_dataset
+E   ModuleNotFoundError: No module named 'research_fixture_support'
+=========================== short test summary info ============================
+ERROR tests/acceptance/test_research_backtest_cli.py
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+1 error in 1.85s
+
+exit_code=2

@@ -196,15 +196,11 @@ def build_artifacts(evidence: BacktestEvidence) -> ResearchArtifacts:
     trades = completed_trades(evidence)
     promotable = _is_promotable(evidence)
     core_files: dict[str, bytes] = {
-        "experiment-manifest.json": serialize_experiment_manifest(
-            evidence.experiment_manifest
-        ),
+        "experiment-manifest.json": serialize_experiment_manifest(evidence.experiment_manifest),
         "decisions.jsonl": canonical_jsonl_bytes(
             _decision_payload(decision) for decision in evidence.decisions
         ),
-        "orders.jsonl": canonical_jsonl_bytes(
-            _order_payload(order) for order in evidence.orders
-        ),
+        "orders.jsonl": canonical_jsonl_bytes(_order_payload(order) for order in evidence.orders),
         "rejections.jsonl": canonical_jsonl_bytes(evidence.rejection_records),
         "fills.jsonl": canonical_jsonl_bytes(_fill_payload(fill) for fill in evidence.fills),
         "cash-ledger.jsonl": canonical_jsonl_bytes(
@@ -231,10 +227,7 @@ def build_artifacts(evidence: BacktestEvidence) -> ResearchArtifacts:
         ),
     }
     artifact_hashes = tuple(
-        sorted(
-            (name, hashlib.sha256(content).hexdigest())
-            for name, content in core_files.items()
-        )
+        sorted((name, hashlib.sha256(content).hexdigest()) for name, content in core_files.items())
     )
     result_identity_payload: dict[str, object] = {
         "schema_version": _RESULT_SCHEMA_VERSION,
@@ -244,9 +237,7 @@ def build_artifacts(evidence: BacktestEvidence) -> ResearchArtifacts:
         "promotable": promotable,
     }
     result_id = hashlib.sha256(canonical_json_bytes(result_identity_payload)).hexdigest()
-    result_manifest = canonical_json_bytes(
-        {**result_identity_payload, "result_id": result_id}
-    )
+    result_manifest = canonical_json_bytes({**result_identity_payload, "result_id": result_id})
     files = tuple(sorted((*core_files.items(), ("result-manifest.json", result_manifest))))
     return ResearchArtifacts(
         experiment_id=current_experiment_id,
@@ -281,6 +272,8 @@ class LocalResearchStore:
             try:
                 write_immutable(path, content)
             except RawStorageConflictError:
-                raise ArtifactConflictError(f"immutable research artifact conflicts: {name}") from None
+                raise ArtifactConflictError(
+                    f"immutable research artifact conflicts: {name}"
+                ) from None
             paths.append((name, path))
         return tuple(paths)

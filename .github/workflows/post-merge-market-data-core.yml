@@ -19,7 +19,7 @@ jobs:
         with:
           ref: 777c32f6f6a925687548f15191b6e152e4d0303f
           fetch-depth: 1
-      - name: Find tracked UTF-8 files without final newline
+      - name: Find tracked UTF-8 files requiring EOF normalization
         id: scan
         shell: bash
         run: |
@@ -41,7 +41,7 @@ jobs:
                   data.decode("utf-8")
               except UnicodeDecodeError:
                   continue
-              if not data.endswith(b"\n"):
+              if not data.endswith(b"\n") or data.endswith(b"\n\n"):
                   bad.append(path.as_posix())
 
           print("paths=" + json.dumps(bad or ["__NONE__"], separators=(",", ":")))
@@ -49,7 +49,7 @@ jobs:
 
   newline-diagnostic:
     needs: determine-newline-candidates
-    name: Missing final newline — ${{ matrix.path }}
+    name: EOF normalization required — ${{ matrix.path }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -60,10 +60,10 @@ jobs:
         shell: bash
         run: |
           if [ "${{ matrix.path }}" = "__NONE__" ]; then
-            echo "PASS: no tracked UTF-8 file is missing a final newline"
+            echo "PASS: tracked UTF-8 files have normalized EOFs"
             exit 0
           fi
-          echo "::error file=${{ matrix.path }}::Tracked UTF-8 file has no final newline"
+          echo "::error file=${{ matrix.path }}::Tracked UTF-8 file requires end-of-file normalization"
           exit 1
 
   exact-merged-main:

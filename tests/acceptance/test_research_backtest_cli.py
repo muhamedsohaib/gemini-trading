@@ -11,7 +11,9 @@ from gemini_trading.cli.main import main
 from research_fixture_support import write_fixture_dataset
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
-_OFFICIAL_CONFIG = _PROJECT_ROOT / "tests" / "fixtures" / "research" / "official-fixture-config.json"
+_OFFICIAL_CONFIG = (
+    _PROJECT_ROOT / "tests" / "fixtures" / "research" / "official-fixture-config.json"
+)
 _DIAGNOSTIC_CONFIG = (
     _PROJECT_ROOT / "tests" / "fixtures" / "research" / "diagnostic-fixture-config.json"
 )

@@ -1,0 +1,82 @@
+name: Task 12 Final Evidence
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-verification:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - name: Run native Windows milestone gate
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $report = 'task12-windows-evidence.txt'
+          $head = git rev-parse HEAD
+          "HEAD=$head" | Tee-Object -FilePath $report
+          "OS=$([System.Environment]::OSVersion.VersionString)" | Tee-Object -FilePath $report -Append
+          python --version 2>&1 | Tee-Object -FilePath $report -Append
+          if ($LASTEXITCODE -ne 0) { throw 'python version failed' }
+          uv --version 2>&1 | Tee-Object -FilePath $report -Append
+          if ($LASTEXITCODE -ne 0) { throw 'uv version failed' }
+
+          uv sync --all-groups --frozen 2>&1 | Tee-Object -FilePath $report -Append
+          if ($LASTEXITCODE -ne 0) { throw 'frozen dependency sync failed' }
+          uv run pre-commit run --all-files 2>&1 | Tee-Object -FilePath $report -Append
+          if ($LASTEXITCODE -ne 0) { throw 'pre-commit failed' }
+          uv run pytest -m "not live_api" 2>&1 | Tee-Object -FilePath $report -Append
+          if ($LASTEXITCODE -ne 0) { throw 'pytest failed' }
+          uv run pyright 2>&1 | Tee-Object -FilePath $report -Append
+          if ($LASTEXITCODE -ne 0) { throw 'pyright failed' }
+          uv run ruff format --check . 2>&1 | Tee-Object -FilePath $report -Append
+          if ($LASTEXITCODE -ne 0) { throw 'ruff format failed' }
+          uv run ruff check . 2>&1 | Tee-Object -FilePath $report -Append
+          if ($LASTEXITCODE -ne 0) { throw 'ruff lint failed' }
+
+          Remove-Item -Recurse -Force dist -ErrorAction SilentlyContinue
+          uv run python -m build 2>&1 | Tee-Object -FilePath $report -Append
+          if ($LASTEXITCODE -ne 0) { throw 'package build failed' }
+          uv run pip-audit 2>&1 | Tee-Object -FilePath $report -Append
+          if ($LASTEXITCODE -ne 0) { throw 'dependency audit failed' }
+          uv run python -c "import subprocess; from gemini_trading.safety.repository_policy import validate_tracked_paths; validate_tracked_paths(subprocess.check_output(['git','ls-files'], text=True).splitlines()); print('PASS: tracked-file policy')" 2>&1 | Tee-Object -FilePath $report -Append
+          if ($LASTEXITCODE -ne 0) { throw 'tracked-file policy failed' }
+          uv run pre-commit run detect-secrets --all-files 2>&1 | Tee-Object -FilePath $report -Append
+          if ($LASTEXITCODE -ne 0) { throw 'detect-secrets failed' }
+          uv run gemini-trading --help 2>&1 | Tee-Object -FilePath $report -Append
+          if ($LASTEXITCODE -ne 0) { throw 'root CLI help failed' }
+          uv run gemini-trading market-data --help 2>&1 | Tee-Object -FilePath $report -Append
+          if ($LASTEXITCODE -ne 0) { throw 'market-data CLI help failed' }
+
+          $env:GEMINI_TRADING_MODE = 'live'
+          uv run python -c "from gemini_trading.safety.execution_mode import load_runtime_policy; load_runtime_policy()" 2>&1 | Tee-Object -FilePath $report -Append
+          $unsafe = $LASTEXITCODE
+          Remove-Item Env:GEMINI_TRADING_MODE
+          if ($unsafe -eq 0) { throw 'live mode accepted' }
+          "PASS: live mode rejected with exit code $unsafe" | Tee-Object -FilePath $report -Append
+
+          git diff --check 2>&1 | Tee-Object -FilePath $report -Append
+          if ($LASTEXITCODE -ne 0) { throw 'git diff check failed' }
+          $status = git status --short
+          if ($status) {
+            $status | Tee-Object -FilePath $report -Append
+            throw 'working tree is not clean'
+          }
+          if ((git rev-parse HEAD) -ne $head) { throw 'HEAD changed during verification' }
+          'PASS: clean working tree and unchanged HEAD' | Tee-Object -FilePath $report -Append
+      - uses: actions/upload-artifact@v4.6.2
+        with:
+          name: task12-windows-evidence
+          path: task12-windows-evidence.txt
+          if-no-files-found: error
+          retention-days: 1

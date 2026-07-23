@@ -7,8 +7,10 @@ from collections.abc import Sequence
 from typing import NoReturn, TextIO
 
 from gemini_trading.cli.market_data import CliUsageError, run_market_data
+from gemini_trading.cli.research import run_research
 from gemini_trading.data.errors import MarketDataError
 from gemini_trading.domain.timeframe import Timeframe
+from gemini_trading.research.errors import ResearchError
 from gemini_trading.safety.execution_mode import UnsafeExecutionModeError
 
 
@@ -54,6 +56,32 @@ def _build_parser() -> SafeArgumentParser:
     verify.add_argument("--dataset-id", required=True)
     verify.add_argument("--run-id", required=True)
     verify.add_argument("--output-root", required=True)
+
+    research = commands.add_parser("research", help="read-only deterministic research")
+    research_commands = research.add_subparsers(
+        dest="research_command",
+        required=True,
+        parser_class=SafeArgumentParser,
+    )
+    backtest = research_commands.add_parser("backtest", help="run deterministic backtest")
+    backtest.add_argument("--dataset-id", required=True)
+    backtest.add_argument("--config", required=True)
+    backtest.add_argument("--project-root", required=True)
+    backtest.add_argument("--output-root", required=True)
+
+    research_replay = research_commands.add_parser(
+        "replay", help="replay stored research evidence offline"
+    )
+    research_replay.add_argument("--experiment-id", required=True)
+    research_replay.add_argument("--project-root", required=True)
+    research_replay.add_argument("--output-root", required=True)
+
+    research_verify = research_commands.add_parser(
+        "verify", help="independently verify research evidence"
+    )
+    research_verify.add_argument("--experiment-id", required=True)
+    research_verify.add_argument("--project-root", required=True)
+    research_verify.add_argument("--output-root", required=True)
     return parser
 
 
@@ -80,20 +108,25 @@ def _error_payload(error_type: str, message: str) -> dict[str, object]:
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the CLI and return a process-compatible exit code."""
 
+    command: object = None
     try:
         arguments = _build_parser().parse_args(argv)
-        command: object = getattr(arguments, "command", None)
-        if command != "market-data":
+        command = getattr(arguments, "command", None)
+        if command == "market-data":
+            payload = run_market_data(arguments)
+        elif command == "research":
+            payload = run_research(arguments)
+        else:
             raise CliUsageError("unsupported command")
-        payload = run_market_data(arguments)
-    except MarketDataError as error:
+    except (MarketDataError, ResearchError) as error:
         _emit(_error_payload(type(error).__name__, str(error)), sys.stderr)
         return 2
     except (CliUsageError, UnsafeExecutionModeError) as error:
         _emit(_error_payload(type(error).__name__, str(error)), sys.stderr)
         return 2
     except Exception:
-        _emit(_error_payload("InternalError", "market data command failed"), sys.stderr)
+        message = "research command failed" if command == "research" else "market data command failed"
+        _emit(_error_payload("InternalError", message), sys.stderr)
         return 2
 
     _emit(payload, sys.stdout)

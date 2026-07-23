@@ -1,0 +1,15 @@
+/home/runner/work/gemini-trading/gemini-trading/tests/acceptance/test_research_backtest_cli.py
+  /home/runner/work/gemini-trading/gemini-trading/tests/acceptance/test_research_backtest_cli.py:51:63 - error: Argument type is partially unknown
+    Argument corresponds to parameter "value" in function "setattr"
+    Argument type is "(_root: Unknown) -> LiteralString" (reportUnknownArgumentType)
+  /home/runner/work/gemini-trading/gemini-trading/tests/acceptance/test_research_backtest_cli.py:51:70 - error: Type of parameter "_root" is unknown (reportUnknownLambdaType)
+  /home/runner/work/gemini-trading/gemini-trading/tests/acceptance/test_research_backtest_cli.py:116:29 - error: Argument type is partially unknown
+    Argument corresponds to parameter "iterable" in function "sorted"
+    Argument type is "list[Unknown]" (reportUnknownArgumentType)
+  /home/runner/work/gemini-trading/gemini-trading/tests/acceptance/test_research_backtest_cli.py:126:63 - error: Argument type is partially unknown
+    Argument corresponds to parameter "value" in function "setattr"
+    Argument type is "(_root: Unknown) -> LiteralString" (reportUnknownArgumentType)
+  /home/runner/work/gemini-trading/gemini-trading/tests/acceptance/test_research_backtest_cli.py:126:70 - error: Type of parameter "_root" is unknown (reportUnknownLambdaType)
+5 errors, 0 warnings, 0 informations
+
+exit_code=1

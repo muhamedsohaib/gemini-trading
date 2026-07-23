@@ -1,5 +1,6 @@
 name: Debug Ruff Output
 
+# Temporary diagnostic workflow; remove after the current lint defect is isolated.
 on:
   pull_request:
 

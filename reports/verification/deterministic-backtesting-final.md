@@ -54,7 +54,9 @@ Implemented and verified:
 - Focused deterministic acceptance run `30021138715` passed on head `ae18706d79bb3a02069a138378e1b62d21cfcf67`.
 - Focused acceptance result: 5 tests passed.
 - Focused coverage included CLI backtest, provider-free replay, independent verification, tamper detection, diagnostic non-promotion, and live-mode rejection.
-- The final evidence-only PR head must pass formatting, lint, strict typing, the complete test suite, package build, dependency audit, tracked-file policy, detect-secrets, and Gitleaks before merge.
+- Repository documentation now has an executable acceptance gate covering the command surface, `RESEARCH_ONLY`, official timing and fill assumptions, costs and partial fills, credential/exchange boundaries, provider-free replay, exact-head and merged-main verification, assistant/human governance, OHLCV limitations, and the absence of a profitability claim.
+- The temporary documentation formatter removed itself after applying the repository-pinned Ruff format.
+- This normal evidence commit triggers the final complete PR-head CI gate: formatting, lint, strict typing, complete tests, package build, dependency audit, tracked-file policy, detect-secrets, and Gitleaks.
 
 ## Safety and governance
 

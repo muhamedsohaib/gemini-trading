@@ -3,7 +3,8 @@
 from dataclasses import replace
 from decimal import Decimal
 
-from hypothesis import given, strategies as st
+from hypothesis import given
+from hypothesis import strategies as st
 
 from gemini_trading.domain.experiment import (
     ExperimentManifest,

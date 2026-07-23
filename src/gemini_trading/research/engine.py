@@ -35,8 +35,9 @@ _ZERO = Decimal("0")
 def _validated_strategy_intents(value: object) -> tuple[OrderIntent, ...]:
     if not isinstance(value, tuple):
         raise StrategyContractError("strategy must return a tuple of OrderIntent values")
+    raw_items: tuple[object, ...] = value
     intents: list[OrderIntent] = []
-    for item in value:
+    for item in raw_items:
         if not isinstance(item, OrderIntent):
             raise StrategyContractError("strategy must return a tuple of OrderIntent values")
         intents.append(item)

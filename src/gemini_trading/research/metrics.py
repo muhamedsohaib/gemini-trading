@@ -118,9 +118,7 @@ def calculate_metrics(evidence: BacktestEvidence) -> BacktestMetrics:
     exposure_fraction = (
         _ZERO
         if not evidence.account_series
-        else Decimal(
-            sum(snapshot.position_quantity > 0 for snapshot in evidence.account_series)
-        )
+        else Decimal(sum(snapshot.position_quantity > 0 for snapshot in evidence.account_series))
         / Decimal(len(evidence.account_series))
     )
     partial_fill_count = sum(

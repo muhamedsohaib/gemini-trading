@@ -20,6 +20,10 @@ _DIAGNOSTIC_CONFIG = (
 _TEST_COMMIT = "1" * 40
 
 
+def _fixed_commit(_root: Path) -> str:
+    return _TEST_COMMIT
+
+
 def _decoded_output(text: str) -> dict[str, object]:
     assert text.endswith("\n")
     assert text.count("\n") == 1
@@ -48,7 +52,7 @@ def test_research_backtest_replay_and_verify_are_provider_free_and_deterministic
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     dataset = write_fixture_dataset(tmp_path)
-    monkeypatch.setattr(research, "resolve_clean_git_commit", lambda _root: _TEST_COMMIT)
+    monkeypatch.setattr(research, "resolve_clean_git_commit", _fixed_commit)
 
     backtest = _run(
         [
@@ -111,8 +115,10 @@ def test_research_backtest_replay_and_verify_are_provider_free_and_deterministic
     assert verified["experiment_id"] == experiment_id
     assert verified["result_id"] == result_id
     assert verified["promotable"] is True
-    checks = verified["checks"]
-    assert isinstance(checks, list)
+    raw_checks = verified["checks"]
+    assert isinstance(raw_checks, list)
+    assert all(isinstance(check, str) for check in raw_checks)
+    checks = cast(list[str], raw_checks)
     assert checks == sorted(checks)
     assert "replay_equivalent" in checks
 
@@ -123,7 +129,7 @@ def test_diagnostic_fixture_is_completed_but_never_promotable(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     dataset = write_fixture_dataset(tmp_path)
-    monkeypatch.setattr(research, "resolve_clean_git_commit", lambda _root: _TEST_COMMIT)
+    monkeypatch.setattr(research, "resolve_clean_git_commit", _fixed_commit)
 
     payload = _run(
         [

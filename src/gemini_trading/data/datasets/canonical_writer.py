@@ -22,7 +22,7 @@ def _format_decimal(value: Decimal) -> str:
 
 def _json_bytes(payload: dict[str, object]) -> bytes:
     serialized = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
-    return f"{serialized}\n".encode("utf-8")
+    return f"{serialized}\n".encode()
 
 
 def _instrument_payload(instrument: Instrument) -> dict[str, object]:

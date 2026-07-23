@@ -124,9 +124,7 @@ def test_build_and_serialize_dataset_manifest_are_deterministic() -> None:
         b'"end_time":"2025-01-02T00:00:00.000Z",'
         b'"first_open_time":"2025-01-01T00:00:00.123Z",'
         b'"last_open_time":"2025-01-01T04:00:00.000Z","candle_count":2,'
-        b'"canonical_sha256":"'
-        + hashlib.sha256(canonical).hexdigest().encode("ascii")
-        + b'"}\n'
+        b'"canonical_sha256":"' + hashlib.sha256(canonical).hexdigest().encode("ascii") + b'"}\n'
     )
     assert manifest.dataset_id == identity
     assert manifest.first_open_time == candles[0].open_time

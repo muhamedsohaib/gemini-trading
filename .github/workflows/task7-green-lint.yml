@@ -1,0 +1,26 @@
+name: Task 7 Green Lint
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  green-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - name: Capture Ruff output
+        run: uv run ruff check src/gemini_trading/data/datasets tests/unit/data/datasets tests/property/test_dataset_identity.py > task7-green-lint.txt 2>&1 || true
+      - uses: actions/upload-artifact@v4.6.2
+        with:
+          name: task7-green-lint
+          path: task7-green-lint.txt
+          if-no-files-found: error
+          retention-days: 1

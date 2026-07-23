@@ -51,7 +51,8 @@ def _validate_identity(value: str) -> str:
 
 
 def _format_datetime(value: datetime) -> str:
-    return value.isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    timespec = "milliseconds" if value.microsecond % 1000 == 0 else "microseconds"
+    return value.isoformat(timespec=timespec).replace("+00:00", "Z")
 
 
 def _parse_datetime(value: str) -> datetime:

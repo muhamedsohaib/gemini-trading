@@ -102,3 +102,35 @@ Load immutable Market Data Core datasets without network access and independentl
 ### Remaining limitations
 
 The reader trusts only local immutable canonical storage in this milestone. It does not add a database adapter, order-book data, trade-level data, strategy logic, or exchange access.
+
+## Task 4 — Simulation configuration and deterministic experiment identity
+
+### Goal
+
+Make every result-shaping execution assumption explicit, validated, canonically serialized, and linked to a stable experiment identity.
+
+### Red evidence
+
+- Commit: `29690213a2b24e98ab9e87315ad0080df08b523c`
+- GitHub Actions run: `29994455913`
+- Result: failed as expected because simulation configuration and identity modules did not exist
+
+### Green implementation
+
+Implemented:
+
+- finite non-negative fees, spread, slippage, and latency assumptions;
+- positive tick, step, quantity minimum, and notional minimum constraints;
+- deterministic candle-volume participation bounded to `(0, 1]`;
+- conservative official defaults for next-candle timing, strict-cross fills, BAR lifetime, and three-candle maximum lifetime;
+- mandatory non-zero costs for promotable official evidence;
+- automatic non-promotable status for diagnostic timing or fill policies;
+- canonical simulation configuration bytes and SHA-256 linkage;
+- canonical experiment manifest serialization with strategy configuration sorted by unique key;
+- experiment identity as SHA-256 of canonical manifest bytes.
+
+Complete CI run `29994857733` passed after exact formatter and import-order findings were applied. Formatting, linting, strict typing, tests, build, dependency audit, tracked-file policy, secret scan, and gitleaks all passed.
+
+### Remaining limitations
+
+Experiment identity records assumptions but does not yet execute orders, create fills, alter account state, calculate metrics, or publish research artifacts.

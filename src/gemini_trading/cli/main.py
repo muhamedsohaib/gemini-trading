@@ -125,7 +125,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         _emit(_error_payload(type(error).__name__, str(error)), sys.stderr)
         return 2
     except Exception:
-        message = "research command failed" if command == "research" else "market data command failed"
+        message = (
+            "research command failed" if command == "research" else "market data command failed"
+        )
         _emit(_error_payload("InternalError", message), sys.stderr)
         return 2
 

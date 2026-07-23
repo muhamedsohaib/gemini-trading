@@ -88,9 +88,7 @@ def _decimal(value: object, field_name: str, description: str) -> Decimal:
     try:
         parsed = Decimal(value)
     except InvalidOperation:
-        raise InvalidExperimentConfigError(
-            f"invalid {description} field: {field_name}"
-        ) from None
+        raise InvalidExperimentConfigError(f"invalid {description} field: {field_name}") from None
     if not parsed.is_finite():
         raise InvalidExperimentConfigError(f"invalid {description} field: {field_name}")
     return parsed
@@ -101,7 +99,9 @@ def _load_config(path: Path) -> tuple[Decimal, int, SimulationConfig, ScriptedFi
         raw = path.read_bytes()
         loaded: object = json.loads(raw.decode("utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-        raise InvalidExperimentConfigError("research configuration could not be loaded safely") from None
+        raise InvalidExperimentConfigError(
+            "research configuration could not be loaded safely"
+        ) from None
 
     root = _object(loaded, "research configuration")
     _exact(root, _CONFIG_KEYS, "research configuration")
@@ -112,20 +112,54 @@ def _load_config(path: Path) -> tuple[Decimal, int, SimulationConfig, ScriptedFi
     _exact(simulation_mapping, _SIMULATION_KEYS, "simulation configuration")
     try:
         simulation = SimulationConfig(
-            maker_fee_rate=_decimal(simulation_mapping.get("maker_fee_rate"), "maker_fee_rate", "simulation configuration"),
-            taker_fee_rate=_decimal(simulation_mapping.get("taker_fee_rate"), "taker_fee_rate", "simulation configuration"),
-            half_spread_bps=_decimal(simulation_mapping.get("half_spread_bps"), "half_spread_bps", "simulation configuration"),
-            slippage_bps=_decimal(simulation_mapping.get("slippage_bps"), "slippage_bps", "simulation configuration"),
+            maker_fee_rate=_decimal(
+                simulation_mapping.get("maker_fee_rate"),
+                "maker_fee_rate",
+                "simulation configuration",
+            ),
+            taker_fee_rate=_decimal(
+                simulation_mapping.get("taker_fee_rate"),
+                "taker_fee_rate",
+                "simulation configuration",
+            ),
+            half_spread_bps=_decimal(
+                simulation_mapping.get("half_spread_bps"),
+                "half_spread_bps",
+                "simulation configuration",
+            ),
+            slippage_bps=_decimal(
+                simulation_mapping.get("slippage_bps"), "slippage_bps", "simulation configuration"
+            ),
             latency_bars=_integer(simulation_mapping, "latency_bars", "simulation configuration"),
-            price_tick=_decimal(simulation_mapping.get("price_tick"), "price_tick", "simulation configuration"),
-            quantity_step=_decimal(simulation_mapping.get("quantity_step"), "quantity_step", "simulation configuration"),
-            min_quantity=_decimal(simulation_mapping.get("min_quantity"), "min_quantity", "simulation configuration"),
-            min_notional=_decimal(simulation_mapping.get("min_notional"), "min_notional", "simulation configuration"),
-            max_volume_participation=_decimal(simulation_mapping.get("max_volume_participation"), "max_volume_participation", "simulation configuration"),
-            max_active_candles=_integer(simulation_mapping, "max_active_candles", "simulation configuration"),
-            timing_policy=TimingPolicy(_string(simulation_mapping, "timing_policy", "simulation configuration")),
-            limit_fill_policy=LimitFillPolicy(_string(simulation_mapping, "limit_fill_policy", "simulation configuration")),
-            default_time_in_force=TimeInForce(_string(simulation_mapping, "default_time_in_force", "simulation configuration")),
+            price_tick=_decimal(
+                simulation_mapping.get("price_tick"), "price_tick", "simulation configuration"
+            ),
+            quantity_step=_decimal(
+                simulation_mapping.get("quantity_step"), "quantity_step", "simulation configuration"
+            ),
+            min_quantity=_decimal(
+                simulation_mapping.get("min_quantity"), "min_quantity", "simulation configuration"
+            ),
+            min_notional=_decimal(
+                simulation_mapping.get("min_notional"), "min_notional", "simulation configuration"
+            ),
+            max_volume_participation=_decimal(
+                simulation_mapping.get("max_volume_participation"),
+                "max_volume_participation",
+                "simulation configuration",
+            ),
+            max_active_candles=_integer(
+                simulation_mapping, "max_active_candles", "simulation configuration"
+            ),
+            timing_policy=TimingPolicy(
+                _string(simulation_mapping, "timing_policy", "simulation configuration")
+            ),
+            limit_fill_policy=LimitFillPolicy(
+                _string(simulation_mapping, "limit_fill_policy", "simulation configuration")
+            ),
+            default_time_in_force=TimeInForce(
+                _string(simulation_mapping, "default_time_in_force", "simulation configuration")
+            ),
             promotable=_boolean(simulation_mapping, "promotable", "simulation configuration"),
         )
     except ValueError as error:
@@ -150,7 +184,11 @@ def _load_config(path: Path) -> tuple[Decimal, int, SimulationConfig, ScriptedFi
             intent = _object(raw_intent, "strategy intent")
             _exact(intent, _INTENT_KEYS, "strategy intent")
             limit_value = intent.get("limit_price")
-            limit_price = None if limit_value is None else _decimal(limit_value, "limit_price", "strategy intent")
+            limit_price = (
+                None
+                if limit_value is None
+                else _decimal(limit_value, "limit_price", "strategy intent")
+            )
             try:
                 intents.append(
                     OrderIntent(
@@ -158,7 +196,9 @@ def _load_config(path: Path) -> tuple[Decimal, int, SimulationConfig, ScriptedFi
                         order_type=OrderType(_string(intent, "order_type", "strategy intent")),
                         quantity=_decimal(intent.get("quantity"), "quantity", "strategy intent"),
                         limit_price=limit_price,
-                        time_in_force=TimeInForce(_string(intent, "time_in_force", "strategy intent")),
+                        time_in_force=TimeInForce(
+                            _string(intent, "time_in_force", "strategy intent")
+                        ),
                     )
                 )
             except ValueError as error:

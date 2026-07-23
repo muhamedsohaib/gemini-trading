@@ -248,3 +248,134 @@ Implemented and verified:
 ### Remaining limitations
 
 The first slice remains one instrument and long-only. Ledger entries do not yet represent deposits, withdrawals, portfolio transfers, borrowing, funding, leverage, or multi-asset cost-basis allocation.
+
+## Task 8 — Read-only strategy contract and non-production fixture
+
+### Goal
+
+Expose only the current completed candle, immutable account state, and active-order state to strategies while providing a deterministic scripted fixture that cannot be promoted as production logic.
+
+### Red evidence
+
+- Unit-test commit: `a45d954f1526c40e97386acb4ec62d2259f3c585`
+- Regression-test commit: `9b7c884df4c7d982459c85159961311ed0dac799`
+- GitHub Actions run: `30000923612`
+- Formatting and linting passed
+- Pyright failed as expected because `research.contracts` and `research.fixture_strategy` did not yet exist
+- Gitleaks passed
+
+### Green implementation
+
+- Contract commit: `b2523a6bd651b108b5a284f15c04a2285da27c68`
+- Fixture commit: `abd8f9668163ebf819e8b22569fa29b640b33952`
+- Complete CI run: `30001013660` — passed
+
+Implemented and verified:
+
+- immutable `StrategyContext` with only candle index, one completed candle, account, and active orders;
+- no future-candle iterator, provider, network, filesystem, or execution adapter exposure;
+- strict rejection of incomplete candles and invalid indexes;
+- immutable `StrategyDecision` records;
+- read-only strategy identity and production-eligibility metadata;
+- stable strategy configuration bytes independent of input ordering;
+- scripted fixture returns predefined intents only at exact candle indexes;
+- fixture is permanently marked `production_eligible=False`.
+
+### Remaining limitations
+
+The fixture contains no market hypothesis or profitability claim. It exists only to exercise engine behavior and is not the future candidate strategy.
+
+## Task 9 — Chronological event-driven backtesting engine
+
+### Goal
+
+Process one verified candle stream exactly once in strict order, fill only eligible orders, enforce bounded order lifecycles, record immutable decisions, and reconcile the terminal account.
+
+### Red evidence
+
+- Unit-test commit: `e4e42df27c770cf23bae10bd4e60e8e32ce6eb42`
+- Integration-test commit: `d4fbf4d651665443d089d6068a3eea9702389946`
+- Duplicate-cycle regression commit: `24f0419f53101e7a797eb87c71349cd95edad4e0`
+- Clean red-gate head: `2b49c5d202788d50b05a7b1075e0139fe7413caa`
+- GitHub Actions run: `30001511744`
+- Static checks stopped as expected because `research.engine` did not yet exist
+
+### Implementation and observed failures
+
+- Initial engine commit: `45b7865aa9481dc472438e628061244c3e9a59a5`
+- Ruff diagnostic run: `30001720649`
+- Pyright diagnostics: `30002016457`, `30002298814`, `30002493986`, and `30002714784`
+- The failures were limited to one mechanical Ruff finding and strict-typing interactions at the runtime strategy-output boundary
+- Runtime validation was not removed; it was isolated behind an object-typed checked helper and a justified cast after tuple validation
+- Strategy protocol metadata was corrected to read-only properties
+
+### Green evidence
+
+- Final checkpoint head: `aec476b9462701422576303f9d4d4bbaa7b00a36`
+- Complete CI run: `30002945113` — passed
+- Temporary diagnostics were removed before the green checkpoint
+
+Implemented and verified:
+
+- completed, identity-matching candles processed exactly once in contiguous order;
+- duplicate, reversed, skipped, mismatched, and post-finalization events fail closed;
+- active orders evaluated before each strategy decision in deterministic order;
+- one shared consumed-volume counter per candle;
+- official next-candle eligibility and separately labelled same-close diagnostic handling;
+- deterministic order IDs derived from experiment, decision, and intent identity;
+- conflict, insufficient-position, precision, and minimum-order rejection records;
+- IOC/BAR remainder cancellation and bounded GTC expiry;
+- experiment-end cancellation of still-active orders;
+- immutable decisions, orders, fills, ledger, account series, and terminal account evidence;
+- terminal mark-to-market and exact accounting reconciliation.
+
+### Remaining limitations
+
+The engine is one-instrument and candle-based. It does not model order-book queues, asynchronous exchange acknowledgements, broker restarts, multi-asset concurrency, or live order submission.
+
+## Task 10 — Deterministic metrics, artifacts, and result identity
+
+### Goal
+
+Derive exact metrics and flat-to-flat trades, serialize every core research artifact deterministically, assign a content-derived result identity, and persist byte-identical evidence immutably.
+
+### Red evidence
+
+- Metrics-test commit: `02b3e881cb82c92fed4412834c3a0691aaa2d9c4`
+- Artifact-test commit: `e417576928f3e243bf7897d4dac6d9a55f658f73`
+- Result-identity property-test commit: `f0317ba58371f9c412f5b2104bb5d6049ad70739`
+- Clean red-gate head: `68d6d1b6a3985def0b1d74bab37734309fb2a306`
+- GitHub Actions run: `30003493494`
+- Formatting and linting passed
+- Pyright failed as expected because `research.metrics` and `research.artifacts` did not yet exist
+- Gitleaks passed
+
+### Implementation and observed failures
+
+- Metrics implementation: `6e689336332d92ab5ac3e84e542587d5cdc888d9`
+- Artifact implementation: `c8e05d35b2bbabd722599c01e88804ffe33d3f6e`
+- `.gitignore` correction: `0949b6b1f603ab75a97ea2dd80cdda992ab9e97f`
+- Production formatter diagnostic run: `30003729325`
+- Exact formatter output changed line wrapping only; no behavioral defect was implicated
+
+### Green evidence
+
+- Final checkpoint head: `b5ecae7251d14fb5006e97ee1c8f8196204ba78a`
+- Complete CI run: `30003963950` — passed
+- Temporary diagnostics were removed before the green checkpoint
+
+Implemented and verified:
+
+- exact gross and net return, realized and unrealized PnL, fees, simulated costs, drawdown, exposure, and count metrics;
+- exact flat-to-flat trade attribution from recorded order sides and fill chronology;
+- deterministic experiment manifest, decisions, orders, rejections, fills, cash ledger, account series, trades, metrics, verification, and result-manifest files;
+- result identity derived from sorted core-artifact hashes without circular self-hashing;
+- official promotion flag only for next-candle timing and conservative limit policy;
+- byte-identical artifacts and identities for identical evidence;
+- immutable local storage beneath `data/research/<experiment_id>/`;
+- identical reruns accepted and conflicting bytes rejected safely;
+- generated research evidence excluded from version control.
+
+### Remaining limitations
+
+Artifacts currently represent successful completed experiments. Typed failed-experiment artifacts, provider-free replay, independent stored-evidence verification, safe CLI commands, and final operator documentation remain to be implemented.

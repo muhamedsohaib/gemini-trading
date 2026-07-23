@@ -12,6 +12,9 @@ license = { text = "Apache-2.0" }
 authors = [{ name = "Gemini Trading Contributors" }]
 dependencies = []
 
+[project.scripts]
+gemini-trading = "gemini_trading.cli.main:main"
+
 [dependency-groups]
 dev = [
   "build>=1.2",
@@ -31,6 +34,9 @@ packages = ["src/gemini_trading"]
 [tool.pytest.ini_options]
 addopts = "-ra --strict-config --strict-markers --cov=gemini_trading --cov-report=term-missing"
 testpaths = ["tests"]
+markers = [
+  "live_api: bounded public Binance Spot smoke test disabled by default",
+]
 
 [tool.ruff]
 target-version = "py312"
@@ -40,6 +46,9 @@ exclude = ["legacy"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["gemini_trading"]
 
 [tool.pyright]
 include = ["src", "tests"]

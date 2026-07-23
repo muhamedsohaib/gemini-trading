@@ -1,0 +1,94 @@
+name: Task 12 Append Evidence
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  append-evidence:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - name: Append final Task 12 evidence and remove workflow
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("reports/verification/market-data-core-progress.md")
+          text = path.read_text(encoding="utf-8")
+          marker = "## Task 12 — Operations documentation, exact-head verification, and PR"
+          if marker not in text:
+              addition = r'''
+
+          ## Task 12 — Operations documentation, exact-head verification, and PR
+
+          ### RED phase
+
+          - Task 12 documentation-test head: `49c0d8b865bf33b0b0c2ae63b4a9e03f9e17a932`.
+          - Normal CI run `29977913288` passed frozen dependency sync, Ruff format, Ruff lint, strict Pyright, and `gitleaks`, then failed full pytest at the intentionally unsatisfied documentation acceptance test.
+          - Read-only RED artifact run `29977913305` captured the expected failures: ADR 0002 and the Binance market-data operator guide were absent, and README did not yet link the required architecture, operations, and final-verification documents.
+          - No production code or runtime behavior changed during the RED phase.
+
+          ### Documentation GREEN phase
+
+          - Added `docs/architecture/adr/0002-market-data-core.md`, `docs/operations/binance-market-data.md`, and the verified Market Data Core section and links in `README.md`.
+          - Documentation implementation head: `b64bbc4029c1ad6d5812986c29a357ae01854d5e`.
+          - GitHub Actions run `29979028674` passed frozen sync, Ruff format, Ruff lint, strict Pyright, full pytest including the Task 12 documentation acceptance tests, package build, pip-audit, tracked-file policy, detect-secrets, and `gitleaks`.
+          - Audit found one temporary Task 12 RED diagnostic workflow; it was removed before milestone evidence was accepted.
+          - Clean post-diagnostic head `b6a8bb5a12eafef1bff360a5d57633a777c7ec0e` passed the complete normal CI and `gitleaks` gate in run `29979470711`.
+
+          ### Native Windows hosted checkpoint
+
+          - Initial Windows evidence run `29979594897` failed inside the combined checkpoint before artifact upload; no result was accepted.
+          - Diagnostic Windows run `29979750207` proved every substantive verification command passed and isolated the failure to the evidence text file being created inside the repository, which correctly made `git status --short` non-empty.
+          - The report path was moved to the GitHub runner temporary directory; no application, test, or runtime behavior changed.
+          - Corrected native GitHub-hosted Windows run `29979874135` passed the full milestone gate on Microsoft Windows Server 2025.
+          - The temporary Windows evidence workflow was removed.
+          - Clean implementation head `5f3b4afd78f399e5f5703714367d649cf99ac7f3` passed normal exact-head CI and `gitleaks` in run `29980034562`.
+
+          ### Operator-local Windows checkpoint
+
+          - Exact tested head before and after verification: `5f3b4afd78f399e5f5703714367d649cf99ac7f3`.
+          - Operator environment: Microsoft Windows NT `10.0.19045.0`, PowerShell `7.6.4`, system Python `3.11.9`, uv `0.11.25`, and uv-managed project interpreter Python `3.12.13`.
+          - `uv sync --all-groups --frozen` passed.
+          - Every pre-commit hook passed.
+          - `uv run pytest -m "not live_api"` collected 227 tests, deselected the one opt-in live test, and passed all 226 deterministic non-live tests in 26.24 seconds with 91% aggregate statement coverage.
+          - Strict Pyright reported 0 errors, 0 warnings, and 0 informations.
+          - Ruff reported 69 files already formatted and all lint checks passed.
+          - The source distribution and wheel built successfully.
+          - `pip-audit` reported no known vulnerabilities in auditable dependencies; the unpublished local project package itself was skipped.
+          - Tracked-file policy and detect-secrets passed.
+          - Installed root and market-data CLI help commands passed and exposed `ingest`, `replay`, and `verify`.
+          - Prohibited live mode failed closed with exit code 1 and `UnsafeExecutionModeError`.
+          - `git diff --check` passed; the working tree remained clean and HEAD remained unchanged.
+
+          ### Final report and disposition
+
+          - Final verification report commit: `fe02bccfe94056071b3829795a715f8c68b08fc8`.
+          - Report path: `reports/verification/market-data-core-final.md`.
+          - Fixed deterministic acceptance dataset ID: `9c696d00d7116a7a9ef7d8b7fb7e42b75d7150e4d1254768ef87080869bd1333`.
+          - No live Binance request was executed during final verification. The bounded public smoke test remains explicit, credential-free, and opt-in through `GEMINI_TRADING_RUN_LIVE_API_TESTS=1`.
+          - The Task 8 cross-store rollback limitation, Task 9 informational-timestamp authenticity boundary, local-filesystem storage scope, issue #7 database deferral, and no-profitability claim remain explicit.
+          - The milestone establishes data integrity and reproducibility. It does not establish strategy profitability or authorize live execution.
+          '''
+              path.write_text(text.rstrip() + addition + "\n", encoding="utf-8")
+          PY
+          rm -f .github/workflows/task12-append-evidence.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No evidence changes required"
+            exit 0
+          fi
+          git commit -m "docs: record market data core final verification"
+          git push origin HEAD:${{ github.head_ref }}

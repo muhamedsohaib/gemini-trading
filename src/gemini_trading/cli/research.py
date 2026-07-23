@@ -258,7 +258,10 @@ def run_research(arguments: Namespace) -> dict[str, object]:
         }
 
     experiment_id = _identity(getattr(arguments, "experiment_id", None), "experiment identity")
-    commit_resolver = lambda: resolve_clean_git_commit(project_root)
+
+    def commit_resolver():
+        return resolve_clean_git_commit(project_root)
+
     if command == "replay":
         artifacts = ReplayService(
             LocalImmutableStore(output_root),

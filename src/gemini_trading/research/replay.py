@@ -20,7 +20,6 @@ from gemini_trading.research.engine import run_backtest
 from gemini_trading.research.errors import ReplayMismatchError
 from gemini_trading.research.fixture_strategy import ScriptedFixtureStrategy
 from gemini_trading.research.identity import experiment_id, serialize_experiment_manifest
-from gemini_trading.research.serialization import canonical_json_bytes
 
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 _GIT_COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")

@@ -34,7 +34,8 @@ jobs:
       - name: Audit dependencies
         run: uv run pip-audit
       - name: Validate tracked-file policy
-        run: uv run python -c "import subprocess; from gemini_trading.safety.repository_policy import validate_tracked_paths; validate_tracked_paths(subprocess.check_output(['git','ls-files'], text=True).splitlines()); print('PASS: tracked-file policy')"
+        run: |
+          uv run python -c "import subprocess; from gemini_trading.safety.repository_policy import validate_tracked_paths; validate_tracked_paths(subprocess.check_output(['git','ls-files'], text=True).splitlines()); print('PASS: tracked-file policy')"
       - name: Scan tracked files for secrets
         run: uv run pre-commit run detect-secrets --all-files
       - name: Prove live mode fails closed
@@ -94,14 +95,21 @@ jobs:
               ) -> ProviderPage:
                   payload = payloads[self.index]
                   self.index += 1
-                  milliseconds = lambda value: (value - epoch) // timedelta(milliseconds=1)
-                  parameters = tuple(sorted((
-                      ("symbol", request.instrument.symbol),
-                      ("interval", request.timeframe.value),
-                      ("startTime", str(milliseconds(cursor))),
-                      ("endTime", str(milliseconds(request.end_time) - 1)),
-                      ("limit", str(limit)),
-                  )))
+
+                  def milliseconds(value: datetime) -> int:
+                      return (value - epoch) // timedelta(milliseconds=1)
+
+                  parameters = tuple(
+                      sorted(
+                          (
+                              ("symbol", request.instrument.symbol),
+                              ("interval", request.timeframe.value),
+                              ("startTime", str(milliseconds(cursor))),
+                              ("endTime", str(milliseconds(request.end_time) - 1)),
+                              ("limit", str(limit)),
+                          )
+                      )
+                  )
                   return ProviderPage(
                       request_parameters=parameters,
                       response=HttpResponse(200, (), payload),

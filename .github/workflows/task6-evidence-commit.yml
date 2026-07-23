@@ -1,0 +1,58 @@
+name: Task 6 Evidence Commit
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  evidence-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          ref: ${{ github.head_ref }}
+      - name: Append and commit Task 6 evidence
+        run: |
+          cat >> reports/verification/market-data-core-progress.md <<'EOF'
+
+          ## Task 6 — Immutable local storage
+
+          ### RED phase
+
+          - Initial test-only head: `ff24a545b16ac9fb4168e4645e987e46a1080f8f`.
+          - GitHub Actions run `29967590847` stopped at Ruff formatting before reaching the intended missing-module failure; this run was rejected as RED evidence. `gitleaks` passed.
+          - Repository-pinned Ruff formatting and three regex-literal corrections were applied through temporary workflows; those workflows were removed from the clean test tree.
+          - Final test-only RED head: `ead5a3068eaf42a31bfe048ee010a1c12bcd19c0`.
+          - GitHub Actions run: `29967783120`.
+          - Frozen dependency sync, Ruff format, and Ruff lint passed; strict Pyright failed on the intentionally absent `gemini_trading.data.storage` package. Pytest and later quality steps were skipped. `gitleaks` passed.
+          - Unit tests covered exact bytes, idempotent identical writes, immutable conflict preservation, temporary-write failure cleanup, six-digit page naming, sequence bounds, traversal rejection, stable retrieval-manifest bytes, typed raw-run reconstruction, missing files, canonical paths, provenance paths, and canonical conflict preservation.
+          - Hypothesis properties covered arbitrary byte round trips, arbitrary conflicting bytes, and containment beneath the canonical root.
+
+          ### GREEN phase
+
+          - Initial implementation head: `b6284f1cc71298c476dad33e7d2ea09803560678`.
+          - GitHub Actions run `29968040222` passed sync and Ruff checks, then failed strict Pyright on four decoded JSON container values typed as `Unknown`; pytest and later quality steps were skipped. `gitleaks` passed.
+          - A focused cleanup narrowed decoded mappings and lists to explicit `dict[object, object]` and `list[object]` containers. Connector-authored implementation head `62af7be50600c0f737625610e155888ceba2afd6` passed the full gate in run `29968244914`.
+          - Review identified a precision defect not covered by the initial suite: millisecond-only serialization changed a valid `retrieved_at` value from `789123` microseconds to `789000` during typed reconstruction.
+          - Regression-test head `94ae1f80661365cd49d2db2035085d9e260b2fe2` passed sync, Ruff, and Pyright, then failed pytest in run `29968457449` with the exact expected `789123` versus observed `789000` assertion. `gitleaks` passed.
+          - The formatter now emits milliseconds for millisecond-aligned values and microseconds otherwise, preserving existing stable manifest bytes while round-tripping all domain-valid timestamp precision.
+          - Connector-authored precision head `a670cb2b10f446c415c10d642ed0fc925e0d48b0` passed the complete gate in run `29968621122`.
+          - Final implementation head: `9d4281d7f9845b5b13b6c412267dd495fee0d133`.
+          - Final GitHub Actions run: `29968692730`.
+          - Observed `quality` result: passed frozen dependency sync, Ruff format, Ruff lint, strict Pyright, full pytest including Hypothesis properties, package build, pip-audit, tracked-file policy validation, and detect-secrets.
+          - Observed `gitleaks` result: passed.
+          - Net diff review found only `storage/__init__.py`, `storage/base.py`, `storage/local_immutable.py`, the immutable-storage unit suite, and the immutable-storage property suite; temporary workflows and placeholders were absent.
+          - `write_immutable` uses a same-directory exclusive temporary file, flush plus `fsync`, atomic hard-link publication, byte comparison for idempotency/conflict, and unconditional temporary cleanup. No final destination can contain partial bytes, and conflicting existing bytes remain unchanged.
+          - Storage identities enforce the approved segment grammar and reject empty values, separators, and `..`. Raw pages use six-digit names under `data/raw/binance_spot/<run-id>/`; canonical datasets and provenance use the approved `data/canonical/<dataset-id>/` layout.
+          - Exact raw response bytes are preserved separately from deterministic page metadata. `read_run` reconstructs typed `RetrievalManifest` and `RawPage` values without performing the hash verification reserved for Task 9.
+          - Property identities are prefixed to avoid Windows-reserved basename flakiness while retaining varied valid-segment coverage.
+          - No network access, credentials, private endpoint, strategy, signal, order, or execution behavior was introduced.
+          - Limitation: the final Task 6 gate was observed on GitHub-hosted Ubuntu; a fresh Windows-local run remains required at the operator checkpoint and final exact-head verification.
+          EOF
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add reports/verification/market-data-core-progress.md
+          git commit -m "docs: record Task 6 verification evidence"
+          git push origin HEAD:${{ github.head_ref }}

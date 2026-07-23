@@ -50,8 +50,11 @@ class StrategyDecision:
 class Strategy(Protocol):
     """Deterministic strategy interface shared by research engine implementations."""
 
-    strategy_id: str
-    production_eligible: bool
+    @property
+    def strategy_id(self) -> str: ...
+
+    @property
+    def production_eligible(self) -> bool: ...
 
     def configuration(self) -> tuple[tuple[str, str], ...]: ...
 

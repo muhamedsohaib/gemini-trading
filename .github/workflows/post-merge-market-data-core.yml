@@ -1,0 +1,91 @@
+name: Post-merge Market Data Core verification
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/post-merge-market-data-core.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  exact-merged-main:
+    runs-on: ubuntu-latest
+    env:
+      TARGET_SHA: 777c32f6f6a925687548f15191b6e152e4d0303f
+    steps:
+      - name: Check out exact merged main commit
+        uses: actions/checkout@v6.0.2
+        with:
+          ref: 777c32f6f6a925687548f15191b6e152e4d0303f
+          fetch-depth: 0
+
+      - name: Prove exact target identity before verification
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = "$TARGET_SHA"
+          test -z "$(git status --short)"
+
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.11.25"
+          enable-cache: true
+
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+
+      - name: Frozen dependency synchronization
+        run: uv sync --all-groups --frozen
+
+      - name: Focused Market Data Core acceptance
+        run: >-
+          uv run pytest
+          tests/acceptance/test_market_data_cli.py
+          tests/acceptance/test_market_data_documentation.py
+          tests/acceptance/test_market_data_ingestion.py
+          -m "not live_api"
+
+      - name: Complete deterministic non-live suite
+        run: uv run pytest -m "not live_api"
+
+      - name: All pre-commit hooks
+        run: uv run pre-commit run --all-files
+
+      - name: Strict Pyright
+        run: uv run pyright
+
+      - name: Ruff formatting
+        run: uv run ruff format --check .
+
+      - name: Ruff lint
+        run: uv run ruff check .
+
+      - name: Build package
+        run: uv run python -m build
+
+      - name: Dependency audit
+        run: uv run pip-audit
+
+      - name: Validate tracked-file policy
+        run: >-
+          uv run python -c "import subprocess;
+          from gemini_trading.safety.repository_policy import validate_tracked_paths;
+          validate_tracked_paths(subprocess.check_output(['git','ls-files'], text=True).splitlines());
+          print('PASS: tracked-file policy')"
+
+      - name: Scan tracked files for secrets
+        run: uv run pre-commit run detect-secrets --all-files
+
+      - name: Verify CLI surfaces
+        run: |
+          uv run gemini-trading --help
+          uv run gemini-trading market-data --help
+
+      - name: Prove clean tree and unchanged exact HEAD
+        shell: bash
+        run: |
+          git diff --check
+          test -z "$(git status --short)"
+          test "$(git rev-parse HEAD)" = "$TARGET_SHA"
+          echo "PASS: exact merged-main verification completed on $TARGET_SHA"

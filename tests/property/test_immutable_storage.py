@@ -11,8 +11,10 @@ from hypothesis import strategies as st
 from gemini_trading.data.errors import RawStorageConflictError
 from gemini_trading.data.storage.local_immutable import LocalImmutableStore, write_immutable
 
-_SAFE_SEGMENTS = st.from_regex(r"[A-Za-z0-9][A-Za-z0-9._-]{0,31}", fullmatch=True).filter(
-    lambda value: ".." not in value
+_SAFE_SEGMENTS = (
+    st.from_regex(r"[A-Za-z0-9][A-Za-z0-9._-]{0,27}", fullmatch=True)
+    .filter(lambda value: ".." not in value)
+    .map(lambda value: f"id-{value}")
 )
 
 

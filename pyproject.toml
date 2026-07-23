@@ -12,6 +12,9 @@ license = { text = "Apache-2.0" }
 authors = [{ name = "Gemini Trading Contributors" }]
 dependencies = []
 
+[project.scripts]
+gemini-trading = "gemini_trading.cli.main:main"
+
 [dependency-groups]
 dev = [
   "build>=1.2",

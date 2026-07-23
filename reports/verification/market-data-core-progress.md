@@ -358,3 +358,43 @@ This append-only log records fresh task and checkpoint evidence for GitHub issue
 
 - The CLI currently targets the local immutable filesystem adapter. Mobile-triggered GitHub workflow dispatch and self-hosted-runner integration are outside this milestone and should be added only after Task 12 completes.
 - Windows-local command execution remains required at the final operator checkpoint; Task 10 evidence was observed on GitHub-hosted Ubuntu.
+
+## Task 11 — Deterministic acceptance matrix and bounded live smoke
+
+### RED phase
+
+- Task base: `6f5c00668106c733a9f9ebd6c23c92fd006fa7a4`.
+- Initial test-only head: `c2c61619a007052f4eb82fc17175192aa6c5cbe8`.
+- GitHub Actions run `29976888737` stopped at Ruff formatting before the intended missing-fixture failure; this run was rejected as RED evidence. `gitleaks` passed.
+- Repository-pinned Ruff formatted and lint-fixed the two test files. Clean test-only RED head: `f533a57a5d6417f698a7b691dac0e30791d5ba91`.
+- GitHub Actions RED run: `29976969105`.
+- Frozen dependency sync, Ruff format, Ruff lint, strict Pyright, and `gitleaks` passed; full pytest then failed.
+- Focused diagnostic run `29977005786` observed the exact expected RED result: three `FileNotFoundError` failures for the intentionally absent `ethusdt_4h_acceptance_page_1.json` fixture, while the production-market-literal scan already passed.
+- The RED tests fixed the acceptance dataset identity at `9c696d00d7116a7a9ef7d8b7fb7e42b75d7150e4d1254768ef87080869bd1333` and required exact raw bytes, a completed retrieval manifest, incomplete-candle exclusion, decimal-scale preservation, replay equality, verification coverage, equivalent-run identity with separate receipts, generic production code, and canonical storage-adapter independence.
+
+### GREEN phase
+
+- Sanitized bounded fixture bytes were added for two ETHUSDT 4-hour pages. The first page contains two completed candles; the second contains one completed candle and one incomplete terminal guard candle.
+- `pyproject.toml` registered the strict `live_api` marker. `tests/live/test_binance_spot_smoke.py` is skipped unless `GEMINI_TRADING_RUN_LIVE_API_TESTS=1`, constructs `BinanceSpotProvider()` with no credentials, requests only a small old completed window, and writes only beneath `tmp_path`.
+- Initial implementation head: `77521e4a766c5e28956dcb490510d87ff6336774`.
+- GitHub Actions run `29977164655` passed frozen dependency sync, Ruff format, Ruff lint, strict Pyright, full pytest with the live smoke skipped, package build, pip-audit, tracked-file policy, detect-secrets, and `gitleaks`.
+- Review confirmed the acceptance assertions preserve exact decimal strings, exclude the 12:00 incomplete candle, reproduce byte-identical JSONL and deterministic manifest bytes through replay, independently verify all nine Task 9 integrity checks, and retain separate provenance for equivalent runs.
+- The storage-equivalence test compares canonical JSONL and deterministic manifest bytes written through `LocalImmutableStore` against bytes captured by an independent in-test canonical-store adapter while using the same validated raw evidence.
+- The source scan proves `ETHUSDT`, `BTCUSDT`, and `SOLUSDT` do not occur anywhere under `src/gemini_trading`; acceptance market choices remain test-only.
+
+### Checkpoint 2
+
+- The first checkpoint workflow definition contained one invalid YAML plain scalar and did not start. The syntax was corrected without changing application or test behavior.
+- Checkpoint run `29977322852` passed the complete non-live deterministic suite and confirmed the live test remained skipped, then stopped at pre-commit because `end-of-file-fixer` added final newlines to both new fixture files. Later steps were skipped and no completion claim was made.
+- Read-only diagnostic run `29977408840` proved those two terminal newlines were the only pre-commit changes; all other hooks passed.
+- Fixture newlines were committed deliberately in `5a0c9fc84b745f918ef6e0d87fd7a7019f5e430f`. JSON parsing and canonical candle serialization remained unchanged, so the fixed dataset identity remained stable.
+- Final checkpoint run: `29977507848`.
+- Observed results: complete non-live pytest passed; the opt-in live test was skipped successfully; every pre-commit hook passed; strict Pyright passed; package build passed; pip-audit passed; tracked-file policy passed; detect-secrets passed; prohibited live mode failed closed; the fixed acceptance dataset was materialized; a separate PowerShell SHA-256 calculation recomputed exactly `9c696d00d7116a7a9ef7d8b7fb7e42b75d7150e4d1254768ef87080869bd1333`; `git diff --check` and clean-working-tree verification passed.
+- No live Binance request was executed during Task 11 verification. The smoke test remains explicit, bounded, public-only, and opt-in.
+
+### Verified scope and remaining boundaries
+
+- Task 11 adds only two sanitized fixtures, acceptance and adapter-equivalence tests, the opt-in live smoke test, and marker registration. No production strategy, signal, order, credential, private endpoint, or execution behavior changed.
+- The fixed acceptance identity uses the implemented schema version `candle-dataset-v1`, matching Tasks 7 through 10 and the persisted deterministic manifests.
+- GitHub-hosted Ubuntu and PowerShell-on-Ubuntu evidence are complete. Native Windows-local verification remains mandatory in Task 12 before merge.
+- The Task 8 cross-store rollback limitation and Task 9 informational-timestamp authenticity boundary remain unchanged.

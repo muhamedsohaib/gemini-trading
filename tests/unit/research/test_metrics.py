@@ -1,5 +1,6 @@
 """Tests for deterministic backtest metrics and completed-trade derivation."""
 
+import hashlib
 from datetime import UTC, datetime
 from decimal import Decimal
 
@@ -13,11 +14,28 @@ from gemini_trading.domain.order import (
     SimulatedOrder,
     TimeInForce,
 )
+from gemini_trading.research.config import SimulationConfig, serialize_simulation_config
 from gemini_trading.research.engine import BacktestEvidence
 from gemini_trading.research.metrics import calculate_metrics, completed_trades
 
 
+def known_config() -> SimulationConfig:
+    return SimulationConfig.official(
+        maker_fee_rate=Decimal("0.001"),
+        taker_fee_rate=Decimal("0.001"),
+        half_spread_bps=Decimal("5"),
+        slippage_bps=Decimal("10"),
+        latency_bars=0,
+        price_tick=Decimal("0.01"),
+        quantity_step=Decimal("0.0001"),
+        min_quantity=Decimal("0.0001"),
+        min_notional=Decimal("1"),
+        max_volume_participation=Decimal("0.25"),
+    )
+
+
 def _manifest() -> ExperimentManifest:
+    config = known_config()
     return ExperimentManifest(
         schema_version="research-experiment-v1",
         dataset_id="a" * 64,
@@ -32,7 +50,9 @@ def _manifest() -> ExperimentManifest:
         default_time_in_force=TimeInForce.BAR,
         max_active_candles=3,
         random_seed=0,
-        simulation_config_sha256="c" * 64,
+        simulation_config_sha256=hashlib.sha256(
+            serialize_simulation_config(config)
+        ).hexdigest(),
     )
 
 

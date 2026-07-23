@@ -1,0 +1,79 @@
+name: Task 9 Metadata GREEN
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  green:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          ref: ${{ github.head_ref }}
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - name: Normalize persisted request metadata fixtures and verify
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          two_page_replacement = '''request_parameters=tuple(
+                          sorted(
+                              (
+                                  ("symbol", "ETHUSDT"),
+                                  ("interval", "4h"),
+                                  (
+                                      "startTime",
+                                      str(1_735_689_600_000 + (sequence - 1) * 14_400_000),
+                                  ),
+                                  ("endTime", "1735775999999"),
+                                  ("limit", "1000"),
+                              )
+                          )
+                      ),'''
+          old = 'request_parameters=(("limit", "1000"), ("symbol", "ETHUSDT")),'
+          for filename in (
+              "tests/unit/data/ingestion/test_replay.py",
+              "tests/unit/data/verification/test_verification_service.py",
+          ):
+              path = Path(filename)
+              content = path.read_text()
+              if content.count(old) != 1:
+                  raise SystemExit(f"expected request metadata pattern not found: {filename}")
+              path.write_text(content.replace(old, two_page_replacement, 1))
+
+          integration = Path("tests/integration/test_replay_without_network.py")
+          content = integration.read_text()
+          integration_replacement = '''request_parameters=tuple(
+                      sorted(
+                          (
+                              ("symbol", "ETHUSDT"),
+                              ("interval", "4h"),
+                              ("startTime", "1735689600000"),
+                              ("endTime", "1735703999999"),
+                              ("limit", "1000"),
+                          )
+                      )
+                  ),'''
+          if content.count(old) != 1:
+              raise SystemExit("expected integration request metadata pattern not found")
+          integration.write_text(content.replace(old, integration_replacement, 1))
+          PY
+          uv run ruff format src/gemini_trading/data/ingestion/replay.py tests/unit/data/ingestion/test_replay.py tests/unit/data/ingestion/test_replay_request_metadata.py tests/unit/data/verification/test_verification_service.py tests/integration/test_replay_without_network.py
+          uv run ruff check src/gemini_trading/data/ingestion/replay.py tests/unit/data/ingestion/test_replay.py tests/unit/data/ingestion/test_replay_request_metadata.py tests/unit/data/verification/test_verification_service.py tests/integration/test_replay_without_network.py --fix
+          uv run ruff format --check .
+          uv run ruff check .
+          uv run pyright
+          uv run pytest -q
+          rm -f .github/workflows/task9-metadata-red.yml .github/workflows/task9-metadata-green.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/gemini_trading/data/ingestion/replay.py tests/unit/data/ingestion/test_replay.py tests/unit/data/ingestion/test_replay_request_metadata.py tests/unit/data/verification/test_verification_service.py tests/integration/test_replay_without_network.py .github/workflows
+          git commit -m "fix: verify replay request metadata linkage"
+          git push origin HEAD:${{ github.head_ref }}

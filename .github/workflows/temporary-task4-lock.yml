@@ -1,16 +1,19 @@
-name: Temporary Task 4 Lock Generator
+name: Temporary Task 4 Lock Application
 
 on:
   pull_request:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   lock:
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
       - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
         with:
           version: "0.11.25"
@@ -23,8 +26,7 @@ jobs:
         run: >-
           uv run python -c
           "import numpy, sklearn, threadpoolctl; print(numpy.__version__, sklearn.__version__, threadpoolctl.__version__)"
-      - uses: actions/upload-artifact@v4.6.2
+      - uses: stefanzweifel/git-auto-commit-action@v6
         with:
-          name: task4-uv-lock
-          path: uv.lock
-          if-no-files-found: error
+          commit_message: "build: lock deterministic model dependencies"
+          file_pattern: uv.lock

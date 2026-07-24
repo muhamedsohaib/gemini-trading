@@ -3,9 +3,9 @@
 from dataclasses import replace
 
 from hypothesis import given, strategies as st
+from tests.strategy_fixture_support import example_study_manifest
 
 from gemini_trading.strategy.identity import study_id
-from tests.strategy_fixture_support import example_study_manifest
 
 
 @given(

@@ -1,3 +1,1 @@
-tests/unit/strategy/test_models.py:54:39: UP018 [*] Unnecessary `float` call (rewrite as a literal)
-Found 1 error.
-[*] 1 fixable with the `--fix` option.
+All checks passed!

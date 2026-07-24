@@ -151,9 +151,7 @@ class ChronologicalSplitPlan:
             calibration_start = bisect_left(open_times, calibration_start_time)
             calibration_end = bisect_left(open_times, calibration_end_time)
             development_test_end = bisect_left(open_times, development_test_end_time)
-            raw_fold_boundaries.append(
-                (calibration_start, calibration_end, development_test_end)
-            )
+            raw_fold_boundaries.append((calibration_start, calibration_end, development_test_end))
             step += 1
         if len(raw_fold_boundaries) < policy.minimum_development_folds:
             raise InsufficientHistoryError(
@@ -215,7 +213,9 @@ class ChronologicalSplitPlan:
                 policy,
             )
             if not training_indices or not calibration_indices or not development_test_indices:
-                raise InsufficientHistoryError("walk-forward fold contains an empty protected window")
+                raise InsufficientHistoryError(
+                    "walk-forward fold contains an empty protected window"
+                )
             all_used.update(training_indices)
             all_used.update(calibration_indices)
             all_used.update(development_test_indices)

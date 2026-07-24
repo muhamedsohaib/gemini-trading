@@ -165,6 +165,58 @@ def _regime_metrics(
     )
 
 
+def component_value_supported(
+    *,
+    primary_return_to_drawdown: Decimal | None,
+    primary_maximum_drawdown: Decimal,
+    ablation_return_to_drawdown: Decimal | None,
+    ablation_maximum_drawdown: Decimal,
+    require_drawdown_reduction: bool,
+) -> bool:
+    """Return whether one claimed component remains supported by its ablation."""
+
+    if primary_return_to_drawdown is None or ablation_return_to_drawdown is None:
+        return False
+    material_improvement = (
+        ablation_return_to_drawdown
+        >= Decimal("1.10") * primary_return_to_drawdown
+    )
+    drawdown_condition = (
+        ablation_maximum_drawdown < primary_maximum_drawdown
+        if require_drawdown_reduction
+        else ablation_maximum_drawdown <= primary_maximum_drawdown
+    )
+    return not (material_improvement and drawdown_condition)
+
+
+def shuffled_labels_passes_any_economic_gate(
+    *,
+    net_return: Decimal,
+    return_to_drawdown: Decimal | None,
+    strongest_simple_return_to_drawdown: Decimal | None,
+    strongest_specialist_return_to_drawdown: Decimal | None,
+) -> bool:
+    """Return whether shuffled-label evidence exhibits any positive economic gate."""
+
+    if net_return > 0:
+        return True
+    if return_to_drawdown is None:
+        return False
+    return (
+        return_to_drawdown >= Decimal("0.50")
+        or (
+            strongest_simple_return_to_drawdown is not None
+            and return_to_drawdown
+            >= Decimal("1.10") * strongest_simple_return_to_drawdown
+        )
+        or (
+            strongest_specialist_return_to_drawdown is not None
+            and return_to_drawdown
+            >= Decimal("1.05") * strongest_specialist_return_to_drawdown
+        )
+    )
+
+
 def build_promotion_report(
     executor: StudyExecutor,
     bundles: dict[tuple[StudyPhase, int | None], PredictionBundle],
@@ -265,6 +317,16 @@ def build_promotion_report(
         block_length=min(42, len(candidate.account_series)),
     )
     delayed = calculate_metrics(executor.evidence[(*final_key, "control.delayed_features.final")])
+    shuffled = calculate_metrics(
+        executor.evidence[(*final_key, "control.shuffled_labels.seed_1799")]
+    )
+    no_disagreement = calculate_metrics(
+        executor.evidence[(*final_key, "ablation.no_disagreement.v1")]
+    )
+    no_volume = calculate_metrics(executor.evidence[(*final_key, "ablation.no_volume.v1")])
+    no_protection = calculate_metrics(
+        executor.evidence[(*final_key, "ablation.no_protection.v1")]
+    )
     promotion_evidence = PromotionEvidence(
         development_folds=tuple(folds),
         final=final,
@@ -280,11 +342,40 @@ def build_promotion_report(
         ),
         neighbors=neighbors,
         bootstrap=bootstrap,
-        shuffled_labels_economic_gates_passed=False,
+        shuffled_labels_economic_gates_passed=(
+            shuffled_labels_passes_any_economic_gate(
+                net_return=shuffled.net_return,
+                return_to_drawdown=shuffled.return_to_drawdown,
+                strongest_simple_return_to_drawdown=(
+                    final.strongest_active_simple_return_to_drawdown
+                ),
+                strongest_specialist_return_to_drawdown=(
+                    final.strongest_specialist_return_to_drawdown
+                ),
+            )
+        ),
         delayed_feature_return_to_drawdown=delayed.return_to_drawdown,
-        no_disagreement_component_value=False,
-        no_volume_component_value=False,
-        no_protection_component_value=False,
+        no_disagreement_component_value=component_value_supported(
+            primary_return_to_drawdown=candidate_metrics.return_to_drawdown,
+            primary_maximum_drawdown=candidate_metrics.maximum_drawdown,
+            ablation_return_to_drawdown=no_disagreement.return_to_drawdown,
+            ablation_maximum_drawdown=no_disagreement.maximum_drawdown,
+            require_drawdown_reduction=False,
+        ),
+        no_volume_component_value=component_value_supported(
+            primary_return_to_drawdown=candidate_metrics.return_to_drawdown,
+            primary_maximum_drawdown=candidate_metrics.maximum_drawdown,
+            ablation_return_to_drawdown=no_volume.return_to_drawdown,
+            ablation_maximum_drawdown=no_volume.maximum_drawdown,
+            require_drawdown_reduction=False,
+        ),
+        no_protection_component_value=component_value_supported(
+            primary_return_to_drawdown=candidate_metrics.return_to_drawdown,
+            primary_maximum_drawdown=candidate_metrics.maximum_drawdown,
+            ablation_return_to_drawdown=no_protection.return_to_drawdown,
+            ablation_maximum_drawdown=no_protection.maximum_drawdown,
+            require_drawdown_reduction=True,
+        ),
     )
     report = evaluate_promotion(promotion_evidence)
     if not history_requirement_met:
@@ -372,4 +463,6 @@ __all__ = [
     "StudyExecutor",
     "build_promotion_report",
     "bundle_payloads",
+    "component_value_supported",
+    "shuffled_labels_passes_any_economic_gate",
 ]

@@ -68,14 +68,15 @@ gemini-trading research strategy-replay
 gemini-trading research strategy-verify
 ```
 
-The Candidate remains `RESEARCH_ONLY` and always reports `promotable:false` at the CLI boundary. Rejection and inconclusive evidence are valid outcomes. No real seven-year historical result, durable profitability, execution readiness, or capital authorization is claimed. Until the concrete end-to-end evaluator is accepted, `strategy-evaluate` fails closed rather than fabricating economic evidence.
+The Candidate remains `RESEARCH_ONLY` and always reports `promotable:false` at the CLI boundary. Rejection and inconclusive evidence are valid outcomes. The concrete provider-free evaluator and deterministic synthetic end-to-end acceptance are implemented. The diagnostic acceptance result is `INCONCLUSIVE`; it verifies architecture and reproducibility only. No real seven-year historical result, durable profitability, execution readiness, or capital authorization is claimed.
 
 See:
 
 - `docs/superpowers/plans/2026-07-24-candidate-multi-model-strategy-v0-1.md` for the approved implementation and verification plan.
 - `docs/operations/candidate-multi-model-strategy.md` for the locked protocol, commands, evidence layout, and limitations.
 - `docs/operations/candidate-multi-model-strategy-step-verification.md` for exact-head, deterministic acceptance, and merged-main closure requirements.
-- `reports/verification/candidate-multi-model-strategy-progress.md` for the current milestone evidence and unresolved work.
+- `reports/verification/candidate-multi-model-strategy-progress.md` for checkpoint history and protected-main closure status.
+- `reports/verification/candidate-multi-model-strategy-final.md` for deterministic acceptance identities, gate outcomes, artifact hashes, and limitations.
 
 ## Safety
 

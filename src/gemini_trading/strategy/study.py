@@ -202,10 +202,7 @@ class FinalTestSeal:
     ) -> FinalTestReceipt:
         """Consume the final test exactly once when all structural identities match."""
 
-        if (
-            policy_sha256 != self.policy_sha256
-            or configuration_sha256 != self.configuration_sha256
-        ):
+        if policy_sha256 != self.policy_sha256 or configuration_sha256 != self.configuration_sha256:
             raise FinalTestSealError("final test structural identity changed after sealing")
         if self._evaluation_count != 0:
             raise FinalTestSealError("final test was already evaluated")

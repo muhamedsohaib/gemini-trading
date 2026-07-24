@@ -23,7 +23,11 @@ _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 class ResearchVerificationEvidence(Protocol):
     """Minimum safe research-verification evidence consumed by study verification."""
 
-    result_id: str
+    @property
+    def result_id(self) -> str:
+        """Return the independently verified research result identity."""
+
+        ...
 
 
 ResearchVerifier = Callable[[str], ResearchVerificationEvidence]

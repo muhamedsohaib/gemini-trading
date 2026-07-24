@@ -58,7 +58,7 @@ def test_candidate_strategy_end_to_end_is_deterministic_and_non_promotable(
     assert len(cast(str, payload["study_result_id"])) == 64
     hashes = cast(list[object], payload["artifact_hashes"])
     assert len(hashes) == 22
-    checks = cast(list[object], payload["checks"])
+    checks = cast(list[str], payload["checks"])
     assert checks == sorted(checks)
 
 

@@ -1,10 +1,13 @@
 """Independent verification coverage for immutable Candidate strategy studies."""
 
 from dataclasses import dataclass
+from inspect import signature
 from pathlib import Path
 
 import pytest
 
+from gemini_trading.research.replay import ReplayService
+from gemini_trading.research.verification import ResearchVerificationService
 from gemini_trading.strategy.artifacts import LocalStrategyStudyStore, build_study_artifacts
 from gemini_trading.strategy.errors import StudyReplayMismatchError
 from gemini_trading.strategy.evaluation import MANDATORY_GATE_IDS, PromotionClassification
@@ -30,6 +33,14 @@ def _payloads_with_exact_gates() -> dict[str, object]:
         "gates": [{"gate_id": gate_id} for gate_id in MANDATORY_GATE_IDS],
     }
     return payloads
+
+
+def test_shared_research_services_accept_strategy_reconstructor() -> None:
+    assert "strategy_reconstructor" in signature(ReplayService).parameters
+    assert "strategy_reconstructor" in signature(ResearchVerificationService).parameters
+    assert "research_strategy_reconstructor" in signature(
+        StrategyStudyVerificationService
+    ).parameters
 
 
 def test_closed_reconstruction_registry_is_exact() -> None:

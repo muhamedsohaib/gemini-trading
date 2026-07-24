@@ -1,8 +1,11 @@
 """Tests for deterministic backtest metrics and completed-trade derivation."""
 
 import hashlib
+from dataclasses import replace
 from datetime import UTC, datetime
 from decimal import Decimal
+
+import pytest
 
 from gemini_trading.domain.account import AccountSnapshot, LedgerEntry
 from gemini_trading.domain.experiment import ExperimentManifest, LimitFillPolicy, TimingPolicy
@@ -184,11 +187,53 @@ def test_metrics_report_gross_net_costs_drawdown_and_counts() -> None:
     assert metrics.win_rate == Decimal("1")
 
 
+def test_expanded_metrics_use_the_locked_four_hour_formulas() -> None:
+    metrics = calculate_metrics(known_evidence())
+
+    assert metrics.observed_periods == 2
+    assert float(metrics.annualized_geometric_return) == pytest.approx(245685177.96318755)
+    assert float(metrics.annualized_volatility) == pytest.approx(0.46373495092219325)
+    assert float(metrics.downside_deviation) == pytest.approx(0.0330907842155486)
+    assert metrics.sortino_ratio is not None
+    assert float(metrics.sortino_ratio) == pytest.approx(7424580099.487208)
+    assert metrics.return_to_drawdown is not None
+    assert float(metrics.return_to_drawdown) == pytest.approx(245685177963.18753)
+    assert float(metrics.turnover) == pytest.approx(0.41650138833796113)
+    assert metrics.exposure_adjusted_return == Decimal("0.0356")
+    assert metrics.profit_factor is None
+
+
+def test_undefined_expanded_metric_denominators_return_none() -> None:
+    evidence = known_evidence()
+    flat = AccountSnapshot.initial(Decimal("1000"))
+    no_activity = replace(
+        evidence,
+        orders=(),
+        fills=(),
+        ledger=(),
+        account_series=(flat, flat),
+        terminal_account=flat,
+    )
+
+    metrics = calculate_metrics(no_activity)
+
+    assert metrics.sortino_ratio is None
+    assert metrics.return_to_drawdown is None
+    assert metrics.exposure_adjusted_return is None
+    assert metrics.profit_factor is None
+    assert metrics.turnover == Decimal("0")
+
+
 def test_completed_trade_reconciles_entry_cost_and_exit_proceeds() -> None:
     trades = completed_trades(known_evidence())
 
     assert len(trades) == 1
+    assert trades[0].entry_candle_index == 1
+    assert trades[0].exit_candle_index == 3
+    assert trades[0].hold_candles == 2
     assert trades[0].entry_cost == Decimal("201.00")
     assert trades[0].exit_proceeds == Decimal("218.80")
+    assert trades[0].gross_return == Decimal("0.1")
+    assert trades[0].net_return == Decimal("0.088557213930348258706467661691542")
     assert trades[0].realized_pnl == Decimal("17.80")
     assert trades[0].winning is True

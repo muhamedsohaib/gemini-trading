@@ -1,0 +1,25 @@
+{
+  "schema_version": "candidate-strategy-cli-v1",
+  "initial_cash": "10000",
+  "simulation": {
+    "maker_fee_rate": "0.001",
+    "taker_fee_rate": "0.001",
+    "half_spread_bps": "5",
+    "slippage_bps": "10",
+    "latency_bars": 0,
+    "price_tick": "0.01",
+    "quantity_step": "0.000001",
+    "min_quantity": "0.000001",
+    "min_notional": "5",
+    "max_volume_participation": "0.01",
+    "max_active_candles": 3,
+    "timing_policy": "next_candle",
+    "limit_fill_policy": "conservative",
+    "default_time_in_force": "bar",
+    "promotable": true
+  },
+  "strategy": {
+    "id": "candidate.multi_model.v0_1",
+    "policy_version": "candidate-multi-model-v0.1"
+  }
+}

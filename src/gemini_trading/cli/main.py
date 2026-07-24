@@ -8,6 +8,7 @@ from typing import NoReturn, TextIO
 
 from gemini_trading.cli.market_data import CliUsageError, run_market_data
 from gemini_trading.cli.research import run_research
+from gemini_trading.cli.strategy import run_strategy
 from gemini_trading.data.errors import MarketDataError
 from gemini_trading.domain.timeframe import Timeframe
 from gemini_trading.research.errors import ResearchError
@@ -82,6 +83,23 @@ def _build_parser() -> SafeArgumentParser:
     research_verify.add_argument("--experiment-id", required=True)
     research_verify.add_argument("--project-root", required=True)
     research_verify.add_argument("--output-root", required=True)
+
+    strategy_evaluate = research_commands.add_parser(
+        "strategy-evaluate", help="run the locked Candidate strategy study"
+    )
+    strategy_evaluate.add_argument("--dataset-id", required=True)
+    strategy_evaluate.add_argument("--config", required=True)
+    strategy_evaluate.add_argument("--project-root", required=True)
+    strategy_evaluate.add_argument("--output-root", required=True)
+
+    for command_name, help_text in (
+        ("strategy-replay", "replay a stored Candidate strategy study offline"),
+        ("strategy-verify", "independently verify a Candidate strategy study"),
+    ):
+        strategy_command = research_commands.add_parser(command_name, help=help_text)
+        strategy_command.add_argument("--study-id", required=True)
+        strategy_command.add_argument("--project-root", required=True)
+        strategy_command.add_argument("--output-root", required=True)
     return parser
 
 
@@ -115,7 +133,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         if command == "market-data":
             payload = run_market_data(arguments)
         elif command == "research":
-            payload = run_research(arguments)
+            research_command = getattr(arguments, "research_command", None)
+            payload = (
+                run_strategy(arguments)
+                if isinstance(research_command, str) and research_command.startswith("strategy-")
+                else run_research(arguments)
+            )
         else:
             raise CliUsageError("unsupported command")
     except (MarketDataError, ResearchError) as error:

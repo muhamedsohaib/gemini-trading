@@ -1,0 +1,125 @@
+## Candidate files
+tests/acceptance/test_deterministic_backtesting_documentation.py
+tests/acceptance/test_market_data_cli.py
+tests/acceptance/test_market_data_documentation.py
+tests/acceptance/test_market_data_ingestion.py
+tests/acceptance/test_paper_only_package.py
+tests/acceptance/test_research_backtest_cli.py
+tests/conftest.py
+tests/integration/test_backtest_event_order.py
+tests/integration/test_backtest_replay_without_network.py
+tests/integration/test_binance_provider_contract.py
+tests/integration/test_replay_without_network.py
+tests/integration/test_research_dataset_reader.py
+tests/integration/test_storage_adapter_equivalence.py
+tests/live/test_binance_spot_smoke.py
+tests/property/strategy/test_candidate_order_safety.py
+tests/property/strategy/test_model_serialization.py
+tests/property/strategy/test_probability_bounds.py
+tests/property/strategy/test_strategy_feature_point_in_time.py
+tests/property/strategy/test_strategy_identity.py
+tests/property/strategy/test_strategy_label_boundaries.py
+tests/property/test_accounting_invariants.py
+tests/property/test_binance_normalization.py
+tests/property/test_candle_validation.py
+tests/property/test_dataset_identity.py
+tests/property/test_experiment_identity.py
+tests/property/test_fill_determinism.py
+tests/property/test_immutable_storage.py
+tests/property/test_liquidity.py
+tests/property/test_result_identity.py
+tests/regression/test_candidate_next_candle_only.py
+tests/regression/test_duplicate_cycle_idempotency.py
+tests/regression/test_strategy_cannot_access_future_data.py
+tests/regression/test_strategy_feature_alignment.py
+tests/regression/test_strategy_label_leakage.py
+tests/regression/test_strategy_model_determinism.py
+tests/regression/test_tampered_backtest_artifacts.py
+tests/regression/test_version0_guards.py
+tests/research_fixture_support.py
+tests/strategy_fixture_support.py
+tests/unit/cli/test_market_data.py
+tests/unit/cli/test_research.py
+tests/unit/data/datasets/test_canonical_utf8.py
+tests/unit/data/datasets/test_canonical_writer.py
+tests/unit/data/ingestion/test_replay.py
+tests/unit/data/ingestion/test_replay_request_metadata.py
+tests/unit/data/ingestion/test_retry.py
+tests/unit/data/ingestion/test_service.py
+tests/unit/data/normalization/test_binance_klines.py
+tests/unit/data/providers/test_binance_spot.py
+tests/unit/data/providers/test_http.py
+tests/unit/data/storage/test_local_immutable.py
+tests/unit/data/test_errors.py
+tests/unit/data/validation/test_candles.py
+tests/unit/data/verification/test_verification_service.py
+tests/unit/domain/test_account.py
+tests/unit/domain/test_candle.py
+tests/unit/domain/test_dataset.py
+tests/unit/domain/test_experiment.py
+tests/unit/domain/test_fill.py
+tests/unit/domain/test_instrument.py
+tests/unit/domain/test_order.py
+tests/unit/domain/test_timeframe.py
+tests/unit/execution/simulator/test_costs.py
+tests/unit/execution/simulator/test_fills.py
+tests/unit/execution/simulator/test_precision.py
+tests/unit/research/test_accounting.py
+tests/unit/research/test_artifacts.py
+tests/unit/research/test_config.py
+tests/unit/research/test_dataset_reader.py
+tests/unit/research/test_engine.py
+tests/unit/research/test_metrics.py
+tests/unit/research/test_research_errors.py
+tests/unit/research/test_serialization.py
+tests/unit/research/test_strategy_contract.py
+tests/unit/research/test_verification.py
+tests/unit/safety/test_execution_mode.py
+tests/unit/safety/test_repository_policy.py
+tests/unit/strategy/test_arbitration.py
+tests/unit/strategy/test_baselines.py
+tests/unit/strategy/test_calibration.py
+tests/unit/strategy/test_candidate_strategy.py
+tests/unit/strategy/test_contracts.py
+tests/unit/strategy/test_identity.py
+tests/unit/strategy/test_models.py
+tests/unit/strategy/test_policy.py
+tests/unit/strategy/test_regimes.py
+tests/unit/strategy/test_strategy_errors.py
+tests/unit/strategy/test_strategy_features.py
+tests/unit/strategy/test_strategy_labels.py
+tests/unit/strategy/test_strategy_splits.py
+tests/unit/test_package.py
+
+## VerifiedDataset and BacktestEngine references
+tests/regression/test_duplicate_cycle_idempotency.py:14:from gemini_trading.research.dataset_reader import VerifiedDataset
+tests/regression/test_duplicate_cycle_idempotency.py:15:from gemini_trading.research.engine import BacktestEngine
+tests/regression/test_duplicate_cycle_idempotency.py:37:    dataset = VerifiedDataset(
+tests/regression/test_duplicate_cycle_idempotency.py:91:    engine = BacktestEngine(dataset, manifest, config, strategy)
+tests/research_fixture_support.py:19:from gemini_trading.research.dataset_reader import VerifiedDataset, load_verified_dataset
+tests/research_fixture_support.py:62:def write_fixture_dataset(root: Path) -> VerifiedDataset:
+tests/integration/test_backtest_event_order.py:12:from gemini_trading.research.dataset_reader import VerifiedDataset
+tests/integration/test_backtest_event_order.py:37:    dataset = VerifiedDataset(
+tests/property/test_result_identity.py:10:from gemini_trading.domain.experiment import ExperimentManifest, LimitFillPolicy, TimingPolicy
+tests/property/test_result_identity.py:34:    manifest = ExperimentManifest(
+tests/property/test_result_identity.py:48:        simulation_config_sha256=hashlib.sha256(serialize_simulation_config(config)).hexdigest(),
+tests/property/test_experiment_identity.py:10:    ExperimentManifest,
+tests/property/test_experiment_identity.py:21:def _manifest(strategy_config: tuple[tuple[str, str], ...]) -> ExperimentManifest:
+tests/property/test_experiment_identity.py:22:    return ExperimentManifest(
+tests/property/test_experiment_identity.py:36:        simulation_config_sha256=_SHA,
+tests/unit/domain/test_experiment.py:9:    ExperimentManifest,
+tests/unit/domain/test_experiment.py:19:def _manifest() -> ExperimentManifest:
+tests/unit/domain/test_experiment.py:20:    return ExperimentManifest(
+tests/unit/domain/test_experiment.py:34:        simulation_config_sha256=_SHA,
+tests/unit/research/test_engine.py:19:from gemini_trading.research.dataset_reader import VerifiedDataset
+tests/unit/research/test_engine.py:45:def _dataset(*, candle_count: int = 4, volume: Decimal = Decimal("20")) -> VerifiedDataset:
+tests/unit/research/test_engine.py:60:    return VerifiedDataset(manifest=manifest, candles=candles, canonical_bytes=b"fixture")
+tests/unit/research/test_engine.py:109:    dataset: VerifiedDataset | None = None,
+tests/unit/research/test_metrics.py:8:from gemini_trading.domain.experiment import ExperimentManifest, LimitFillPolicy, TimingPolicy
+tests/unit/research/test_metrics.py:37:def _manifest() -> ExperimentManifest:
+tests/unit/research/test_metrics.py:39:    return ExperimentManifest(
+tests/unit/research/test_metrics.py:53:        simulation_config_sha256=hashlib.sha256(serialize_simulation_config(config)).hexdigest(),
+tests/unit/research/test_config.py:14:from gemini_trading.research.dataset_reader import VerifiedDataset
+tests/unit/research/test_config.py:39:def _dataset() -> VerifiedDataset:
+tests/unit/research/test_config.py:54:    return VerifiedDataset(manifest, (), b"")
+tests/unit/research/test_config.py:112:    assert len(manifest.simulation_config_sha256) == 64

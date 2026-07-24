@@ -14,6 +14,8 @@ from gemini_trading.research.errors import ReplayMismatchError
 from gemini_trading.research.identity import experiment_id
 from gemini_trading.research.replay import (
     ReplayService,
+    StrategyReconstructor,
+    fixture_strategy_from_manifest,
     parse_experiment_manifest,
     parse_simulation_config,
     resolve_clean_git_commit,
@@ -97,6 +99,7 @@ class ResearchVerificationService:
 
     root: Path
     current_commit_resolver: Callable[[], str] = _default_current_commit
+    strategy_reconstructor: StrategyReconstructor = fixture_strategy_from_manifest
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "root", Path(self.root))
@@ -123,7 +126,7 @@ class ResearchVerificationService:
             raise ReplayMismatchError("required verification evidence is missing") from None
 
         result_mapping = _result_mapping(result_manifest_bytes)
-        if _required_str(result_mapping, "schema_version") != "research-result-v1":
+        if _required_str(result_mapping, "schema_version") != "research-result-v2":
             raise ReplayMismatchError("unsupported result manifest schema")
         if _required_str(result_mapping, "experiment_id") != experiment_id_value:
             raise ReplayMismatchError("result manifest experiment identity mismatch")
@@ -158,7 +161,7 @@ class ResearchVerificationService:
                 raise ReplayMismatchError(f"stored artifact hash does not match: {name}")
 
         identity_payload: dict[str, object] = {
-            "schema_version": "research-result-v1",
+            "schema_version": "research-result-v2",
             "experiment_id": experiment_id_value,
             "artifacts": [list(item) for item in artifact_hashes],
             "terminal_status": terminal_status,
@@ -176,6 +179,7 @@ class ResearchVerificationService:
             canonical_store,
             research_store,
             current_commit_resolver=self.current_commit_resolver,
+            strategy_reconstructor=self.strategy_reconstructor,
         ).replay(experiment_id_value)
         if replayed.result_id != recorded_result_id:
             raise ReplayMismatchError("replayed result identity does not match")

@@ -26,7 +26,7 @@ from gemini_trading.research.serialization import canonical_json_bytes, canonica
 
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 _ARTIFACT_NAME_PATTERN = re.compile(r"^[a-z0-9][a-z0-9.-]{0,127}$")
-_RESULT_SCHEMA_VERSION = "research-result-v1"
+_RESULT_SCHEMA_VERSION = "research-result-v2"
 _VERIFICATION_SCHEMA_VERSION = "research-verification-v1"
 
 
@@ -122,6 +122,11 @@ def _trade_payload(trade: CompletedTrade) -> dict[str, object]:
         "sequence": trade.sequence,
         "entry_fill_ids": list(trade.entry_fill_ids),
         "exit_fill_ids": list(trade.exit_fill_ids),
+        "entry_candle_index": trade.entry_candle_index,
+        "exit_candle_index": trade.exit_candle_index,
+        "hold_candles": trade.hold_candles,
+        "gross_return": trade.gross_return,
+        "net_return": trade.net_return,
         "entry_cost": trade.entry_cost,
         "exit_proceeds": trade.exit_proceeds,
         "realized_pnl": trade.realized_pnl,
@@ -141,6 +146,15 @@ def _metrics_payload(metrics: BacktestMetrics) -> dict[str, object]:
         "total_execution_costs": metrics.total_execution_costs,
         "maximum_drawdown": metrics.maximum_drawdown,
         "exposure_fraction": metrics.exposure_fraction,
+        "observed_periods": metrics.observed_periods,
+        "annualized_geometric_return": metrics.annualized_geometric_return,
+        "annualized_volatility": metrics.annualized_volatility,
+        "downside_deviation": metrics.downside_deviation,
+        "sortino_ratio": metrics.sortino_ratio,
+        "return_to_drawdown": metrics.return_to_drawdown,
+        "turnover": metrics.turnover,
+        "exposure_adjusted_return": metrics.exposure_adjusted_return,
+        "profit_factor": metrics.profit_factor,
         "order_count": metrics.order_count,
         "rejection_count": metrics.rejection_count,
         "fill_count": metrics.fill_count,

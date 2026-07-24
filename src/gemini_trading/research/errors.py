@@ -39,3 +39,51 @@ class ReplayMismatchError(ResearchError):
 
 class NonDeterministicResultError(ResearchError):
     """Equivalent trusted inputs produced different core evidence."""
+
+
+class StrategyStudyError(ResearchError):
+    """Base class for safe candidate-strategy study failures."""
+
+
+class InsufficientHistoryError(StrategyStudyError):
+    """Verified history cannot satisfy the locked evaluation protocol."""
+
+
+class PointInTimeViolationError(StrategyStudyError):
+    """A feature or observation used information unavailable at decision time."""
+
+
+class SplitBoundaryError(StrategyStudyError):
+    """Chronological train, calibration, or test boundaries are invalid."""
+
+
+class LabelLeakageError(StrategyStudyError):
+    """A target or label window leaked across a protected boundary."""
+
+
+class InsufficientCalibrationError(StrategyStudyError):
+    """A calibration segment lacks required observations or classes."""
+
+
+class ModelDeterminismError(StrategyStudyError):
+    """Equivalent trusted model inputs produced different outputs."""
+
+
+class ProbabilityRangeError(StrategyStudyError):
+    """A specialist emitted a non-finite or out-of-range probability."""
+
+
+class FinalTestSealError(StrategyStudyError):
+    """The untouched final test was accessed or changed outside its gate."""
+
+
+class StudyArtifactError(StrategyStudyError):
+    """Immutable strategy-study evidence is incomplete or conflicting."""
+
+
+class StudyReplayMismatchError(StrategyStudyError):
+    """Provider-free strategy-study replay did not reproduce evidence."""
+
+
+class StudyVerificationError(StrategyStudyError):
+    """Independent strategy-study verification failed closed."""

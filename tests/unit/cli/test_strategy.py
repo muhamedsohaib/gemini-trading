@@ -16,6 +16,7 @@ from gemini_trading.strategy.evaluation import PromotionClassification
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 _CONFIG = _PROJECT_ROOT / "tests" / "fixtures" / "strategy" / "candidate-v0.1-config.json"
+Mutation = Callable[[dict[str, object]], dict[str, object]]
 
 
 def _decoded_output(text: str) -> dict[str, object]:
@@ -37,6 +38,49 @@ def _artifacts() -> StrategyStudyArtifacts:
         classification=PromotionClassification.INCONCLUSIVE,
         files=files,
     )
+
+
+def _nested(payload: dict[str, object], field: str) -> dict[str, object]:
+    return cast(dict[str, object], payload[field])
+
+
+def _add_extra_field(payload: dict[str, object]) -> dict[str, object]:
+    return {**payload, "extra": True}
+
+
+def _change_strategy_identity(payload: dict[str, object]) -> dict[str, object]:
+    return {**payload, "strategy": {**_nested(payload, "strategy"), "id": "other"}}
+
+
+def _change_policy_version(payload: dict[str, object]) -> dict[str, object]:
+    return {
+        **payload,
+        "strategy": {**_nested(payload, "strategy"), "policy_version": "other"},
+    }
+
+
+def _zero_taker_cost(payload: dict[str, object]) -> dict[str, object]:
+    return {
+        **payload,
+        "simulation": {**_nested(payload, "simulation"), "taker_fee_rate": "0"},
+    }
+
+
+def _use_same_close_timing(payload: dict[str, object]) -> dict[str, object]:
+    return {
+        **payload,
+        "simulation": {**_nested(payload, "simulation"), "timing_policy": "same_close"},
+    }
+
+
+def _use_optimistic_fills(payload: dict[str, object]) -> dict[str, object]:
+    return {
+        **payload,
+        "simulation": {
+            **_nested(payload, "simulation"),
+            "limit_fill_policy": "optimistic",
+        },
+    }
 
 
 def test_strategy_evaluate_help_lists_exact_inputs(
@@ -65,59 +109,17 @@ def test_locked_candidate_config_loads_exact_policy() -> None:
 @pytest.mark.parametrize(
     ("mutation", "message"),
     [
-        (lambda payload: {**payload, "extra": True}, "fields"),
-        (
-            lambda payload: {
-                **payload,
-                "strategy": {**cast(dict[str, object], payload["strategy"]), "id": "other"},
-            },
-            "strategy identity",
-        ),
-        (
-            lambda payload: {
-                **payload,
-                "strategy": {
-                    **cast(dict[str, object], payload["strategy"]),
-                    "policy_version": "other",
-                },
-            },
-            "policy version",
-        ),
-        (
-            lambda payload: {
-                **payload,
-                "simulation": {
-                    **cast(dict[str, object], payload["simulation"]),
-                    "taker_fee_rate": "0",
-                },
-            },
-            "costs",
-        ),
-        (
-            lambda payload: {
-                **payload,
-                "simulation": {
-                    **cast(dict[str, object], payload["simulation"]),
-                    "timing_policy": "same_close",
-                },
-            },
-            "next-candle",
-        ),
-        (
-            lambda payload: {
-                **payload,
-                "simulation": {
-                    **cast(dict[str, object], payload["simulation"]),
-                    "limit_fill_policy": "optimistic",
-                },
-            },
-            "conservative",
-        ),
+        (_add_extra_field, "fields"),
+        (_change_strategy_identity, "strategy identity"),
+        (_change_policy_version, "policy version"),
+        (_zero_taker_cost, "costs"),
+        (_use_same_close_timing, "next-candle"),
+        (_use_optimistic_fills, "conservative"),
     ],
 )
 def test_locked_candidate_config_rejects_unsafe_changes(
     tmp_path: Path,
-    mutation: Callable[[dict[str, object]], dict[str, object]],
+    mutation: Mutation,
     message: str,
 ) -> None:
     payload = cast(dict[str, object], json.loads(_CONFIG.read_text()))
@@ -177,10 +179,25 @@ def test_strategy_evaluate_emits_exact_safe_summary(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    monkeypatch.setattr(strategy, "load_runtime_policy", lambda: object())
-    monkeypatch.setattr(strategy, "resolve_clean_git_commit", lambda _root: "d" * 40)
-    monkeypatch.setattr(strategy, "evaluate_candidate_strategy", lambda **_kwargs: _artifacts())
-    monkeypatch.setattr(strategy.LocalStrategyStudyStore, "write", lambda _self, _value: ())
+    def runtime_policy() -> object:
+        return object()
+
+    def clean_commit(_root: Path) -> str:
+        return "d" * 40
+
+    def evaluate(**_kwargs: object) -> StrategyStudyArtifacts:
+        return _artifacts()
+
+    def store_write(
+        _self: object,
+        _value: StrategyStudyArtifacts,
+    ) -> tuple[tuple[str, Path], ...]:
+        return ()
+
+    monkeypatch.setattr(strategy, "load_runtime_policy", runtime_policy)
+    monkeypatch.setattr(strategy, "resolve_clean_git_commit", clean_commit)
+    monkeypatch.setattr(strategy, "evaluate_candidate_strategy", evaluate)
+    monkeypatch.setattr(strategy.LocalStrategyStudyStore, "write", store_write)
 
     code = cli_main.main(
         [

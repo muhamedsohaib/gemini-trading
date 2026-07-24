@@ -17,6 +17,5 @@ def test_one_candle_return_is_aligned_to_current_completed_candle() -> None:
     assert row.candle_open_time == candles[42].open_time
     assert matrix.value_for(42, "log_return_1") == expected
     assert matrix.value_for(42, "close_location_current") == (
-        (candles[42].close - candles[42].low)
-        / (candles[42].high - candles[42].low)
+        (candles[42].close - candles[42].low) / (candles[42].high - candles[42].low)
     )

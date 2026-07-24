@@ -1,0 +1,38 @@
+name: Task 10 format capture
+
+on:
+  push:
+    branches:
+      - feature/candidate-multi-model-strategy-v0-1
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - run: >-
+          uv run ruff format
+          src/gemini_trading/strategy/artifacts.py
+          src/gemini_trading/strategy/replay.py
+          src/gemini_trading/strategy/verification.py
+          tests/integration/test_strategy_replay_without_network.py
+          tests/unit/strategy/test_strategy_verification.py
+          tests/regression/test_strategy_replay_commit_mismatch.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: task10-formatted-files
+          path: |
+            src/gemini_trading/strategy/artifacts.py
+            src/gemini_trading/strategy/replay.py
+            src/gemini_trading/strategy/verification.py
+            tests/integration/test_strategy_replay_without_network.py
+            tests/unit/strategy/test_strategy_verification.py
+            tests/regression/test_strategy_replay_commit_mismatch.py

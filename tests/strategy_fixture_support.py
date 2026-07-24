@@ -9,7 +9,9 @@ from gemini_trading.domain.instrument import Instrument
 from gemini_trading.domain.order import TimeInForce
 from gemini_trading.domain.timeframe import Timeframe
 from gemini_trading.research.config import SimulationConfig
+from gemini_trading.strategy.features import FeatureMatrix, FeatureRegistry, FeatureRow
 from gemini_trading.strategy.identity import StrategyStudyManifest
+from gemini_trading.strategy.labels import LabelObservation, LabelVector
 
 
 def example_study_manifest() -> StrategyStudyManifest:
@@ -122,3 +124,63 @@ def calendar_candles(
     if start + timedelta(hours=4 * count) != end_exclusive:
         raise ValueError("calendar fixture range must contain whole four-hour candles")
     return rising_candles(count, start=start)
+
+
+def deterministic_model_fixture(
+    row_count: int = 320,
+) -> tuple[FeatureMatrix, LabelVector, tuple[int, ...]]:
+    """Return aligned non-degenerate features and labels for specialist tests."""
+
+    registry = FeatureRegistry.locked_v0_1()
+    start_index = registry.maximum_lookback_candles
+    rows: list[FeatureRow] = []
+    labels: list[LabelObservation] = []
+    for offset in range(row_count):
+        candle_index = start_index + offset
+        values: list[Decimal] = []
+        for column_index, definition in enumerate(registry.definitions):
+            value = (
+                Decimal((offset + 1) * (column_index + 2)) / Decimal("1000")
+                + Decimal(((offset + column_index * 3) % 17) - 8) / Decimal("100")
+            )
+            if definition.name == "close_zscore_24":
+                value = Decimal("-1.00") if offset % 4 else Decimal("0.25")
+            elif definition.name == "drawdown_from_high_24":
+                value = Decimal("0.03") if offset % 5 == 0 else Decimal("0.005")
+            values.append(value)
+        rows.append(
+            FeatureRow(
+                candle_index=candle_index,
+                candle_open_time=datetime(2020, 1, 1, tzinfo=UTC)
+                + timedelta(hours=4 * candle_index),
+                values=tuple(values),
+            )
+        )
+        positive = offset % 5 in {0, 1}
+        labels.append(
+            LabelObservation(
+                decision_candle_index=candle_index,
+                entry_candle_index=candle_index + 1,
+                exit_candle_index=candle_index + 4,
+                entry_reference_price=Decimal("100"),
+                exit_reference_price=Decimal("101") if positive else Decimal("99"),
+                entry_fill_price=Decimal("100.20"),
+                exit_fill_price=Decimal("100.90") if positive else Decimal("98.80"),
+                gross_return=Decimal("0.007") if positive else Decimal("-0.014"),
+                net_return=Decimal("0.008") if positive else Decimal("-0.016"),
+                hurdle_bps=Decimal("60"),
+                positive=positive,
+            )
+        )
+    matrix = FeatureMatrix(
+        schema_version="candidate-feature-matrix-v1",
+        definitions=registry.definitions,
+        rows=tuple(rows),
+    )
+    vector = LabelVector(
+        schema_version="candidate-label-vector-v1",
+        horizon_candles=3,
+        hurdle_bps=Decimal("60"),
+        observations=tuple(labels),
+    )
+    return matrix, vector, tuple(row.candle_index for row in rows)

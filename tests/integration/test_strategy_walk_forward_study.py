@@ -27,9 +27,13 @@ def _split_plan() -> ChronologicalSplitPlan:
     )
 
 
+def _empty_calls() -> list[tuple[StudyPhase, int | None, str]]:
+    return []
+
+
 @dataclass(slots=True)
 class RecordingExecutor:
-    calls: list[tuple[StudyPhase, int | None, str]] = field(default_factory=list)
+    calls: list[tuple[StudyPhase, int | None, str]] = field(default_factory=_empty_calls)
 
     def run_case(
         self,
@@ -48,7 +52,7 @@ class RecordingExecutor:
             fold_number=fold_number,
             terminal_status="completed",
             experiment_id=digest,
-            evidence_sha256=(digest[::-1]),
+            evidence_sha256=digest[::-1],
         )
 
 

@@ -27,39 +27,42 @@ jobs:
           from pathlib import Path
 
           path = Path("src/gemini_trading/strategy/baselines.py")
-          text = path.read_text()
+          lines = path.read_text().splitlines()
 
-          text = text.replace(
-              '_CONTEXT = Context(prec=34, rounding=ROUND_HALF_EVEN)\n',
-              '_CONTEXT = Context(prec=34, rounding=ROUND_HALF_EVEN)\n'
-              '_INITIAL_STOP_ATR = Decimal("2.5")\n'
-              '_TRAILING_STOP_ATR = Decimal("3.0")\n',
-          )
+          context_line = '_CONTEXT = Context(prec=34, rounding=ROUND_HALF_EVEN)'
+          if '_INITIAL_STOP_ATR = Decimal("2.5")' not in lines:
+              index = lines.index(context_line) + 1
+              lines[index:index] = [
+                  '_INITIAL_STOP_ATR = Decimal("2.5")',
+                  '_TRAILING_STOP_ATR = Decimal("3.0")',
+              ]
 
-          old_configuration = '''        return (
-              ("strategy_id", self.strategy_id),
-              ("decision_count", str(len(self.schedule.actions))),
-              ("timing", "next_candle_via_research_engine"),
-              ("production_eligible", "false"),
+          configuration_index = lines.index("    def configuration(self) -> tuple[tuple[str, str], ...]:")
+          return_index = next(
+              index
+              for index in range(configuration_index, len(lines))
+              if lines[index] == "        return ("
           )
-          '''
-          new_configuration = '''        return (
-              ("strategy_id", self.strategy_id),
-              ("decision_count", str(len(self.schedule.actions))),
-              ("quantity_step", format(self.quantity_step, "f")),
-              ("minimum_quantity", format(self.minimum_quantity, "f")),
-              ("minimum_notional", format(self.minimum_notional, "f")),
-              ("timing", "next_candle_via_research_engine"),
-              ("production_eligible", "false"),
+          return_end = next(
+              index
+              for index in range(return_index + 1, len(lines))
+              if lines[index] == "        )"
           )
-          '''
-          if old_configuration not in text:
-              raise SystemExit("configuration block not found")
-          text = text.replace(old_configuration, new_configuration)
+          lines[return_index : return_end + 1] = [
+              "        return (",
+              '            ("strategy_id", self.strategy_id),',
+              '            ("decision_count", str(len(self.schedule.actions))),',
+              '            ("quantity_step", format(self.quantity_step, "f")),',
+              '            ("minimum_quantity", format(self.minimum_quantity, "f")),',
+              '            ("minimum_notional", format(self.minimum_notional, "f")),',
+              '            ("timing", "next_candle_via_research_engine"),',
+              '            ("production_eligible", "false"),',
+              "        )",
+          ]
 
-          marker = '''def _cash_schedule(count: int) -> BaselineSchedule:
-          '''
-          helpers = '''def _true_range(candles: tuple[Candle, ...], index: int) -> Decimal:
+          if "def _true_range(candles: tuple[Candle, ...], index: int) -> Decimal:" not in lines:
+              cash_index = lines.index("def _cash_schedule(count: int) -> BaselineSchedule:")
+              helpers = '''def _true_range(candles: tuple[Candle, ...], index: int) -> Decimal:
               candle = candles[index]
               if index == 0:
                   return candle.high - candle.low
@@ -84,14 +87,15 @@ jobs:
                   ) / Decimal("24")
 
 
-          def _cash_schedule(count: int) -> BaselineSchedule:
-          '''
-          if marker not in text:
-              raise SystemExit("cash schedule marker not found")
-          text = text.replace(marker, helpers, 1)
+          '''.splitlines()
+              lines[cash_index:cash_index] = helpers
 
-          start = text.index("def _zscore_schedule(")
-          end = text.index("def build_baseline_schedules(", start)
+          zscore_index = lines.index(
+              "def _zscore_schedule(candles: tuple[Candle, ...]) -> BaselineSchedule:"
+          )
+          build_index = lines.index(
+              "def build_baseline_schedules(candles: tuple[Candle, ...]) -> dict[str, BaselineSchedule]:"
+          )
           replacement = '''def _zscore_schedule(candles: tuple[Candle, ...]) -> BaselineSchedule:
               actions: list[BaselineAction] = []
               currently_long = False
@@ -115,9 +119,7 @@ jobs:
                                   zscore is None or zscore < Decimal("0")
                               )
                           else:
-                              should_be_long = (
-                                  zscore is not None and zscore <= Decimal("-1.5")
-                              )
+                              should_be_long = zscore is not None and zscore <= Decimal("-1.5")
                       action, next_long = _state_action(currently_long, should_be_long)
                       if action is BaselineAction.ENTER_LONG:
                           if atr is None:
@@ -155,21 +157,25 @@ jobs:
                       candle.instrument != previous.instrument
                       or candle.timeframe is not previous.timeframe
                   ):
-                      raise ValueError(
-                          "baseline candles must share instrument and timeframe"
-                      )
+                      raise ValueError("baseline candles must share instrument and timeframe")
                   if candle.open_time <= previous.open_time:
                       raise ValueError("baseline candles must be strictly chronological")
 
 
-          '''
-          text = text[:start] + replacement + text[end:]
-          text = text.replace(
-              '    if any(not candle.completed for candle in candles):\n'
-              '        raise ValueError("baseline schedules require completed candles")\n',
-              '    _validate_candles(candles)\n',
+          '''.splitlines()
+          lines[zscore_index:build_index] = replacement
+
+          build_index = lines.index(
+              "def build_baseline_schedules(candles: tuple[Candle, ...]) -> dict[str, BaselineSchedule]:"
           )
-          path.write_text(text)
+          old_validation = "    if any(not candle.completed for candle in candles):"
+          if old_validation in lines[build_index:]:
+              validation_index = lines.index(old_validation, build_index)
+              lines[validation_index : validation_index + 2] = [
+                  "    _validate_candles(candles)"
+              ]
+
+          path.write_text("\n".join(lines) + "\n")
           PY
       - run: uv run ruff format src/gemini_trading/strategy/baselines.py
       - run: uv run ruff check src/gemini_trading/strategy/baselines.py

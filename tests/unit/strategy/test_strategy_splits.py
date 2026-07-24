@@ -2,12 +2,13 @@
 
 from datetime import UTC, datetime
 
+from gemini_trading.domain.candle import Candle
 from gemini_trading.strategy.policy import CandidatePolicy
 from gemini_trading.strategy.splits import ChronologicalSplitPlan
 from strategy_fixture_support import calendar_candles
 
 
-def _eight_year_candles():
+def _eight_year_candles() -> tuple[Candle, ...]:
     return calendar_candles(
         start=datetime(2018, 1, 1, tzinfo=UTC),
         end_exclusive=datetime(2026, 1, 1, tzinfo=UTC),

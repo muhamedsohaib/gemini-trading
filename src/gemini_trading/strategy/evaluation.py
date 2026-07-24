@@ -394,8 +394,7 @@ def evaluate_promotion(evidence: PromotionEvidence) -> PromotionReport:
         )
     else:
         beat_count = sum(
-            item.candidate_return_to_drawdown
-            > item.strongest_active_baseline_return_to_drawdown
+            item.candidate_return_to_drawdown > item.strongest_active_baseline_return_to_drawdown
             for item in folds
             if item.candidate_return_to_drawdown is not None
             and item.strongest_active_baseline_return_to_drawdown is not None
@@ -438,10 +437,22 @@ def evaluate_promotion(evidence: PromotionEvidence) -> PromotionReport:
 
     final = evidence.final
     outcomes.append(
-        _gate("final.net_return", final.candidate_net_return > 0, final.candidate_net_return, ">0", "final net return evaluated")
+        _gate(
+            "final.net_return",
+            final.candidate_net_return > 0,
+            final.candidate_net_return,
+            ">0",
+            "final net return evaluated",
+        )
     )
     outcomes.append(
-        _gate("final.trade_count", final.completed_trades >= 30, final.completed_trades, ">=30", "final trade count evaluated")
+        _gate(
+            "final.trade_count",
+            final.completed_trades >= 30,
+            final.completed_trades,
+            ">=30",
+            "final trade count evaluated",
+        )
     )
     outcomes.append(
         _gate(
@@ -462,7 +473,9 @@ def evaluate_promotion(evidence: PromotionEvidence) -> PromotionReport:
         )
     )
     if final.candidate_return_to_drawdown is None:
-        outcomes.append(_missing("final.return_to_drawdown", ">=0.50", "candidate return-to-drawdown"))
+        outcomes.append(
+            _missing("final.return_to_drawdown", ">=0.50", "candidate return-to-drawdown")
+        )
     else:
         outcomes.append(
             _gate(
@@ -473,8 +486,17 @@ def evaluate_promotion(evidence: PromotionEvidence) -> PromotionReport:
                 "final return-to-drawdown evaluated",
             )
         )
-    if final.candidate_return_to_drawdown is None or final.strongest_active_simple_return_to_drawdown is None:
-        outcomes.append(_missing("final.simple_baseline_rtd", ">=1.10x", "simple baseline return-to-drawdown comparator"))
+    if (
+        final.candidate_return_to_drawdown is None
+        or final.strongest_active_simple_return_to_drawdown is None
+    ):
+        outcomes.append(
+            _missing(
+                "final.simple_baseline_rtd",
+                ">=1.10x",
+                "simple baseline return-to-drawdown comparator",
+            )
+        )
     else:
         outcomes.append(
             _gate(
@@ -486,8 +508,13 @@ def evaluate_promotion(evidence: PromotionEvidence) -> PromotionReport:
                 "final simple-baseline return-to-drawdown comparison evaluated",
             )
         )
-    if final.candidate_return_to_drawdown is None or final.strongest_specialist_return_to_drawdown is None:
-        outcomes.append(_missing("final.specialist_rtd", ">=1.05x", "specialist return-to-drawdown comparator"))
+    if (
+        final.candidate_return_to_drawdown is None
+        or final.strongest_specialist_return_to_drawdown is None
+    ):
+        outcomes.append(
+            _missing("final.specialist_rtd", ">=1.05x", "specialist return-to-drawdown comparator")
+        )
     else:
         outcomes.append(
             _gate(
@@ -500,19 +527,28 @@ def evaluate_promotion(evidence: PromotionEvidence) -> PromotionReport:
             )
         )
     if final.strongest_active_simple_net_return is None:
-        outcomes.append(_missing("final.simple_baseline_net_return", ">=baseline-0.02", "simple baseline net-return comparator"))
+        outcomes.append(
+            _missing(
+                "final.simple_baseline_net_return",
+                ">=baseline-0.02",
+                "simple baseline net-return comparator",
+            )
+        )
     else:
         outcomes.append(
             _gate(
                 "final.simple_baseline_net_return",
-                final.candidate_net_return >= final.strongest_active_simple_net_return - Decimal("0.02"),
+                final.candidate_net_return
+                >= final.strongest_active_simple_net_return - Decimal("0.02"),
                 final.candidate_net_return,
                 ">=strongest simple baseline-0.02",
                 "final simple-baseline net-return comparison evaluated",
             )
         )
     if final.largest_positive_trade_fraction is None:
-        outcomes.append(_missing("final.trade_concentration", "<=0.25", "positive-trade concentration"))
+        outcomes.append(
+            _missing("final.trade_concentration", "<=0.25", "positive-trade concentration")
+        )
     else:
         outcomes.append(
             _gate(
@@ -536,7 +572,9 @@ def evaluate_promotion(evidence: PromotionEvidence) -> PromotionReport:
         )
     )
     if final.aggregate_positive_profit <= 0:
-        outcomes.append(_missing("final.regime_loss", ">=-0.25*positive_profit", "aggregate positive profit"))
+        outcomes.append(
+            _missing("final.regime_loss", ">=-0.25*positive_profit", "aggregate positive profit")
+        )
     else:
         worst_regime = min(
             (item.net_return for item in final.regime_metrics if item.period_count > 0),
@@ -554,11 +592,45 @@ def evaluate_promotion(evidence: PromotionEvidence) -> PromotionReport:
 
     outcomes.extend(
         (
-            _gate("cost.one_half_return", evidence.cost_1_5x.net_return > 0, evidence.cost_1_5x.net_return, ">0", "1.5x cost return evaluated"),
-            _gate("cost.one_half_drawdown", evidence.cost_1_5x.maximum_drawdown <= Decimal("0.275"), evidence.cost_1_5x.maximum_drawdown, "<=0.275", "1.5x cost drawdown evaluated"),
-            _gate("cost.double_return", evidence.cost_2x.net_return >= Decimal("-0.05"), evidence.cost_2x.net_return, ">=-0.05", "2x cost return evaluated"),
-            _gate("cost.double_drawdown", evidence.cost_2x.maximum_drawdown <= Decimal("0.30"), evidence.cost_2x.maximum_drawdown, "<=0.30", "2x cost drawdown evaluated"),
-            _gate("cost.monotonicity", cost_returns_are_monotonic(final.candidate_net_return, evidence.cost_1_5x.net_return, evidence.cost_2x.net_return), f"{final.candidate_net_return},{evidence.cost_1_5x.net_return},{evidence.cost_2x.net_return}", "base>=1.5x>=2x", "cost monotonicity evaluated"),
+            _gate(
+                "cost.one_half_return",
+                evidence.cost_1_5x.net_return > 0,
+                evidence.cost_1_5x.net_return,
+                ">0",
+                "1.5x cost return evaluated",
+            ),
+            _gate(
+                "cost.one_half_drawdown",
+                evidence.cost_1_5x.maximum_drawdown <= Decimal("0.275"),
+                evidence.cost_1_5x.maximum_drawdown,
+                "<=0.275",
+                "1.5x cost drawdown evaluated",
+            ),
+            _gate(
+                "cost.double_return",
+                evidence.cost_2x.net_return >= Decimal("-0.05"),
+                evidence.cost_2x.net_return,
+                ">=-0.05",
+                "2x cost return evaluated",
+            ),
+            _gate(
+                "cost.double_drawdown",
+                evidence.cost_2x.maximum_drawdown <= Decimal("0.30"),
+                evidence.cost_2x.maximum_drawdown,
+                "<=0.30",
+                "2x cost drawdown evaluated",
+            ),
+            _gate(
+                "cost.monotonicity",
+                cost_returns_are_monotonic(
+                    final.candidate_net_return,
+                    evidence.cost_1_5x.net_return,
+                    evidence.cost_2x.net_return,
+                ),
+                f"{final.candidate_net_return},{evidence.cost_1_5x.net_return},{evidence.cost_2x.net_return}",
+                "base>=1.5x>=2x",
+                "cost monotonicity evaluated",
+            ),
         )
     )
 
@@ -570,9 +642,27 @@ def evaluate_promotion(evidence: PromotionEvidence) -> PromotionReport:
     )
     outcomes.extend(
         (
-            _gate("sensitivity.positive_neighbors", len(evidence.neighbors) >= 10 and positive_neighbors >= 7, positive_neighbors, ">=7/10", "positive neighboring variants evaluated"),
-            _gate("sensitivity.median_return", neighbor_median > 0, neighbor_median, ">0", "neighbor median return evaluated"),
-            _gate("sensitivity.drawdown", neighbor_max_drawdown <= Decimal("0.35"), neighbor_max_drawdown, "<=0.35", "neighbor drawdown evaluated"),
+            _gate(
+                "sensitivity.positive_neighbors",
+                len(evidence.neighbors) >= 10 and positive_neighbors >= 7,
+                positive_neighbors,
+                ">=7/10",
+                "positive neighboring variants evaluated",
+            ),
+            _gate(
+                "sensitivity.median_return",
+                neighbor_median > 0,
+                neighbor_median,
+                ">0",
+                "neighbor median return evaluated",
+            ),
+            _gate(
+                "sensitivity.drawdown",
+                neighbor_max_drawdown <= Decimal("0.35"),
+                neighbor_max_drawdown,
+                "<=0.35",
+                "neighbor drawdown evaluated",
+            ),
         )
     )
     stability_passed = True
@@ -592,13 +682,36 @@ def evaluate_promotion(evidence: PromotionEvidence) -> PromotionReport:
     )
     outcomes.extend(
         (
-            _gate("uncertainty.bootstrap_median", evidence.bootstrap.net_return_difference_median > 0, evidence.bootstrap.net_return_difference_median, ">0", "bootstrap median return difference evaluated"),
-            _gate("uncertainty.bootstrap_lower_bound", evidence.bootstrap.net_return_difference_p05 > Decimal("-0.02"), evidence.bootstrap.net_return_difference_p05, ">-0.02", "bootstrap 90% lower bound evaluated"),
-            _gate("control.shuffled_labels", not evidence.shuffled_labels_economic_gates_passed, evidence.shuffled_labels_economic_gates_passed, "false", "shuffled-label economic gates evaluated"),
+            _gate(
+                "uncertainty.bootstrap_median",
+                evidence.bootstrap.net_return_difference_median > 0,
+                evidence.bootstrap.net_return_difference_median,
+                ">0",
+                "bootstrap median return difference evaluated",
+            ),
+            _gate(
+                "uncertainty.bootstrap_lower_bound",
+                evidence.bootstrap.net_return_difference_p05 > Decimal("-0.02"),
+                evidence.bootstrap.net_return_difference_p05,
+                ">-0.02",
+                "bootstrap 90% lower bound evaluated",
+            ),
+            _gate(
+                "control.shuffled_labels",
+                not evidence.shuffled_labels_economic_gates_passed,
+                evidence.shuffled_labels_economic_gates_passed,
+                "false",
+                "shuffled-label economic gates evaluated",
+            ),
         )
     )
-    if final.candidate_return_to_drawdown is None or evidence.delayed_feature_return_to_drawdown is None:
-        outcomes.append(_missing("control.delayed_features", "<=1.05x primary", "delayed-feature comparator"))
+    if (
+        final.candidate_return_to_drawdown is None
+        or evidence.delayed_feature_return_to_drawdown is None
+    ):
+        outcomes.append(
+            _missing("control.delayed_features", "<=1.05x primary", "delayed-feature comparator")
+        )
     else:
         outcomes.append(
             _gate(
@@ -612,9 +725,27 @@ def evaluate_promotion(evidence: PromotionEvidence) -> PromotionReport:
         )
     outcomes.extend(
         (
-            _gate("control.no_disagreement", evidence.no_disagreement_component_value, evidence.no_disagreement_component_value, "true", "disagreement component value evaluated"),
-            _gate("control.no_volume", evidence.no_volume_component_value, evidence.no_volume_component_value, "true", "volume component value evaluated"),
-            _gate("control.no_protection", evidence.no_protection_component_value, evidence.no_protection_component_value, "true", "protection component value evaluated"),
+            _gate(
+                "control.no_disagreement",
+                evidence.no_disagreement_component_value,
+                evidence.no_disagreement_component_value,
+                "true",
+                "disagreement component value evaluated",
+            ),
+            _gate(
+                "control.no_volume",
+                evidence.no_volume_component_value,
+                evidence.no_volume_component_value,
+                "true",
+                "volume component value evaluated",
+            ),
+            _gate(
+                "control.no_protection",
+                evidence.no_protection_component_value,
+                evidence.no_protection_component_value,
+                "true",
+                "protection component value evaluated",
+            ),
         )
     )
 

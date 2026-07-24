@@ -123,7 +123,7 @@ class ResearchVerificationService:
             raise ReplayMismatchError("required verification evidence is missing") from None
 
         result_mapping = _result_mapping(result_manifest_bytes)
-        if _required_str(result_mapping, "schema_version") != "research-result-v1":
+        if _required_str(result_mapping, "schema_version") != "research-result-v2":
             raise ReplayMismatchError("unsupported result manifest schema")
         if _required_str(result_mapping, "experiment_id") != experiment_id_value:
             raise ReplayMismatchError("result manifest experiment identity mismatch")
@@ -158,7 +158,7 @@ class ResearchVerificationService:
                 raise ReplayMismatchError(f"stored artifact hash does not match: {name}")
 
         identity_payload: dict[str, object] = {
-            "schema_version": "research-result-v1",
+            "schema_version": "research-result-v2",
             "experiment_id": experiment_id_value,
             "artifacts": [list(item) for item in artifact_hashes],
             "terminal_status": terminal_status,

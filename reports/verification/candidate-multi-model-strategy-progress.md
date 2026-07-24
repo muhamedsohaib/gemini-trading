@@ -2,9 +2,9 @@
 
 ## Status
 
-- Milestone state: implementation complete; protected-main closure pending
+- Milestone state: implementation and cumulative advisory review complete; protected-main closure pending
 - Promotion boundary: `RESEARCH_ONLY`
-- Pull request: #20, draft
+- Pull request: #20, draft pending final report-bearing CI
 - Approved design and plan base: `21fb5cd07702c76c522d3e82f740ec7c320e51f7`
 - Completed implementation tasks: 1–12
 - Real seven-year historical Candidate run: not performed or claimed
@@ -86,15 +86,36 @@ Evidence:
 
 The diagnostic result verifies deterministic architecture and fail-closed evidence handling only. It does not establish trading edge, durable profitability, paper readiness, live readiness, or capital authorization.
 
+## Cumulative review correction
+
+The cumulative PR review found that shuffled-label and component-ablation gate inputs were initially hardcoded in `build_promotion_report()` instead of being derived from the executed final control evidence. That would have made the component-value gates permanently fail regardless of real evidence.
+
+The correction now derives:
+
+- shuffled-label economic invalidation from the executed shuffled-label metrics;
+- disagreement-abstention component support from primary versus no-disagreement return-to-drawdown and drawdown;
+- volume component support from primary versus no-volume evidence;
+- protection component support from primary versus no-protection evidence, requiring an actual drawdown reduction for the ablation to invalidate protection.
+
+Evidence:
+
+- Review RED head: `3221d25c4df5df84f4bc554f0c044c996fc9233e`
+- Review RED CI: `30086424983` — strict Pyright failed against the intentionally absent evidence-derived helpers
+- Review-corrected clean code head: `4527e2a2f520b0e15a4f245297a1c4b1bd75b3c4`
+- Review GREEN CI: `30087016792` — frozen sync, Ruff format, Ruff lint, strict Pyright, complete pytest suite, package build, dependency audit, tracked-file policy, detect-secrets, and Gitleaks passed
+- Temporary review-format workflow removed before the review GREEN CI
+- Final changed-file list contains no temporary workflow
+
+The synthetic diagnostic gate totals remain unchanged because its primary return-to-drawdown is undefined and its shuffled-label control exhibits no positive economic gate. The failure and not-evaluated evidence remains preserved.
+
 ## Remaining protected-main closure
 
-1. Commit the final report and correct stale documentation language.
-2. Pass ordinary CI on the resulting exact PR head.
-3. Complete cumulative advisory review of scope, failed gates, and limitations.
-4. Mark PR #20 ready for review.
-5. Merge only through protected `main` after approval.
-6. Run exact merged-main verification.
-7. Close Issue #16 only after merged-main verification is recorded.
+1. Pass ordinary CI on the final report-bearing PR head.
+2. Update the PR description and record the cumulative review outcome.
+3. Mark PR #20 ready for review.
+4. Merge only through protected `main` after approval.
+5. Run exact merged-main verification.
+6. Close Issue #16 only after merged-main verification is recorded.
 
 ## Safety confirmation
 

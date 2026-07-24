@@ -2,12 +2,6 @@
   /home/runner/work/gemini-trading/gemini-trading/src/gemini_trading/strategy/models.py:14:6 - warning: Stub file not found for "sklearn.ensemble" (reportMissingTypeStubs)
   /home/runner/work/gemini-trading/gemini-trading/src/gemini_trading/strategy/models.py:15:6 - warning: Stub file not found for "sklearn.linear_model" (reportMissingTypeStubs)
   /home/runner/work/gemini-trading/gemini-trading/src/gemini_trading/strategy/models.py:16:6 - warning: Stub file not found for "threadpoolctl" (reportMissingTypeStubs)
-/home/runner/work/gemini-trading/gemini-trading/tests/property/strategy/test_candidate_order_safety.py
-  /home/runner/work/gemini-trading/gemini-trading/tests/property/strategy/test_candidate_order_safety.py:18:15 - error: Type of parameter "decision" is unknown (reportUnknownParameterType)
-  /home/runner/work/gemini-trading/gemini-trading/tests/property/strategy/test_candidate_order_safety.py:18:15 - error: Type annotation is missing for parameter "decision" (reportMissingParameterType)
-  /home/runner/work/gemini-trading/gemini-trading/tests/property/strategy/test_candidate_order_safety.py:20:44 - error: Argument type is partially unknown
-    Argument corresponds to parameter "decisions" in function "__init__"
-    Argument type is "tuple[Unknown]" (reportUnknownArgumentType)
 /home/runner/work/gemini-trading/gemini-trading/tests/unit/strategy/test_candidate_strategy.py
   /home/runner/work/gemini-trading/gemini-trading/tests/unit/strategy/test_candidate_strategy.py:89:19 - error: Type of parameter "decisions" is unknown (reportUnknownParameterType)
   /home/runner/work/gemini-trading/gemini-trading/tests/unit/strategy/test_candidate_strategy.py:89:19 - error: Type annotation is missing for parameter "decisions" (reportMissingParameterType)
@@ -17,4 +11,4 @@
   /home/runner/work/gemini-trading/gemini-trading/tests/unit/strategy/test_candidate_strategy.py:91:50 - error: Argument type is partially unknown
     Argument corresponds to parameter "iterable" in function "__new__"
     Argument type is "tuple[Unknown, ...]" (reportUnknownArgumentType)
-7 errors, 3 warnings, 0 informations
+4 errors, 3 warnings, 0 informations

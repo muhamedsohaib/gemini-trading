@@ -12,10 +12,10 @@ from gemini_trading.strategy.calibration import PlattArtifact, apply_platt
 def test_platt_inference_is_bounded_for_every_finite_raw_score(score: float) -> None:
     artifact = PlattArtifact(
         schema_version="candidate-platt-v1",
-        slope_hex=1.25.hex(),
+        slope_hex=(1.25).hex(),
         intercept_hex=(-0.4).hex(),
-        minimum_probability_hex=0.1.hex(),
-        maximum_probability_hex=0.9.hex(),
+        minimum_probability_hex=(0.1).hex(),
+        maximum_probability_hex=(0.9).hex(),
         observation_count=200,
         positive_count=100,
         negative_count=100,

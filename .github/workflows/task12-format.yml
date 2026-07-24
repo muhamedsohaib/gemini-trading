@@ -27,6 +27,7 @@ jobs:
           src/gemini_trading/strategy/study_strategy.py
           src/gemini_trading/strategy/study_predictions.py
           src/gemini_trading/strategy/study_execution.py
+          src/gemini_trading/strategy/study_plans.py
           src/gemini_trading/strategy/evaluator.py
           src/gemini_trading/cli/strategy.py
           tests/candidate_strategy_e2e_worker.py
@@ -42,6 +43,7 @@ jobs:
             src/gemini_trading/strategy/study_strategy.py
             src/gemini_trading/strategy/study_predictions.py
             src/gemini_trading/strategy/study_execution.py
+            src/gemini_trading/strategy/study_plans.py
             src/gemini_trading/strategy/evaluator.py
             src/gemini_trading/cli/strategy.py
             tests/candidate_strategy_e2e_worker.py

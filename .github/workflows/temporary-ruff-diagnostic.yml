@@ -1,4 +1,4 @@
-name: Temporary Ruff Application
+name: Temporary Ruff Diagnostic
 
 on:
   pull_request:
@@ -7,7 +7,7 @@ permissions:
   contents: write
 
 jobs:
-  fix:
+  diagnose:
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
@@ -21,14 +21,17 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync --all-groups --frozen
-      - run: uv run ruff check . --fix
-      - name: Commit safe lint fixes
+      - name: Capture concise diagnostic
+        run: |
+          mkdir -p reports/temporary
+          uv run ruff check . --output-format concise > reports/temporary/task-three-ruff.txt 2>&1 || true
+      - name: Commit diagnostic
         run: |
           if git diff --quiet; then
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add tests
-          git commit -m "style: apply task three lint fixes"
+          git add reports/temporary/task-three-ruff.txt
+          git commit -m "ci: persist task three ruff diagnostic"
           git push origin HEAD:${{ github.event.pull_request.head.ref }}

@@ -6,8 +6,10 @@
 - Boundary: `RESEARCH_ONLY`
 - Pull request: #20
 - Approved design/plan base: `21fb5cd07702c76c522d3e82f740ec7c320e51f7`
-- Review-corrected clean code head before this report: `4527e2a2f520b0e15a4f245297a1c4b1bd75b3c4`
-- Ordinary CI on that code head: run `30087016792` — passed
+- Final report-bearing head: `46690941bda9aabb0b235907307112b9e81616e6`
+- Final ordinary CI: run `30087360238` — passed
+- Review-corrected clean code head: `4527e2a2f520b0e15a4f245297a1c4b1bd75b3c4`
+- Review-corrected code CI: run `30087016792` — passed
 - Dependency-lock SHA-256: `e72fcb7f84e3ebee85d01953539ff0449b00e8b2cc6b57d0c22660ffbf8075da`
 - Complete collected test count at acceptance checkpoint: 442
 - Real seven-year historical Candidate run: **not performed**
@@ -129,6 +131,8 @@ Review correction evidence:
 - RED CI: `30086424983` — failed at strict Pyright because the evidence-derived helpers were intentionally absent
 - GREEN clean code head: `4527e2a2f520b0e15a4f245297a1c4b1bd75b3c4`
 - GREEN CI: `30087016792` — full quality and Gitleaks gates passed
+- Final report-bearing head: `46690941bda9aabb0b235907307112b9e81616e6`
+- Final report-bearing CI: `30087360238` — full quality and Gitleaks gates passed
 - Temporary formatter workflow removed before GREEN CI
 - Final PR changed-file list contains no temporary workflow
 
@@ -160,9 +164,8 @@ This milestone verifies a deterministic, reproducible, fail-closed research arch
 
 ## Remaining protected-main closure
 
-1. Pass ordinary CI on the final report-bearing PR head.
-2. Record the exact final head and CI in the PR description.
-3. Mark PR #20 ready for review.
-4. Merge only through protected `main` after approval.
-5. Run purpose-built verification on the exact merged-main SHA.
-6. Close Issue #16 only after merged-main verification is recorded.
+1. Record the exact final head and CI in the PR description.
+2. Mark PR #20 ready for review.
+3. Merge only through protected `main` after approval.
+4. Run purpose-built verification on the exact merged-main SHA.
+5. Close Issue #16 only after merged-main verification is recorded.

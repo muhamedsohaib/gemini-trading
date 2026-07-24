@@ -372,14 +372,14 @@ class MeanReversionSpecialistTrainer:
         )
         with threadpool_limits(limits=1):
             estimator.fit(prepared.standardized, prepared.labels)
-        estimators = cast(Any, estimator.estimators_)
+        estimators = estimator.estimators_
         trees = tuple(
-            _extract_tree(cast(Any, estimators[index, 0]))
+            _extract_tree(estimators[index, 0])
             for index in range(self.policy.mean_reversion_estimators)
         )
         initial_raw_score = float(
             np.asarray(
-                cast(Any, estimator)._raw_predict_init(prepared.standardized[:1]),
+                estimator._raw_predict_init(prepared.standardized[:1]),
                 dtype=np.float64,
             )[0, 0]
         )
@@ -406,7 +406,7 @@ class MeanReversionSpecialistTrainer:
 
 
 def _extract_tree(estimator: Any) -> DecisionTreeArtifact:
-    tree = cast(Any, estimator.tree_)
+    tree = estimator.tree_
     nodes = tuple(
         TreeNodeArtifact(
             left_child=int(tree.children_left[index]),

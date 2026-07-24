@@ -7,7 +7,7 @@ import math
 from collections.abc import Mapping
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Any, TypeAlias, cast
+from typing import Any, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -177,7 +177,7 @@ class BoostedTreeArtifact:
             raise ValueError("seed must be non-negative")
 
 
-ModelArtifact: TypeAlias = LinearModelArtifact | BoostedTreeArtifact
+type ModelArtifact = LinearModelArtifact | BoostedTreeArtifact
 
 
 @dataclass(frozen=True, slots=True)

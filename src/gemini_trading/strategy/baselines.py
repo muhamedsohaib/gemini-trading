@@ -10,6 +10,8 @@ from gemini_trading.execution.simulator.precision import round_quantity_down
 from gemini_trading.research.contracts import StrategyContext
 
 _CONTEXT = Context(prec=34, rounding=ROUND_HALF_EVEN)
+_INITIAL_STOP_ATR = Decimal("2.5")
+_TRAILING_STOP_ATR = Decimal("3.0")
 
 
 class BaselineAction(StrEnum):
@@ -236,6 +238,28 @@ def _ema(values: tuple[Decimal, ...], span: int) -> tuple[Decimal, ...]:
     return tuple(output)
 
 
+def _true_range(candles: tuple[Candle, ...], index: int) -> Decimal:
+    candle = candles[index]
+    if index == 0:
+        return candle.high - candle.low
+    previous_close = candles[index - 1].close
+    return max(
+        candle.high - candle.low,
+        abs(candle.high - previous_close),
+        abs(candle.low - previous_close),
+    )
+
+
+def _atr24(candles: tuple[Candle, ...], index: int) -> Decimal | None:
+    if index < 23:
+        return None
+    with localcontext(_CONTEXT):
+        return sum(
+            (_true_range(candles, item_index) for item_index in range(index - 23, index + 1)),
+            Decimal("0"),
+        ) / Decimal("24")
+
+
 def _cash_schedule(count: int) -> BaselineSchedule:
     return BaselineSchedule("cash.v1", (BaselineAction.CASH,) * count)
 
@@ -281,31 +305,64 @@ def _donchian_schedule(candles: tuple[Candle, ...]) -> BaselineSchedule:
 def _zscore_schedule(candles: tuple[Candle, ...]) -> BaselineSchedule:
     actions: list[BaselineAction] = []
     currently_long = False
+    highest_close: Decimal | None = None
+    stop: Decimal | None = None
     with localcontext(_CONTEXT):
         for index, candle in enumerate(candles):
+            atr = _atr24(candles, index)
             if index < 23:
                 should_be_long = currently_long
             else:
                 window = tuple(item.close for item in candles[index - 23 : index + 1])
                 mean = sum(window, Decimal("0")) / Decimal(len(window))
                 variance = sum((value - mean) ** 2 for value in window) / Decimal(len(window))
-                if variance == 0:
-                    should_be_long = currently_long
+                zscore = None if variance == 0 else (candle.close - mean) / variance.sqrt()
+                if currently_long:
+                    stop_hit = stop is not None and candle.low <= stop
+                    should_be_long = not stop_hit and (zscore is None or zscore < Decimal("0"))
                 else:
-                    zscore = (candle.close - mean) / variance.sqrt()
-                    should_be_long = (
-                        zscore < Decimal("0") if currently_long else zscore <= Decimal("-1.5")
-                    )
-            action, currently_long = _state_action(currently_long, should_be_long)
+                    should_be_long = zscore is not None and zscore <= Decimal("-1.5")
+            action, next_long = _state_action(currently_long, should_be_long)
+            if action is BaselineAction.ENTER_LONG:
+                if atr is None:
+                    raise ValueError("mean-reversion entry requires ATR24")
+                highest_close = candle.close
+                stop = candle.close - _INITIAL_STOP_ATR * atr
+                if stop <= 0:
+                    action = BaselineAction.CASH
+                    next_long = False
+                    highest_close = None
+                    stop = None
+            elif action is BaselineAction.HOLD_LONG:
+                if atr is None or highest_close is None or stop is None:
+                    raise ValueError("mean-reversion hold requires ATR24 and stop state")
+                highest_close = max(highest_close, candle.close)
+                stop = max(stop, highest_close - _TRAILING_STOP_ATR * atr)
+            elif action is BaselineAction.EXIT_TO_CASH:
+                highest_close = None
+                stop = None
+            currently_long = next_long
             actions.append(action)
     return BaselineSchedule("mean_reversion_z24.v1", tuple(actions))
+
+
+def _validate_candles(candles: tuple[Candle, ...]) -> None:
+    for index, candle in enumerate(candles):
+        if not candle.completed:
+            raise ValueError("baseline schedules require completed candles")
+        if index == 0:
+            continue
+        previous = candles[index - 1]
+        if candle.instrument != previous.instrument or candle.timeframe is not previous.timeframe:
+            raise ValueError("baseline candles must share instrument and timeframe")
+        if candle.open_time <= previous.open_time:
+            raise ValueError("baseline candles must be strictly chronological")
 
 
 def build_baseline_schedules(candles: tuple[Candle, ...]) -> dict[str, BaselineSchedule]:
     """Build all locked baseline schedules from completed candles only."""
 
-    if any(not candle.completed for candle in candles):
-        raise ValueError("baseline schedules require completed candles")
+    _validate_candles(candles)
     schedules = (
         _cash_schedule(len(candles)),
         _buy_hold_schedule(len(candles)),

@@ -1,0 +1,30 @@
+name: Task 12 review formatter
+
+on:
+  push:
+    branches:
+      - feature/candidate-multi-model-strategy-v0-1
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - run: >-
+          uv run ruff format
+          src/gemini_trading/strategy/study_execution.py
+          tests/unit/strategy/test_study_execution_controls.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: task12-review-formatted
+          path: |
+            src/gemini_trading/strategy/study_execution.py
+            tests/unit/strategy/test_study_execution_controls.py

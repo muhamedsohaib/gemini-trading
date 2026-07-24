@@ -5,7 +5,11 @@ from decimal import Decimal
 from gemini_trading.domain.account import AccountSnapshot
 from gemini_trading.domain.order import OrderSide, OrderType, TimeInForce
 from gemini_trading.research.contracts import StrategyContext
-from gemini_trading.strategy.arbitration import ArbitrationInput, MultiModelArbiter
+from gemini_trading.strategy.arbitration import (
+    ArbitrationDecision,
+    ArbitrationInput,
+    MultiModelArbiter,
+)
 from gemini_trading.strategy.candidate import CandidateDecisionSchedule, CandidateMultiModelStrategy
 from gemini_trading.strategy.contracts import RegimeState, SpecialistKind
 from gemini_trading.strategy.policy import CandidatePolicy
@@ -34,7 +38,7 @@ def account_with_position(
     )
 
 
-def entry_decision(candle_index: int = 42):
+def entry_decision(candle_index: int = 42) -> ArbitrationDecision:
     return MultiModelArbiter(CandidatePolicy.locked_v0_1()).decide(
         ArbitrationInput(
             candle_index=candle_index,
@@ -60,7 +64,7 @@ def entry_decision(candle_index: int = 42):
     )
 
 
-def exit_decision(candle_index: int = 42):
+def exit_decision(candle_index: int = 42) -> ArbitrationDecision:
     return MultiModelArbiter(CandidatePolicy.locked_v0_1()).decide(
         ArbitrationInput(
             candle_index=candle_index,
@@ -86,9 +90,9 @@ def exit_decision(candle_index: int = 42):
     )
 
 
-def strategy_for(*decisions) -> CandidateMultiModelStrategy:
+def strategy_for(*decisions: ArbitrationDecision) -> CandidateMultiModelStrategy:
     return CandidateMultiModelStrategy(
-        schedule=CandidateDecisionSchedule(tuple(decisions)),
+        schedule=CandidateDecisionSchedule(decisions),
         quantity_step=Decimal("0.001"),
         minimum_quantity=Decimal("0.001"),
         minimum_notional=Decimal("5"),

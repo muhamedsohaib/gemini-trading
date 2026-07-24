@@ -1,6 +1,7 @@
 """Integration tests for locked baseline execution equivalence."""
 
 import hashlib
+from dataclasses import replace
 from datetime import timedelta
 from decimal import Decimal
 
@@ -21,7 +22,14 @@ from strategy_fixture_support import rising_candles
 def baseline_dataset() -> VerifiedDataset:
     """Return one deterministic provider-free baseline comparison dataset."""
 
-    candles = rising_candles(90)
+    candles = tuple(
+        replace(
+            candle,
+            high=candle.high + Decimal("100"),
+            low=candle.low - Decimal("100"),
+        )
+        for candle in rising_candles(90)
+    )
     manifest = DatasetManifest(
         schema_version="candle-dataset-v1",
         dataset_id="7" * 64,

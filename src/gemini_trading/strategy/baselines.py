@@ -164,6 +164,50 @@ class BaselineSuite:
             MeanReversionZ24Baseline(),
         )
 
+    @staticmethod
+    def for_candles(
+        candles: tuple[Candle, ...],
+        *,
+        quantity_step: Decimal,
+        minimum_quantity: Decimal,
+        minimum_notional: Decimal,
+    ) -> tuple[_ScheduledBaseline, ...]:
+        """Return fully scheduled strategies for one verified candle set."""
+
+        schedules = build_baseline_schedules(candles)
+        return (
+            CashBaseline(
+                schedule=schedules["cash.v1"],
+                quantity_step=quantity_step,
+                minimum_quantity=minimum_quantity,
+                minimum_notional=minimum_notional,
+            ),
+            BuyHoldBaseline(
+                schedule=schedules["buy_hold.v1"],
+                quantity_step=quantity_step,
+                minimum_quantity=minimum_quantity,
+                minimum_notional=minimum_notional,
+            ),
+            Ema2050Baseline(
+                schedule=schedules["ema_20_50.v1"],
+                quantity_step=quantity_step,
+                minimum_quantity=minimum_quantity,
+                minimum_notional=minimum_notional,
+            ),
+            Donchian2010Baseline(
+                schedule=schedules["donchian_20_10.v1"],
+                quantity_step=quantity_step,
+                minimum_quantity=minimum_quantity,
+                minimum_notional=minimum_notional,
+            ),
+            MeanReversionZ24Baseline(
+                schedule=schedules["mean_reversion_z24.v1"],
+                quantity_step=quantity_step,
+                minimum_quantity=minimum_quantity,
+                minimum_notional=minimum_notional,
+            ),
+        )
+
 
 def _state_action(currently_long: bool, should_be_long: bool) -> tuple[BaselineAction, bool]:
     if should_be_long and not currently_long:
@@ -176,6 +220,8 @@ def _state_action(currently_long: bool, should_be_long: bool) -> tuple[BaselineA
 
 
 def _ema(values: tuple[Decimal, ...], span: int) -> tuple[Decimal, ...]:
+    if not values:
+        return ()
     alpha = Decimal("2") / Decimal(span + 1)
     output: list[Decimal] = []
     with localcontext(_CONTEXT):
@@ -193,9 +239,9 @@ def _cash_schedule(count: int) -> BaselineSchedule:
 
 def _buy_hold_schedule(count: int) -> BaselineSchedule:
     actions = [BaselineAction.CASH] * count
-    if count > 50:
-        actions[50] = BaselineAction.ENTER_LONG
-        actions[51:] = [BaselineAction.HOLD_LONG] * (count - 51)
+    if count:
+        actions[0] = BaselineAction.ENTER_LONG
+        actions[1:] = [BaselineAction.HOLD_LONG] * (count - 1)
     return BaselineSchedule("buy_hold.v1", tuple(actions))
 
 

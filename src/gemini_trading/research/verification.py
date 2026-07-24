@@ -14,6 +14,8 @@ from gemini_trading.research.errors import ReplayMismatchError
 from gemini_trading.research.identity import experiment_id
 from gemini_trading.research.replay import (
     ReplayService,
+    StrategyReconstructor,
+    fixture_strategy_from_manifest,
     parse_experiment_manifest,
     parse_simulation_config,
     resolve_clean_git_commit,
@@ -97,6 +99,7 @@ class ResearchVerificationService:
 
     root: Path
     current_commit_resolver: Callable[[], str] = _default_current_commit
+    strategy_reconstructor: StrategyReconstructor = fixture_strategy_from_manifest
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "root", Path(self.root))
@@ -176,6 +179,7 @@ class ResearchVerificationService:
             canonical_store,
             research_store,
             current_commit_resolver=self.current_commit_resolver,
+            strategy_reconstructor=self.strategy_reconstructor,
         ).replay(experiment_id_value)
         if replayed.result_id != recorded_result_id:
             raise ReplayMismatchError("replayed result identity does not match")

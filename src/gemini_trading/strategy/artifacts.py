@@ -20,6 +20,7 @@ from gemini_trading.strategy.study import (
 )
 
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
+_GIT_COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 _JSONL_NAMES = {
     "feature-matrix.jsonl",
     "labels.jsonl",
@@ -152,12 +153,16 @@ def build_study_artifacts(
     *,
     classification: PromotionClassification,
     payloads: Mapping[str, object],
+    code_commit: str | None = None,
 ) -> StrategyStudyArtifacts:
     """Build every required artifact and a self-excluding content-derived identity."""
 
     _validate_evidence(evidence)
     if set(payloads) != _REQUIRED_PAYLOAD_NAMES:
         raise StudyArtifactError("required study payloads are incomplete")
+    recorded_commit = "0" * 40 if code_commit is None else code_commit
+    if _GIT_COMMIT_PATTERN.fullmatch(recorded_commit) is None:
+        raise StudyArtifactError("code_commit must be a lowercase 40-character Git commit")
     study_manifest = canonical_json_bytes(
         {
             "schema_version": "strategy-study-v1",
@@ -165,6 +170,7 @@ def build_study_artifacts(
             "split_plan_sha256": evidence.split_plan_sha256,
             "policy_sha256": evidence.policy_sha256,
             "configuration_sha256": evidence.configuration_sha256,
+            "code_commit": recorded_commit,
             "final_test_receipt_id": evidence.final_test_receipt.receipt_id,
             "final_evaluation_count": evidence.final_test_receipt.evaluation_count,
         }

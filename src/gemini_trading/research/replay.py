@@ -15,6 +15,7 @@ from gemini_trading.domain.experiment import ExperimentManifest, LimitFillPolicy
 from gemini_trading.domain.order import OrderIntent, OrderSide, OrderType, TimeInForce
 from gemini_trading.research.artifacts import LocalResearchStore, ResearchArtifacts, build_artifacts
 from gemini_trading.research.config import SimulationConfig, serialize_simulation_config
+from gemini_trading.research.contracts import Strategy
 from gemini_trading.research.dataset_reader import load_verified_dataset
 from gemini_trading.research.engine import run_backtest
 from gemini_trading.research.errors import ReplayMismatchError
@@ -56,6 +57,8 @@ _CONFIG_KEYS = {
     "max_active_candles",
     "promotable",
 }
+
+StrategyReconstructor = Callable[[ExperimentManifest], Strategy]
 
 
 def _json_object(raw: bytes, description: str) -> dict[str, object]:
@@ -364,6 +367,7 @@ class ReplayService:
     canonical_store: LocalImmutableStore
     research_store: LocalResearchStore
     current_commit_resolver: Callable[[], str] = _default_current_commit
+    strategy_reconstructor: StrategyReconstructor = fixture_strategy_from_manifest
 
     def replay(self, experiment_id_value: str) -> ResearchArtifacts:
         """Replay one experiment and fail unless every canonical artifact matches."""
@@ -388,7 +392,12 @@ class ReplayService:
         config = parse_simulation_config(config_bytes)
         if hashlib.sha256(config_bytes).hexdigest() != manifest.simulation_config_sha256:
             raise ReplayMismatchError("simulation configuration hash does not match manifest")
-        strategy = fixture_strategy_from_manifest(manifest)
+        try:
+            strategy = self.strategy_reconstructor(manifest)
+        except ReplayMismatchError:
+            raise
+        except Exception:
+            raise ReplayMismatchError("strategy reconstruction failed") from None
         try:
             dataset = load_verified_dataset(self.canonical_store, manifest.dataset_id)
         except Exception:
@@ -411,6 +420,7 @@ class ReplayService:
 
 __all__ = [
     "ReplayService",
+    "StrategyReconstructor",
     "fixture_strategy_from_manifest",
     "parse_experiment_manifest",
     "parse_simulation_config",

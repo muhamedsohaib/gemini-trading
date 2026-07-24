@@ -85,7 +85,10 @@ class _ScheduledBaseline:
         if available_cash <= 0:
             return ()
         quantity = round_quantity_down(available_cash / context.candle.close, self.quantity_step)
-        if quantity < self.minimum_quantity or quantity * context.candle.close < self.minimum_notional:
+        if (
+            quantity < self.minimum_quantity
+            or quantity * context.candle.close < self.minimum_notional
+        ):
             return ()
         return (
             OrderIntent(
@@ -241,7 +244,9 @@ def _zscore_schedule(candles: tuple[Candle, ...]) -> BaselineSchedule:
                     should_be_long = currently_long
                 else:
                     zscore = (candle.close - mean) / variance.sqrt()
-                    should_be_long = zscore < Decimal("0") if currently_long else zscore <= Decimal("-1.5")
+                    should_be_long = (
+                        zscore < Decimal("0") if currently_long else zscore <= Decimal("-1.5")
+                    )
             action, currently_long = _state_action(currently_long, should_be_long)
             actions.append(action)
     return BaselineSchedule("mean_reversion_z24.v1", tuple(actions))

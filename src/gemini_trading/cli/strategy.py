@@ -115,9 +115,13 @@ def load_candidate_strategy_config(path: Path) -> CandidateStrategyCliConfig:
     try:
         loaded: object = json.loads(path.read_text(encoding="utf-8"))
     except OSError:
-        raise InvalidExperimentConfigError("unable to read candidate strategy configuration") from None
+        raise InvalidExperimentConfigError(
+            "unable to read candidate strategy configuration"
+        ) from None
     except json.JSONDecodeError:
-        raise InvalidExperimentConfigError("invalid candidate strategy configuration JSON") from None
+        raise InvalidExperimentConfigError(
+            "invalid candidate strategy configuration JSON"
+        ) from None
     top = _mapping(loaded, "candidate strategy configuration")
     _exact_fields(top, _TOP_LEVEL_FIELDS, "candidate strategy configuration")
     schema_version = _string(top, "schema_version", "candidate strategy configuration")
@@ -180,9 +184,7 @@ def load_candidate_strategy_config(path: Path) -> CandidateStrategyCliConfig:
         latency_bars=_integer(
             simulation_mapping, "latency_bars", "candidate simulation configuration"
         ),
-        price_tick=_decimal(
-            simulation_mapping, "price_tick", "candidate simulation configuration"
-        ),
+        price_tick=_decimal(simulation_mapping, "price_tick", "candidate simulation configuration"),
         quantity_step=_decimal(
             simulation_mapping, "quantity_step", "candidate simulation configuration"
         ),
@@ -203,12 +205,12 @@ def load_candidate_strategy_config(path: Path) -> CandidateStrategyCliConfig:
         timing_policy=timing_policy,
         limit_fill_policy=limit_fill_policy,
         default_time_in_force=time_in_force,
-        promotable=_boolean(
-            simulation_mapping, "promotable", "candidate simulation configuration"
-        ),
+        promotable=_boolean(simulation_mapping, "promotable", "candidate simulation configuration"),
     )
     if not simulation.promotable:
-        raise InvalidExperimentConfigError("candidate study requires promotable simulation evidence")
+        raise InvalidExperimentConfigError(
+            "candidate study requires promotable simulation evidence"
+        )
     if any(
         value <= 0
         for value in (

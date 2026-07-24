@@ -201,7 +201,7 @@ def parse_study_case_evidence(raw: bytes) -> tuple[StudyCaseEvidence, ...]:
                 StudyCaseEvidence(
                     case_id=_required_str(mapping, "case_id", "strategy study experiment"),
                     phase=StudyPhase(_required_str(mapping, "phase", "strategy study experiment")),
-                    fold_number=cast(int | None, fold_value),
+                    fold_number=fold_value,
                     terminal_status=_required_str(
                         mapping,
                         "terminal_status",

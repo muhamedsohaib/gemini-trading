@@ -68,9 +68,9 @@ def test_label_uses_next_open_and_exit_after_three_held_candles() -> None:
         buy_fee = buy_notional * config.taker_fee_rate
         sell_fee = sell_notional * config.taker_fee_rate
         expected_gross = expected_sell / expected_buy - Decimal("1")
-        expected_net = (
-            sell_notional - sell_fee - buy_notional - buy_fee
-        ) / (buy_notional + buy_fee)
+        expected_net = (sell_notional - sell_fee - buy_notional - buy_fee) / (
+            buy_notional + buy_fee
+        )
 
     assert observation.decision_candle_index == 42
     assert observation.entry_candle_index == 43

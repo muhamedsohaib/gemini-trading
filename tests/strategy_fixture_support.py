@@ -100,9 +100,7 @@ def rising_candles(
         btc_candle(
             index,
             close=(
-                Decimal("10000")
-                + Decimal(index * 11)
-                + Decimal((index % 7) - 3) * Decimal("2.5")
+                Decimal("10000") + Decimal(index * 11) + Decimal((index % 7) - 3) * Decimal("2.5")
             ),
             start=start,
         )

@@ -29,10 +29,6 @@ def test_every_used_label_is_contained_inside_its_assigned_window(end_year: int)
         for window in (fold.training, fold.calibration, fold.development_test)
     ) + (plan.final_test,)
     for decision_index in plan.used_label_indices:
-        containing = tuple(
-            window
-            for window in assigned_windows
-            if window.contains(decision_index)
-        )
+        containing = tuple(window for window in assigned_windows if window.contains(decision_index))
         assert containing
         assert any(window.contains(decision_index + 4) for window in containing)

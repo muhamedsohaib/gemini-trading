@@ -16,7 +16,9 @@ from strategy_study_artifact_support import complete_payloads, complete_study_ev
 def test_core_artifact_change_changes_study_result_identity(artifact_name: str) -> None:
     original_payloads = complete_payloads()
     changed_payloads = deepcopy(original_payloads)
-    changed_payloads[artifact_name] = [{"changed": True}] if artifact_name.endswith(".jsonl") else {"changed": True}
+    changed_payloads[artifact_name] = (
+        [{"changed": True}] if artifact_name.endswith(".jsonl") else {"changed": True}
+    )
 
     original = build_study_artifacts(
         complete_study_evidence(),

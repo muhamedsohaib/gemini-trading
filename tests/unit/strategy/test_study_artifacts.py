@@ -47,13 +47,7 @@ def test_local_store_accepts_identical_rerun_and_rejects_conflict(tmp_path: Path
     store = LocalStrategyStudyStore(tmp_path)
 
     assert store.write(artifacts) == store.write(artifacts)
-    model_path = (
-        tmp_path
-        / "data"
-        / "strategy-studies"
-        / artifacts.study_id
-        / "models.jsonl"
-    )
+    model_path = tmp_path / "data" / "strategy-studies" / artifacts.study_id / "models.jsonl"
     model_path.write_bytes(b"{}\n")
 
     with pytest.raises(StudyArtifactError, match="models.jsonl"):

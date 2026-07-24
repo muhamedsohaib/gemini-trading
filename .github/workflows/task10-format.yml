@@ -21,8 +21,13 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync --all-groups --frozen
-      - run: uv run pyright > task10-pyright.txt 2>&1 || true
+      - run: >-
+          uv run pytest
+          tests/integration/test_strategy_replay_without_network.py
+          tests/unit/strategy/test_strategy_verification.py
+          tests/regression/test_strategy_replay_commit_mismatch.py
+          -q > task10-pytest.txt 2>&1 || true
       - uses: actions/upload-artifact@v4
         with:
-          name: task10-pyright-output
-          path: task10-pyright.txt
+          name: task10-pytest-output
+          path: task10-pytest.txt

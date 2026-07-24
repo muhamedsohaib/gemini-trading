@@ -1,0 +1,23 @@
+..F
+=================================== FAILURES ===================================
+_______ test_runnable_baseline_configuration_includes_sizing_assumptions _______
+
+    def test_runnable_baseline_configuration_includes_sizing_assumptions() -> None:
+        strategies = BaselineSuite.for_candles(
+            rising_candles(80),
+            quantity_step=Decimal("0.0001"),
+            minimum_quantity=Decimal("0.001"),
+            minimum_notional=Decimal("5"),
+        )
+    
+        for strategy in strategies:
+            configuration = dict(strategy.configuration())
+>           assert configuration["quantity_step"] == "0.0001"
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           KeyError: 'quantity_step'
+
+tests/unit/strategy/test_baselines.py:40: KeyError
+=========================== short test summary info ============================
+FAILED tests/unit/strategy/test_baselines.py::test_runnable_baseline_configuration_includes_sizing_assumptions - KeyError: 'quantity_step'
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!
+1 failed, 2 passed in 1.38s

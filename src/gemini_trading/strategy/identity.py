@@ -2,9 +2,9 @@
 
 import hashlib
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Mapping
 
 from gemini_trading.research.serialization import canonical_json_bytes
 

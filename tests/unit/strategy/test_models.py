@@ -51,7 +51,7 @@ def test_mean_reversion_shape_is_locked() -> None:
     assert model.estimator_count == 150
     assert model.max_depth == 2
     assert model.minimum_leaf == 100
-    assert model.learning_rate_hex == float(0.03).hex()
+    assert model.learning_rate_hex == 0.03.hex()
     assert len(model.trees) == 150
     assert parse_model_artifact(serialize_model_artifact(model)) == model
 

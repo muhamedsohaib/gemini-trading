@@ -248,9 +248,7 @@ def _prepare_matrix(
         feature_names[index] for index, value in enumerate(scales) if value == 0.0
     )
     if zero_variance:
-        raise ModelDeterminismError(
-            f"zero-variance training features: {', '.join(zero_variance)}"
-        )
+        raise ModelDeterminismError(f"zero-variance training features: {', '.join(zero_variance)}")
     standardized = np.asarray((raw - means) / scales, dtype=np.float64)
     return _PreparedMatrix(
         feature_names=feature_names,
@@ -308,17 +306,11 @@ class TrendSpecialistTrainer:
         )
         with threadpool_limits(limits=1):
             estimator.fit(prepared.standardized, prepared.labels)
-        iteration_count = int(
-            np.asarray(estimator.n_iter_, dtype=np.int64).reshape(-1)[0]
-        )
+        iteration_count = int(np.asarray(estimator.n_iter_, dtype=np.int64).reshape(-1)[0])
         if iteration_count >= self.policy.trend_max_iterations:
-            raise ModelDeterminismError(
-                "trend specialist did not converge before max_iter"
-            )
+            raise ModelDeterminismError("trend specialist did not converge before max_iter")
         coefficients = np.asarray(estimator.coef_, dtype=np.float64).reshape(-1)
-        intercept = float(
-            np.asarray(estimator.intercept_, dtype=np.float64).reshape(-1)[0]
-        )
+        intercept = float(np.asarray(estimator.intercept_, dtype=np.float64).reshape(-1)[0])
         artifact = LinearModelArtifact(
             schema_version="candidate-linear-model-v1",
             specialist=SpecialistKind.TREND,
@@ -355,10 +347,8 @@ class MeanReversionSpecialistTrainer:
         selected = tuple(
             candle_index
             for candle_index in training_indices
-            if matrix.value_for(candle_index, "close_zscore_24")
-            <= Decimal("-0.75")
-            or matrix.value_for(candle_index, "drawdown_from_high_24")
-            >= Decimal("0.02")
+            if matrix.value_for(candle_index, "close_zscore_24") <= Decimal("-0.75")
+            or matrix.value_for(candle_index, "drawdown_from_high_24") >= Decimal("0.02")
         )
         registry = FeatureRegistry.locked_v0_1()
         prepared = _prepare_matrix(
@@ -401,9 +391,7 @@ class MeanReversionSpecialistTrainer:
             scale_hex=tuple(float(value).hex() for value in prepared.scales),
             initial_raw_score_hex=initial_raw_score.hex(),
             trees=trees,
-            learning_rate_hex=float(
-                self.policy.mean_reversion_learning_rate
-            ).hex(),
+            learning_rate_hex=float(self.policy.mean_reversion_learning_rate).hex(),
             estimator_count=self.policy.mean_reversion_estimators,
             max_depth=self.policy.mean_reversion_max_depth,
             minimum_leaf=self.policy.mean_reversion_minimum_leaf,
@@ -444,9 +432,7 @@ def _verify_custom_inference(
         }
         observed = predict_raw(artifact, values)
         if abs(observed - float(expected_score)) > _FLOAT_TOLERANCE:
-            raise ModelDeterminismError(
-                "custom model inference diverged from scikit-learn"
-            )
+            raise ModelDeterminismError("custom model inference diverged from scikit-learn")
 
 
 def predict_raw(
@@ -465,14 +451,10 @@ def predict_raw(
         try:
             raw_value = float(values[feature_name])
         except KeyError:
-            raise KeyError(
-                f"inference feature is unavailable: {feature_name}"
-            ) from None
+            raise KeyError(f"inference feature is unavailable: {feature_name}") from None
         if not math.isfinite(raw_value):
             raise ValueError(f"inference feature must be finite: {feature_name}")
-        standardized.append(
-            (raw_value - float.fromhex(mean_hex)) / float.fromhex(scale_hex)
-        )
+        standardized.append((raw_value - float.fromhex(mean_hex)) / float.fromhex(scale_hex))
     if isinstance(artifact, LinearModelArtifact):
         return float.fromhex(artifact.intercept_hex) + math.fsum(
             float.fromhex(coefficient) * value
@@ -566,9 +548,7 @@ def parse_model_artifact(payload: bytes) -> ModelArtifact:
             mean_hex=tuple(str(value) for value in decoded["mean_hex"]),
             scale_hex=tuple(str(value) for value in decoded["scale_hex"]),
             intercept_hex=str(decoded["intercept_hex"]),
-            coefficient_hex=tuple(
-                str(value) for value in decoded["coefficient_hex"]
-            ),
+            coefficient_hex=tuple(str(value) for value in decoded["coefficient_hex"]),
             iteration_count=int(decoded["iteration_count"]),
             seed=int(decoded["seed"]),
             regularization_c_hex=str(decoded["regularization_c_hex"]),

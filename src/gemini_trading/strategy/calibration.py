@@ -62,7 +62,9 @@ class PlattArtifact:
             "minimum_probability_hex",
             "maximum_probability_hex",
         ):
-            object.__setattr__(self, field_name, _validate_hex(getattr(self, field_name), field_name))
+            object.__setattr__(
+                self, field_name, _validate_hex(getattr(self, field_name), field_name)
+            )
         minimum = float.fromhex(self.minimum_probability_hex)
         maximum = float.fromhex(self.maximum_probability_hex)
         if not 0 <= minimum <= maximum <= 1:
@@ -241,7 +243,9 @@ def fit_expected_return_map(
         mean_return = sum(return_values, Decimal("0")) / count
         variance = sum((value - mean_probability) ** 2 for value in probability_values)
         if variance == 0:
-            raise InsufficientCalibrationError("expected-return probability variance must be positive")
+            raise InsufficientCalibrationError(
+                "expected-return probability variance must be positive"
+            )
         covariance = sum(
             (probability - mean_probability) * (gross_return - mean_return)
             for probability, gross_return in zip(

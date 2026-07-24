@@ -1,0 +1,29 @@
+name: Task 12 source snapshot
+
+on:
+  push:
+    branches:
+      - feature/candidate-multi-model-strategy-v0-1
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: task12-source-snapshot
+          path: |
+            src
+            tests
+            docs
+            reports
+            README.md
+            pyproject.toml
+            uv.lock

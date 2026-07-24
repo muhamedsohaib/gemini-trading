@@ -266,12 +266,8 @@ def prepare_phase(
                     label_policy=label_policy,
                     policy=replace(policy, cooldown_candles=3),
                 ),
-                "control.shuffled_labels.seed_1799": event_by_case[
-                    "control.shuffled_labels.v1"
-                ],
-                "control.delayed_features.final": event_by_case[
-                    "control.delayed_features.v1"
-                ],
+                "control.shuffled_labels.seed_1799": event_by_case["control.shuffled_labels.v1"],
+                "control.delayed_features.final": event_by_case["control.delayed_features.v1"],
                 "bootstrap.seed_1788": base_events,
             }
         )
@@ -281,9 +277,7 @@ def prepare_phase(
         else REQUIRED_FINAL_CASE_IDS
     )
     for case_id in required:
-        strategy_id = (
-            case_id if case_id in baseline_schedules else "candidate.multi_model.v0_1"
-        )
+        strategy_id = case_id if case_id in baseline_schedules else "candidate.multi_model.v0_1"
         case_simulation = simulation
         if case_id == "cost.1_5x":
             case_simulation = _cost_config(simulation, Decimal("1.5"))

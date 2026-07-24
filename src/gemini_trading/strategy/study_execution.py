@@ -142,7 +142,9 @@ def _regime_metrics(
         state = state_by_index.get(index, RegimeState.INDETERMINATE)
         counts[state] += 1
         exposed[state] += int(snapshot.position_quantity > 0)
-        returns[state] += (snapshot.marked_equity - previous) / evidence.experiment_manifest.initial_cash
+        returns[state] += (
+            snapshot.marked_equity - previous
+        ) / evidence.experiment_manifest.initial_cash
         drawdowns[state] = max(drawdowns[state], snapshot.drawdown)
         previous = snapshot.marked_equity
     for trade in completed_trades(evidence):

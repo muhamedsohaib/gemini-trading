@@ -58,9 +58,13 @@ class ReplayableStudyStrategy:
     def configuration(self) -> tuple[tuple[str, str], ...]:
         """Return canonical non-executable reconstruction evidence."""
 
-        event_payload = canonical_json_bytes(
-            {"events": [[index, action.value] for index, action in self.events]}
-        ).decode("utf-8").strip()
+        event_payload = (
+            canonical_json_bytes(
+                {"events": [[index, action.value] for index, action in self.events]}
+            )
+            .decode("utf-8")
+            .strip()
+        )
         return (
             ("case_id", self.case_id),
             ("events", event_payload),

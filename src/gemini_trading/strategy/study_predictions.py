@@ -193,10 +193,9 @@ def candidate_events(
             mean_probability = (mean_probability + Decimal("0.5")) / Decimal("2")
         index = item.candle_index
         candle = candles[index]
-        stretch_active = (
-            matrix.value_for(index, "close_zscore_24") <= Decimal("-0.75")
-            or matrix.value_for(index, "drawdown_from_high_24") >= Decimal("0.02")
-        )
+        stretch_active = matrix.value_for(index, "close_zscore_24") <= Decimal(
+            "-0.75"
+        ) or matrix.value_for(index, "drawdown_from_high_24") >= Decimal("0.02")
         decision = arbiter.decide(
             ArbitrationInput(
                 candle_index=index,

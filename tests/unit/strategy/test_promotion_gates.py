@@ -48,10 +48,18 @@ def _passing_evidence() -> PromotionEvidence:
         for index in range(5)
     )
     regimes = (
-        RegimeMetrics(RegimeState.TRENDING, 20, Decimal("0.03"), Decimal("0.10"), Decimal("0.7"), 12),
-        RegimeMetrics(RegimeState.RANGING, 20, Decimal("0.02"), Decimal("0.08"), Decimal("0.4"), 10),
-        RegimeMetrics(RegimeState.INDETERMINATE, 10, Decimal("0"), Decimal("0.03"), Decimal("0.1"), 4),
-        RegimeMetrics(RegimeState.UNSTABLE, 10, Decimal("-0.005"), Decimal("0.04"), Decimal("0.1"), 4),
+        RegimeMetrics(
+            RegimeState.TRENDING, 20, Decimal("0.03"), Decimal("0.10"), Decimal("0.7"), 12
+        ),
+        RegimeMetrics(
+            RegimeState.RANGING, 20, Decimal("0.02"), Decimal("0.08"), Decimal("0.4"), 10
+        ),
+        RegimeMetrics(
+            RegimeState.INDETERMINATE, 10, Decimal("0"), Decimal("0.03"), Decimal("0.1"), 4
+        ),
+        RegimeMetrics(
+            RegimeState.UNSTABLE, 10, Decimal("-0.005"), Decimal("0.04"), Decimal("0.1"), 4
+        ),
     )
     final = FinalEvaluation(
         candidate_net_return=Decimal("0.05"),

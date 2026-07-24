@@ -49,14 +49,10 @@ def test_regime_attribution_returns_all_states_with_exact_contributions() -> Non
 
 def test_moving_block_bootstrap_is_seeded_content_identified_and_ordered() -> None:
     candidate = tuple(
-        Decimal(value)
-        for value in ("0.01", "-0.004", "0.006", "0.003", "-0.002", "0.008")
-        * 14
+        Decimal(value) for value in ("0.01", "-0.004", "0.006", "0.003", "-0.002", "0.008") * 14
     )
     baseline = tuple(
-        Decimal(value)
-        for value in ("0.004", "-0.003", "0.003", "0.001", "-0.001", "0.004")
-        * 14
+        Decimal(value) for value in ("0.004", "-0.003", "0.003", "0.001", "-0.001", "0.004") * 14
     )
 
     first = deterministic_moving_block_bootstrap(candidate, baseline)

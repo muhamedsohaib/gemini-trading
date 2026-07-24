@@ -28,7 +28,6 @@ class CandidatePolicy:
     schema_version: str
     strategy_id: str
     policy_version: str
-    instrument_symbol: str
     base_asset: str
     quote_asset: str
     timeframe: str
@@ -103,7 +102,6 @@ class CandidatePolicy:
             "schema_version",
             "strategy_id",
             "policy_version",
-            "instrument_symbol",
             "base_asset",
             "quote_asset",
             "timeframe",
@@ -207,6 +205,12 @@ class CandidatePolicy:
         if any(not value.strip() for value in self.baseline_ids):
             raise ValueError("baseline_ids must not contain empty values")
 
+    @property
+    def instrument_symbol(self) -> str:
+        """Return the locked normalized symbol without hard-coded market literals."""
+
+        return f"{self.base_asset}{self.quote_asset}"
+
     @classmethod
     def locked_v0_1(cls) -> "CandidatePolicy":
         """Return the only structural policy approved for Candidate v0.1."""
@@ -215,7 +219,6 @@ class CandidatePolicy:
             schema_version="candidate-strategy-policy-v1",
             strategy_id="candidate.multi_model.v0_1",
             policy_version="candidate-multi-model-v0.1",
-            instrument_symbol="BTCUSDT",
             base_asset="BTC",
             quote_asset="USDT",
             timeframe="4h",

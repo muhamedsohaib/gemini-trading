@@ -100,8 +100,6 @@ class GateResult:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "gate_id", _identifier(self.gate_id, "gate_id"))
-        if not isinstance(self.passed, bool):
-            raise ValueError("passed must be boolean")
         object.__setattr__(self, "observed", _identifier(self.observed, "observed"))
         object.__setattr__(self, "required", _identifier(self.required, "required"))
         object.__setattr__(self, "reason", _identifier(self.reason, "reason"))

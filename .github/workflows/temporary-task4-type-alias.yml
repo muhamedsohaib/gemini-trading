@@ -1,0 +1,33 @@
+name: Temporary Task 4 Type Alias Fix
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+      - name: Apply exact Python 3.12 alias change
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('src/gemini_trading/strategy/models.py')
+          text = path.read_text()
+          text = text.replace('from typing import Any, TypeAlias, cast', 'from typing import Any, cast')
+          text = text.replace(
+              'ModelArtifact: TypeAlias = LinearModelArtifact | BoostedTreeArtifact',
+              'type ModelArtifact = LinearModelArtifact | BoostedTreeArtifact',
+          )
+          path.write_text(text)
+          PY
+      - uses: stefanzweifel/git-auto-commit-action@v6
+        with:
+          commit_message: "style: use python 3.12 model alias syntax"
+          file_pattern: src/gemini_trading/strategy/models.py

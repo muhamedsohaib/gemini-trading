@@ -1,0 +1,30 @@
+name: Temporary Task 4 Lock Generator
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lock:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.11.25"
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv lock
+      - run: uv sync --all-groups --frozen
+      - name: Verify deterministic ML imports
+        run: >-
+          uv run python -c
+          "import numpy, sklearn, threadpoolctl; print(numpy.__version__, sklearn.__version__, threadpoolctl.__version__)"
+      - uses: actions/upload-artifact@v4.6.2
+        with:
+          name: task4-uv-lock
+          path: uv.lock
+          if-no-files-found: error

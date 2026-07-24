@@ -56,6 +56,27 @@ See:
 - `docs/operations/deterministic-backtesting-step-verification.md` for exact-head and merged-main closure requirements.
 - `reports/verification/deterministic-backtesting-final.md` for milestone acceptance evidence.
 
+## Candidate Multi-Model Strategy v0.1
+
+The repository includes a bounded research implementation for the first Candidate multi-model strategy. Its locked scope is BTC/USDT on completed 4-hour candles, long or cash only. It combines point-in-time features, conservative cost-aware labels, deterministic trend and mean-reversion specialists, fold-local calibration, regime-aware arbitration, provider-free comparators, sealed walk-forward evaluation, immutable strategy-study artifacts, replay, and independent verification.
+
+Command surface:
+
+```text
+gemini-trading research strategy-evaluate
+gemini-trading research strategy-replay
+gemini-trading research strategy-verify
+```
+
+The Candidate remains `RESEARCH_ONLY` and always reports `promotable:false` at the CLI boundary. Rejection and inconclusive evidence are valid outcomes. No real seven-year historical result, durable profitability, execution readiness, or capital authorization is claimed. Until the concrete end-to-end evaluator is accepted, `strategy-evaluate` fails closed rather than fabricating economic evidence.
+
+See:
+
+- `docs/superpowers/plans/2026-07-24-candidate-multi-model-strategy-v0-1.md` for the approved implementation and verification plan.
+- `docs/operations/candidate-multi-model-strategy.md` for the locked protocol, commands, evidence layout, and limitations.
+- `docs/operations/candidate-multi-model-strategy-step-verification.md` for exact-head, deterministic acceptance, and merged-main closure requirements.
+- `reports/verification/candidate-multi-model-strategy-progress.md` for the current milestone evidence and unresolved work.
+
 ## Safety
 
 The current package fails closed when configured for demo, live, production, or an unknown mode. Historical prototype code is preserved under `legacy/prototype_v0/` and is not supported for execution.

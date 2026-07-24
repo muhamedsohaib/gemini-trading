@@ -1,4 +1,4 @@
-name: Task 10 format capture
+name: Task 10 diagnostics
 
 on:
   push:
@@ -12,7 +12,7 @@ permissions:
   contents: read
 
 jobs:
-  format:
+  diagnostics:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6.0.2
@@ -21,21 +21,8 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync --all-groups --frozen
-      - run: >-
-          uv run ruff format
-          src/gemini_trading/strategy/artifacts.py
-          src/gemini_trading/strategy/replay.py
-          src/gemini_trading/strategy/verification.py
-          tests/integration/test_strategy_replay_without_network.py
-          tests/unit/strategy/test_strategy_verification.py
-          tests/regression/test_strategy_replay_commit_mismatch.py
+      - run: uv run pyright > task10-pyright.txt 2>&1 || true
       - uses: actions/upload-artifact@v4
         with:
-          name: task10-formatted-files
-          path: |
-            src/gemini_trading/strategy/artifacts.py
-            src/gemini_trading/strategy/replay.py
-            src/gemini_trading/strategy/verification.py
-            tests/integration/test_strategy_replay_without_network.py
-            tests/unit/strategy/test_strategy_verification.py
-            tests/regression/test_strategy_replay_commit_mismatch.py
+          name: task10-pyright-output
+          path: task10-pyright.txt

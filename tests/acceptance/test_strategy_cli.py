@@ -59,8 +59,15 @@ def test_strategy_replay_cli_reads_only_immutable_local_evidence(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     study_id, study_result_id = _stored_study(tmp_path)
-    monkeypatch.setattr(strategy, "load_runtime_policy", lambda: object())
-    monkeypatch.setattr(strategy, "resolve_clean_git_commit", lambda _root: _CODE_COMMIT)
+
+    def runtime_policy() -> object:
+        return object()
+
+    def clean_commit(_root: Path) -> str:
+        return _CODE_COMMIT
+
+    monkeypatch.setattr(strategy, "load_runtime_policy", runtime_policy)
+    monkeypatch.setattr(strategy, "resolve_clean_git_commit", clean_commit)
 
     payload = _run(
         [
@@ -108,7 +115,10 @@ def test_strategy_verify_cli_returns_safe_sorted_checks(
             assert supplied_study_id == study_id
             return expected
 
-    monkeypatch.setattr(strategy, "load_runtime_policy", lambda: object())
+    def runtime_policy() -> object:
+        return object()
+
+    monkeypatch.setattr(strategy, "load_runtime_policy", runtime_policy)
     monkeypatch.setattr(strategy, "StrategyStudyVerificationService", _Verifier)
 
     payload = _run(

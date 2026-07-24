@@ -62,6 +62,9 @@ class _ScheduledBaseline:
         return (
             ("strategy_id", self.strategy_id),
             ("decision_count", str(len(self.schedule.actions))),
+            ("quantity_step", format(self.quantity_step, "f")),
+            ("minimum_quantity", format(self.minimum_quantity, "f")),
+            ("minimum_notional", format(self.minimum_notional, "f")),
             ("timing", "next_candle_via_research_engine"),
             ("production_eligible", "false"),
         )

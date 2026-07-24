@@ -28,7 +28,7 @@ jobs:
               ("decision_count", str(len(self.schedule.actions))),
               ("timing", "next_candle_via_research_engine"),
               ("production_eligible", "false"),
-          )'''
+          )'''.replace('              ', '            ')
           new = '''        return (
               ("strategy_id", self.strategy_id),
               ("decision_count", str(len(self.schedule.actions))),
@@ -37,7 +37,7 @@ jobs:
               ("minimum_notional", format(self.minimum_notional, "f")),
               ("timing", "next_candle_via_research_engine"),
               ("production_eligible", "false"),
-          )'''
+          )'''.replace('              ', '            ')
           if old not in text:
               raise SystemExit('expected configuration block not found')
           path.write_text(text.replace(old, new, 1))

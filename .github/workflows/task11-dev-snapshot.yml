@@ -1,4 +1,4 @@
-name: Task 11 development snapshot
+name: Task 11 diagnostics
 
 on:
   push:
@@ -12,17 +12,26 @@ permissions:
   contents: read
 
 jobs:
-  snapshot:
+  diagnostics:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6.0.2
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - run: >-
+          uv run ruff format
+          src/gemini_trading/cli/main.py
+          src/gemini_trading/cli/strategy.py
+          tests/unit/cli/test_strategy.py
+          tests/acceptance/test_strategy_cli.py
       - uses: actions/upload-artifact@v4
         with:
-          name: task11-source-snapshot
+          name: task11-formatted-files
           path: |
-            src
-            tests
-            pyproject.toml
-            uv.lock
-            README.md
-            docs/superpowers/plans/2026-07-24-candidate-multi-model-strategy-v0-1.md
+            src/gemini_trading/cli/main.py
+            src/gemini_trading/cli/strategy.py
+            tests/unit/cli/test_strategy.py
+            tests/acceptance/test_strategy_cli.py

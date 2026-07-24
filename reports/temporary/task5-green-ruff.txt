@@ -1,2 +1,0 @@
-src/gemini_trading/strategy/arbitration.py:141:9: SIM102 Use a single `if` statement instead of nested `if` statements
-Found 1 error.

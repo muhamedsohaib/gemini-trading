@@ -13,8 +13,12 @@ def test_repeated_specialist_fits_are_byte_identical() -> None:
     matrix, labels, indices = deterministic_model_fixture()
     policy = CandidatePolicy.locked_v0_1()
 
-    first_trend = serialize_model_artifact(TrendSpecialistTrainer(policy).fit(matrix, labels, indices))
-    second_trend = serialize_model_artifact(TrendSpecialistTrainer(policy).fit(matrix, labels, indices))
+    first_trend = serialize_model_artifact(
+        TrendSpecialistTrainer(policy).fit(matrix, labels, indices)
+    )
+    second_trend = serialize_model_artifact(
+        TrendSpecialistTrainer(policy).fit(matrix, labels, indices)
+    )
     first_mean_reversion = serialize_model_artifact(
         MeanReversionSpecialistTrainer(policy).fit(matrix, labels, indices)
     )

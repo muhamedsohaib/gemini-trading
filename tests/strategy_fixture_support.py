@@ -139,10 +139,9 @@ def deterministic_model_fixture(
         candle_index = start_index + offset
         values: list[Decimal] = []
         for column_index, definition in enumerate(registry.definitions):
-            value = (
-                Decimal((offset + 1) * (column_index + 2)) / Decimal("1000")
-                + Decimal(((offset + column_index * 3) % 17) - 8) / Decimal("100")
-            )
+            value = Decimal((offset + 1) * (column_index + 2)) / Decimal("1000") + Decimal(
+                ((offset + column_index * 3) % 17) - 8
+            ) / Decimal("100")
             if definition.name == "close_zscore_24":
                 value = Decimal("-1.00") if offset % 4 else Decimal("0.25")
             elif definition.name == "drawdown_from_high_24":

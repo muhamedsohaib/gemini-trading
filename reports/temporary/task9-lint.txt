@@ -1,12 +1,1 @@
-RUF043 Pattern passed to `match=` contains metacharacters but is neither escaped nor raw
-  --> tests/unit/strategy/test_study_artifacts.py:53:50
-   |
-51 |     model_path.write_bytes(b"{}\n")
-52 |
-53 |     with pytest.raises(StudyArtifactError, match="models.jsonl"):
-   |                                                  ^^^^^^^^^^^^^^
-54 |         store.write(artifacts)
-   |
-help: Use a raw string or `re.escape()` to make the intention explicit
-
-Found 1 error.
+All checks passed!

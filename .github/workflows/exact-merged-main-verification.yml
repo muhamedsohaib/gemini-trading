@@ -44,10 +44,9 @@ jobs:
         run: uv run pre-commit run detect-secrets --all-files
       - name: Verify CLI surfaces
         run: |
-          uv run gemini-trading --help
-          uv run gemini-trading strategy-evaluate --help
-          uv run gemini-trading strategy-replay --help
-          uv run gemini-trading strategy-verify --help
+          uv run gemini-trading research strategy-evaluate --help
+          uv run gemini-trading research strategy-replay --help
+          uv run gemini-trading research strategy-verify --help
       - name: Assert verification leaves exact checkout clean
         run: |
           test "$(git rev-parse HEAD)" = "$VERIFIED_MAIN_SHA"

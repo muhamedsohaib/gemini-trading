@@ -38,12 +38,38 @@ def test_result_manifest_contains_sorted_hashes_and_self_excluding_identity() ->
     artifacts = build_artifacts(known_evidence(), known_config())
     payload = json.loads(artifacts.artifact_bytes("result-manifest.json"))
 
+    assert payload["schema_version"] == "research-result-v2"
     assert payload["experiment_id"] == artifacts.experiment_id
     assert payload["result_id"] == artifacts.result_id
     assert payload["terminal_status"] == "completed"
     assert payload["promotable"] is True
     assert payload["artifacts"] == sorted(payload["artifacts"], key=lambda item: item[0])
     assert "result-manifest.json" not in {item[0] for item in payload["artifacts"]}
+
+
+def test_v2_trade_and_metric_artifacts_include_expanded_fields() -> None:
+    artifacts = build_artifacts(known_evidence(), known_config())
+    trade = json.loads(artifacts.artifact_bytes("trades.jsonl").decode("utf-8").strip())
+    metrics = json.loads(artifacts.artifact_bytes("metrics.json"))
+
+    assert {
+        "entry_candle_index",
+        "exit_candle_index",
+        "hold_candles",
+        "gross_return",
+        "net_return",
+    } <= set(trade)
+    assert {
+        "observed_periods",
+        "annualized_geometric_return",
+        "annualized_volatility",
+        "downside_deviation",
+        "sortino_ratio",
+        "return_to_drawdown",
+        "turnover",
+        "exposure_adjusted_return",
+        "profit_factor",
+    } <= set(metrics)
 
 
 def test_local_store_accepts_identical_rerun_and_rejects_conflicting_bytes(

@@ -10,9 +10,11 @@ from pathlib import Path
 from typing import cast
 
 from gemini_trading.cli.market_data import CliUsageError
+from gemini_trading.data.storage.local_immutable import LocalImmutableStore
 from gemini_trading.domain.experiment import LimitFillPolicy, TimingPolicy
 from gemini_trading.domain.order import TimeInForce
 from gemini_trading.research.config import SimulationConfig
+from gemini_trading.research.dataset_reader import load_verified_dataset
 from gemini_trading.research.errors import InvalidExperimentConfigError
 from gemini_trading.research.replay import resolve_clean_git_commit
 from gemini_trading.safety.execution_mode import load_runtime_policy
@@ -21,7 +23,10 @@ from gemini_trading.strategy.artifacts import (
     LocalStrategyStudyStore,
     StrategyStudyArtifacts,
 )
-from gemini_trading.strategy.errors import StudyArtifactError
+from gemini_trading.strategy.evaluator import (
+    evaluate_candidate_strategy_study,
+    reconstruct_study_strategy,
+)
 from gemini_trading.strategy.replay import StrategyStudyReplayService
 from gemini_trading.strategy.verification import StrategyStudyVerificationService
 
@@ -256,10 +261,17 @@ def evaluate_candidate_strategy(
     output_root: Path,
     code_commit: str,
 ) -> StrategyStudyArtifacts:
-    """Run the concrete Candidate evaluator; implemented by the study execution layer."""
+    """Run the concrete provider-free Candidate study against verified local evidence."""
 
-    del dataset_id, config, project_root, output_root, code_commit
-    raise StudyArtifactError("candidate strategy evaluation service is unavailable")
+    del project_root
+    dataset = load_verified_dataset(LocalImmutableStore(output_root), dataset_id)
+    return evaluate_candidate_strategy_study(
+        dataset=dataset,
+        simulation=config.simulation,
+        initial_cash=config.initial_cash,
+        output_root=output_root,
+        code_commit=code_commit,
+    )
 
 
 def _summary(artifacts: StrategyStudyArtifacts, status: str) -> dict[str, object]:
@@ -303,6 +315,7 @@ def run_strategy(arguments: argparse.Namespace) -> dict[str, object]:
         result = StrategyStudyVerificationService(
             root=output_root,
             current_commit_resolver=lambda: resolve_clean_git_commit(project_root),
+            research_strategy_reconstructor=reconstruct_study_strategy,
         ).verify(study_id)
         return {
             "checks": list(result.checks),

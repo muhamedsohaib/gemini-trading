@@ -6,8 +6,8 @@
 - Boundary: `RESEARCH_ONLY`
 - Pull request: #20
 - Approved design/plan base: `21fb5cd07702c76c522d3e82f740ec7c320e51f7`
-- Verified clean implementation head before this report: `465b6f1efc547c73cce360c88e811d97cbb25349`
-- Ordinary CI on that head: run `30083561600` — passed
+- Review-corrected clean code head before this report: `4527e2a2f520b0e15a4f245297a1c4b1bd75b3c4`
+- Ordinary CI on that code head: run `30087016792` — passed
 - Dependency-lock SHA-256: `e72fcb7f84e3ebee85d01953539ff0449b00e8b2cc6b57d0c22660ffbf8075da`
 - Complete collected test count at acceptance checkpoint: 442
 - Real seven-year historical Candidate run: **not performed**
@@ -112,6 +112,28 @@ Observed status totals: **11 pass**, **14 fail**, **7 not evaluated**.
 
 Failed and not-evaluated gates are preserved as evidence. They are not converted into passing outcomes and they prevent any promotion claim.
 
+## Cumulative advisory review correction
+
+The cumulative review identified one important pre-review defect: `build_promotion_report()` initially supplied hardcoded values for shuffled-label invalidation and the three component-ablation gates. That would have made the component-value gates permanently fail and would not have evaluated the control evidence that the study actually executed.
+
+The final implementation derives all four values from stored final-case metrics under the preregistered rules:
+
+- shuffled-label evidence invalidates when it exhibits a positive economic gate;
+- no-disagreement and no-volume invalidate their claimed component when return-to-drawdown improves by at least 10% without higher drawdown;
+- no-protection invalidates protection only when return-to-drawdown improves by at least 10% and maximum drawdown is actually reduced;
+- undefined return-to-drawdown fails closed.
+
+Review correction evidence:
+
+- RED head: `3221d25c4df5df84f4bc554f0c044c996fc9233e`
+- RED CI: `30086424983` — failed at strict Pyright because the evidence-derived helpers were intentionally absent
+- GREEN clean code head: `4527e2a2f520b0e15a4f245297a1c4b1bd75b3c4`
+- GREEN CI: `30087016792` — full quality and Gitleaks gates passed
+- Temporary formatter workflow removed before GREEN CI
+- Final PR changed-file list contains no temporary workflow
+
+The synthetic acceptance rows remain `False` for the three component gates because primary return-to-drawdown is undefined, and remain safe for shuffled labels because that control exhibits no positive economic gate. The diagnostic study/result identities and artifact hashes recorded above therefore remain the applicable acceptance receipt.
+
 ## Limitations
 
 - The diagnostic dataset did not meet the seven-year history requirement.
@@ -128,7 +150,7 @@ Failed and not-evaluated gates are preserved as evidence. They are not converted
 - No leverage, futures, shorting, portfolio allocation, autonomous retraining, or capital authority was added.
 - Candidate evaluation consumes verified local canonical evidence and uses the deterministic research simulator.
 - Replay and verification remain provider-free and fail closed on missing, malformed, tampered, incomplete, or commit-mismatched evidence.
-- Temporary diagnostic workflows were removed from the clean implementation head.
+- Temporary diagnostic and formatter workflows are absent from the final changed-file list.
 
 ## Final advisory classification
 
@@ -138,10 +160,9 @@ This milestone verifies a deterministic, reproducible, fail-closed research arch
 
 ## Remaining protected-main closure
 
-1. Commit this report and the final documentation corrections.
-2. Pass ordinary CI on the resulting exact PR head.
-3. Review the cumulative PR and recorded failed/not-evaluated gates.
-4. Mark PR #20 ready for review.
-5. Merge only through protected `main` after approval.
-6. Run purpose-built verification on the exact merged-main SHA.
-7. Close Issue #16 only after merged-main verification is recorded.
+1. Pass ordinary CI on the final report-bearing PR head.
+2. Record the exact final head and CI in the PR description.
+3. Mark PR #20 ready for review.
+4. Merge only through protected `main` after approval.
+5. Run purpose-built verification on the exact merged-main SHA.
+6. Close Issue #16 only after merged-main verification is recorded.

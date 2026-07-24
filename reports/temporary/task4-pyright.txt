@@ -2,8 +2,4 @@
   /home/runner/work/gemini-trading/gemini-trading/src/gemini_trading/strategy/models.py:14:6 - warning: Stub file not found for "sklearn.ensemble" (reportMissingTypeStubs)
   /home/runner/work/gemini-trading/gemini-trading/src/gemini_trading/strategy/models.py:15:6 - warning: Stub file not found for "sklearn.linear_model" (reportMissingTypeStubs)
   /home/runner/work/gemini-trading/gemini-trading/src/gemini_trading/strategy/models.py:16:6 - warning: Stub file not found for "threadpoolctl" (reportMissingTypeStubs)
-  /home/runner/work/gemini-trading/gemini-trading/src/gemini_trading/strategy/models.py:375:22 - error: Unnecessary "cast" call; type is already "Any" (reportUnnecessaryCast)
-  /home/runner/work/gemini-trading/gemini-trading/src/gemini_trading/strategy/models.py:377:27 - error: Unnecessary "cast" call; type is already "Any" (reportUnnecessaryCast)
-  /home/runner/work/gemini-trading/gemini-trading/src/gemini_trading/strategy/models.py:382:17 - error: Unnecessary "cast" call; type is already "Any" (reportUnnecessaryCast)
-  /home/runner/work/gemini-trading/gemini-trading/src/gemini_trading/strategy/models.py:409:12 - error: Unnecessary "cast" call; type is already "Any" (reportUnnecessaryCast)
-4 errors, 3 warnings, 0 informations
+0 errors, 3 warnings, 0 informations

@@ -11,6 +11,7 @@ _ZERO = Decimal("0")
 _ONE = Decimal("1")
 _PERIODS_PER_YEAR = Decimal("2190")
 _CONTEXT = Context(prec=34, rounding=ROUND_HALF_EVEN)
+_TRADE_CONTEXT = Context(prec=32, rounding=ROUND_HALF_EVEN)
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,7 +77,7 @@ def completed_trades(evidence: BacktestEvidence) -> tuple[CompletedTrade, ...]:
     exit_fill_ids: list[str] = []
     trades: list[CompletedTrade] = []
 
-    with localcontext(_CONTEXT):
+    with localcontext(_TRADE_CONTEXT):
         for fill in evidence.fills:
             order = orders.get(fill.order_id)
             if order is None:

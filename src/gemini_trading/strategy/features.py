@@ -432,13 +432,10 @@ def _compute_values(candles: tuple[Candle, ...], index: int) -> dict[str, Decima
     local_closes = closes[local_start : index + 1]
     ema_series = {span: _ema_series(local_closes, span) for span in (6, 12, 24, 42)}
     ema_current = {span: series[-1] for span, series in ema_series.items()}
-    true_ranges = {
-        window: _trailing_true_ranges(candles, index, window) for window in (6, 12, 24)
-    }
+    true_ranges = {window: _trailing_true_ranges(candles, index, window) for window in (6, 12, 24)}
     atr = {window: _mean(values) for window, values in true_ranges.items()}
     log_returns = {
-        window: _trailing_log_returns(closes, index, window)
-        for window in (6, 12, 24, 42)
+        window: _trailing_log_returns(closes, index, window) for window in (6, 12, 24, 42)
     }
     realized_volatility = {
         window: _population_std(values) for window, values in log_returns.items()
@@ -449,26 +446,20 @@ def _compute_values(candles: tuple[Candle, ...], index: int) -> dict[str, Decima
         values[f"log_return_{lag}"] = _log_ratio(close, closes[index - lag])
     for window in (6, 12, 24, 42):
         returns = log_returns[window]
-        values[f"positive_return_fraction_{window}"] = (
-            Decimal(sum(value > 0 for value in returns)) / Decimal(window)
-        )
-    values["return_acceleration_3_3"] = _log_ratio(
-        close, closes[index - 3]
-    ) - _log_ratio(closes[index - 3], closes[index - 6])
+        values[f"positive_return_fraction_{window}"] = Decimal(
+            sum(value > 0 for value in returns)
+        ) / Decimal(window)
+    values["return_acceleration_3_3"] = _log_ratio(close, closes[index - 3]) - _log_ratio(
+        closes[index - 3], closes[index - 6]
+    )
     for window in (12, 42):
         trailing_closes = closes[index - window + 1 : index + 1]
         trailing_high = max(trailing_closes)
         trailing_low = min(trailing_closes)
-        values[f"distance_from_high_{window}"] = _safe_divide(
-            close - trailing_high, trailing_high
-        )
-        values[f"distance_from_low_{window}"] = _safe_divide(
-            close - trailing_low, trailing_low
-        )
+        values[f"distance_from_high_{window}"] = _safe_divide(close - trailing_high, trailing_high)
+        values[f"distance_from_low_{window}"] = _safe_divide(close - trailing_low, trailing_low)
     for span in (6, 12, 24, 42):
-        values[f"ema_distance_{span}"] = _safe_divide(
-            close - ema_current[span], close
-        )
+        values[f"ema_distance_{span}"] = _safe_divide(close - ema_current[span], close)
     for fast, slow in ((6, 24), (12, 42), (24, 42)):
         values[f"ema_spread_{fast}_{slow}"] = _safe_divide(
             ema_current[fast] - ema_current[slow], close
@@ -495,18 +486,14 @@ def _compute_values(candles: tuple[Candle, ...], index: int) -> dict[str, Decima
     values["true_range_ratio_24"] = _safe_divide(current_true_range, atr[24])
 
     candle_range = current.high - current.low
-    values["candle_body_fraction"] = _safe_divide(
-        abs(current.close - current.open), candle_range
-    )
+    values["candle_body_fraction"] = _safe_divide(abs(current.close - current.open), candle_range)
     values["upper_wick_fraction"] = _safe_divide(
         current.high - max(current.open, current.close), candle_range
     )
     values["lower_wick_fraction"] = _safe_divide(
         min(current.open, current.close) - current.low, candle_range
     )
-    values["close_location_current"] = _safe_divide(
-        current.close - current.low, candle_range
-    )
+    values["close_location_current"] = _safe_divide(current.close - current.low, candle_range)
     for window in (12, 24):
         trailing = candles[index - window + 1 : index + 1]
         high = max(candle.high for candle in trailing)
@@ -520,23 +507,13 @@ def _compute_values(candles: tuple[Candle, ...], index: int) -> dict[str, Decima
         median = _median(trailing_closes)
         trailing_high = max(trailing_closes)
         trailing_low = min(trailing_closes)
-        values[f"close_zscore_{window}"] = _safe_divide(
-            close - mean, standard_deviation
-        )
-        values[f"median_atr_distance_{window}"] = _safe_divide(
-            close - median, atr[24]
-        )
-        values[f"drawdown_from_high_{window}"] = _safe_divide(
-            trailing_high - close, trailing_high
-        )
-        values[f"rebound_from_low_{window}"] = _safe_divide(
-            close - trailing_low, trailing_low
-        )
+        values[f"close_zscore_{window}"] = _safe_divide(close - mean, standard_deviation)
+        values[f"median_atr_distance_{window}"] = _safe_divide(close - median, atr[24])
+        values[f"drawdown_from_high_{window}"] = _safe_divide(trailing_high - close, trailing_high)
+        values[f"rebound_from_low_{window}"] = _safe_divide(close - trailing_low, trailing_low)
 
     for lag in (1, 3, 6, 12):
-        values[f"log_volume_change_{lag}"] = _log_ratio(
-            current.volume, volumes[index - lag]
-        )
+        values[f"log_volume_change_{lag}"] = _log_ratio(current.volume, volumes[index - lag])
     for window in (12, 24, 42):
         trailing_volumes = volumes[index - window + 1 : index + 1]
         values[f"median_volume_ratio_{window}"] = _safe_divide(
@@ -551,18 +528,13 @@ def _compute_values(candles: tuple[Candle, ...], index: int) -> dict[str, Decima
     normalized_volume = values["median_volume_ratio_24"]
     one_candle_return = values["log_return_1"]
     values["signed_volume_proxy"] = Decimal(_sign(one_candle_return)) * normalized_volume
-    values["range_volume_proxy"] = (
-        _safe_divide(current_true_range, close) * normalized_volume
-    )
+    values["range_volume_proxy"] = _safe_divide(current_true_range, close) * normalized_volume
     values["trend_strength_12_42_atr24"] = _safe_divide(
         abs(ema_current[12] - ema_current[42]), atr[24]
     )
-    values["volatility_ratio_6_42"] = _safe_divide(
-        realized_volatility[6], realized_volatility[42]
-    )
+    values["volatility_ratio_6_42"] = _safe_divide(realized_volatility[6], realized_volatility[42])
     spread_signs = tuple(
-        _sign(fast - slow)
-        for fast, slow in zip(ema_series[12], ema_series[42], strict=True)
+        _sign(fast - slow) for fast, slow in zip(ema_series[12], ema_series[42], strict=True)
     )
     values["ema_12_42_sign_streak"] = Decimal(_trailing_sign_streak(spread_signs))
 

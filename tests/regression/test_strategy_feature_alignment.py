@@ -13,9 +13,8 @@ def test_one_candle_return_is_aligned_to_current_completed_candle() -> None:
 
     with localcontext(Context(prec=34, rounding=ROUND_HALF_EVEN)):
         expected_return = (candles[42].close / candles[41].close).ln()
-        expected_close_location = (
-            (candles[42].close - candles[42].low)
-            / (candles[42].high - candles[42].low)
+        expected_close_location = (candles[42].close - candles[42].low) / (
+            candles[42].high - candles[42].low
         )
 
     assert row.candle_open_time == candles[42].open_time

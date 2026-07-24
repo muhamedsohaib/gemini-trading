@@ -1,0 +1,40 @@
+name: Temporary Task 5 SIM102 Fix
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+      - name: Collapse nested cash validation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('src/gemini_trading/strategy/arbitration.py')
+          text = path.read_text()
+          old = '''        if self.action in {StrategyAction.EXIT_TO_CASH, StrategyAction.REMAIN_IN_CASH}:
+            if self.action is StrategyAction.REMAIN_IN_CASH and self.active_specialist is not None:
+                raise ValueError("cash decision cannot retain an active specialist")
+'''
+          new = '''        if (
+            self.action is StrategyAction.REMAIN_IN_CASH
+            and self.active_specialist is not None
+        ):
+            raise ValueError("cash decision cannot retain an active specialist")
+'''
+          if old not in text:
+              raise SystemExit('expected validation block not found')
+          path.write_text(text.replace(old, new))
+          PY
+      - uses: stefanzweifel/git-auto-commit-action@v6
+        with:
+          commit_message: "style: collapse candidate cash validation"
+          file_pattern: src/gemini_trading/strategy/arbitration.py

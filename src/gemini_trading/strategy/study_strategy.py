@@ -135,16 +135,25 @@ def reconstruct_study_strategy(manifest: ExperimentManifest) -> ReplayableStudyS
         raise ReplayMismatchError("strategy study experiment timing is invalid")
     try:
         loaded: object = json.loads(configuration["events"])
-        if not isinstance(loaded, dict) or set(loaded) != {"events"}:
+        if not isinstance(loaded, dict):
             raise ValueError
-        raw_events = loaded["events"]
+        raw_mapping = cast(dict[object, object], loaded)
+        if not all(isinstance(key, str) for key in raw_mapping):
+            raise ValueError
+        event_mapping = cast(dict[str, object], raw_mapping)
+        if set(event_mapping) != {"events"}:
+            raise ValueError
+        raw_events = event_mapping["events"]
         if not isinstance(raw_events, list):
             raise ValueError
         events: list[tuple[int, ScheduledAction]] = []
         for raw in cast(list[object], raw_events):
-            if not isinstance(raw, list) or len(raw) != 2:
+            if not isinstance(raw, list):
                 raise ValueError
-            index, action = raw
+            pair = cast(list[object], raw)
+            if len(pair) != 2:
+                raise ValueError
+            index, action = pair
             if isinstance(index, bool) or not isinstance(index, int) or not isinstance(action, str):
                 raise ValueError
             events.append((index, ScheduledAction(action)))

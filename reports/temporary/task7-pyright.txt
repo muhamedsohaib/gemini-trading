@@ -2,9 +2,4 @@
   /home/runner/work/gemini-trading/gemini-trading/src/gemini_trading/strategy/models.py:14:6 - warning: Stub file not found for "sklearn.ensemble" (reportMissingTypeStubs)
   /home/runner/work/gemini-trading/gemini-trading/src/gemini_trading/strategy/models.py:15:6 - warning: Stub file not found for "sklearn.linear_model" (reportMissingTypeStubs)
   /home/runner/work/gemini-trading/gemini-trading/src/gemini_trading/strategy/models.py:16:6 - warning: Stub file not found for "threadpoolctl" (reportMissingTypeStubs)
-/home/runner/work/gemini-trading/gemini-trading/tests/unit/strategy/test_evaluation_metrics.py
-  /home/runner/work/gemini-trading/gemini-trading/tests/unit/strategy/test_evaluation_metrics.py:5:6 - error: Import "test_metrics" could not be resolved (reportMissingImports)
-  /home/runner/work/gemini-trading/gemini-trading/tests/unit/strategy/test_evaluation_metrics.py:5:26 - error: Type of "known_evidence" is unknown (reportUnknownVariableType)
-  /home/runner/work/gemini-trading/gemini-trading/tests/unit/strategy/test_evaluation_metrics.py:29:9 - error: Argument type is unknown
-    Argument corresponds to parameter "evidence" in function "attribute_regime_metrics" (reportUnknownArgumentType)
-3 errors, 3 warnings, 0 informations
+0 errors, 3 warnings, 0 informations

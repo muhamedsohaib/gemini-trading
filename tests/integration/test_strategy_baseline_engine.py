@@ -11,7 +11,7 @@ from gemini_trading.domain.dataset import DatasetManifest
 from gemini_trading.domain.experiment import LimitFillPolicy, TimingPolicy
 from gemini_trading.research.config import serialize_simulation_config
 from gemini_trading.research.dataset_reader import VerifiedDataset
-from gemini_trading.research.engine import run_backtest
+from gemini_trading.research.engine import BacktestEvidence, run_backtest
 from gemini_trading.research.identity import build_experiment_manifest
 from gemini_trading.strategy.baselines import BaselineSuite
 from research_fixture_support import official_config
@@ -60,7 +60,7 @@ def test_locked_baselines_share_the_exact_research_engine_policy(
         minimum_notional=config.min_notional,
     )
 
-    evidences = []
+    evidences: list[BacktestEvidence] = []
     for strategy in strategies:
         manifest = build_experiment_manifest(
             dataset=dataset,

@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - feature/candidate-multi-model-strategy-v0-1
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: read

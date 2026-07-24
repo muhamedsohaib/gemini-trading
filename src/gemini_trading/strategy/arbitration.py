@@ -138,9 +138,11 @@ class ArbitrationDecision:
                 raise ValueError("long decision requires an active specialist")
             if self.initial_stop is None or self.trailing_stop is None:
                 raise ValueError("long decision requires stop values")
-        if self.action in {StrategyAction.EXIT_TO_CASH, StrategyAction.REMAIN_IN_CASH}:
-            if self.action is StrategyAction.REMAIN_IN_CASH and self.active_specialist is not None:
-                raise ValueError("cash decision cannot retain an active specialist")
+        if (
+            self.action is StrategyAction.REMAIN_IN_CASH
+            and self.active_specialist is not None
+        ):
+            raise ValueError("cash decision cannot retain an active specialist")
 
 
 @dataclass(frozen=True, slots=True)

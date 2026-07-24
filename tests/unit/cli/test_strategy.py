@@ -1,7 +1,8 @@
 """Unit tests for the safe Candidate strategy-study CLI surface."""
 
 import json
-from dataclasses import replace
+from collections.abc import Callable
+from decimal import Decimal
 from pathlib import Path
 from typing import cast
 
@@ -29,10 +30,7 @@ def _decoded_output(text: str) -> dict[str, object]:
 
 
 def _artifacts() -> StrategyStudyArtifacts:
-    files = tuple(
-        (name, b"{}\n")
-        for name in strategy.REQUIRED_STUDY_ARTIFACT_NAMES
-    )
+    files = tuple((name, b"{}\n") for name in strategy.REQUIRED_STUDY_ARTIFACT_NAMES)
     return StrategyStudyArtifacts(
         study_id="a" * 64,
         study_result_id="b" * 64,
@@ -58,7 +56,7 @@ def test_locked_candidate_config_loads_exact_policy() -> None:
     loaded = strategy.load_candidate_strategy_config(_CONFIG)
 
     assert loaded.schema_version == "candidate-strategy-cli-v1"
-    assert loaded.initial_cash == strategy.Decimal("10000")
+    assert loaded.initial_cash == Decimal("10000")
     assert loaded.strategy_id == "candidate.multi_model.v0_1"
     assert loaded.policy_version == "candidate-multi-model-v0.1"
     assert loaded.simulation.promotable is True
@@ -119,13 +117,12 @@ def test_locked_candidate_config_loads_exact_policy() -> None:
 )
 def test_locked_candidate_config_rejects_unsafe_changes(
     tmp_path: Path,
-    mutation: object,
+    mutation: Callable[[dict[str, object]], dict[str, object]],
     message: str,
 ) -> None:
     payload = cast(dict[str, object], json.loads(_CONFIG.read_text()))
-    changed = cast(object, mutation)(payload)  # type: ignore[operator]
     path = tmp_path / "config.json"
-    path.write_text(json.dumps(changed))
+    path.write_text(json.dumps(mutation(payload)))
 
     with pytest.raises(Exception, match=message):
         strategy.load_candidate_strategy_config(path)
@@ -181,7 +178,9 @@ def test_strategy_evaluate_emits_exact_safe_summary(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     monkeypatch.setattr(strategy, "load_runtime_policy", lambda: object())
+    monkeypatch.setattr(strategy, "resolve_clean_git_commit", lambda _root: "d" * 40)
     monkeypatch.setattr(strategy, "evaluate_candidate_strategy", lambda **_kwargs: _artifacts())
+    monkeypatch.setattr(strategy.LocalStrategyStudyStore, "write", lambda _self, _value: ())
 
     code = cli_main.main(
         [

@@ -2,7 +2,7 @@
 
 from decimal import Decimal
 
-from test_metrics import known_evidence
+from unit.research.test_metrics import known_evidence
 
 from gemini_trading.strategy.contracts import RegimeState
 from gemini_trading.strategy.evaluation import (

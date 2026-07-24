@@ -85,17 +85,11 @@ def _validate_evidence(evidence: StrategyStudyEvidence) -> None:
     required_development = set(REQUIRED_DEVELOPMENT_CASE_IDS)
     for fold_number, records in grouped.items():
         case_ids = tuple(item.case_id for item in records)
-        if (
-            set(case_ids) != required_development
-            or len(case_ids) != len(required_development)
-        ):
-            raise StudyArtifactError(
-                f"incomplete development evidence for fold {fold_number}"
-            )
+        if set(case_ids) != required_development or len(case_ids) != len(required_development):
+            raise StudyArtifactError(f"incomplete development evidence for fold {fold_number}")
     final_case_ids = tuple(item.case_id for item in evidence.final_records)
-    if (
-        set(final_case_ids) != set(REQUIRED_FINAL_CASE_IDS)
-        or len(final_case_ids) != len(REQUIRED_FINAL_CASE_IDS)
+    if set(final_case_ids) != set(REQUIRED_FINAL_CASE_IDS) or len(final_case_ids) != len(
+        REQUIRED_FINAL_CASE_IDS
     ):
         raise StudyArtifactError("incomplete final evidence")
     if evidence.final_test_receipt.evaluation_count != 1:
@@ -181,10 +175,7 @@ def build_study_artifacts(
     core_files: dict[str, bytes] = {
         "study-manifest.json": study_manifest,
         "experiments.jsonl": experiments,
-        **{
-            name: _encode_payload(name, payloads[name])
-            for name in sorted(_REQUIRED_PAYLOAD_NAMES)
-        },
+        **{name: _encode_payload(name, payloads[name]) for name in sorted(_REQUIRED_PAYLOAD_NAMES)},
     }
     artifact_hashes = tuple(
         sorted((name, hashlib.sha256(content).hexdigest()) for name, content in core_files.items())
@@ -196,12 +187,8 @@ def build_study_artifacts(
         "classification": classification.value,
     }
     result_id = hashlib.sha256(canonical_json_bytes(identity_payload)).hexdigest()
-    result_manifest = canonical_json_bytes(
-        {**identity_payload, "study_result_id": result_id}
-    )
-    files = tuple(
-        sorted((*core_files.items(), ("study-result-manifest.json", result_manifest)))
-    )
+    result_manifest = canonical_json_bytes({**identity_payload, "study_result_id": result_id})
+    files = tuple(sorted((*core_files.items(), ("study-result-manifest.json", result_manifest))))
     return StrategyStudyArtifacts(
         study_id=evidence.study_id,
         study_result_id=result_id,

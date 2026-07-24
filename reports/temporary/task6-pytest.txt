@@ -1,23 +1,38 @@
-..F
+...F
 =================================== FAILURES ===================================
-_______ test_runnable_baseline_configuration_includes_sizing_assumptions _______
+______ test_mean_reversion_baseline_exits_when_common_atr_stop_is_crossed ______
 
-    def test_runnable_baseline_configuration_includes_sizing_assumptions() -> None:
-        strategies = BaselineSuite.for_candles(
-            rising_candles(80),
-            quantity_step=Decimal("0.0001"),
-            minimum_quantity=Decimal("0.001"),
-            minimum_notional=Decimal("5"),
+    def test_mean_reversion_baseline_exits_when_common_atr_stop_is_crossed() -> None:
+        candles = list(rising_candles(30))
+        candles[23] = replace(
+            candles[23],
+            open=Decimal("9000"),
+            high=Decimal("9010"),
+            low=Decimal("8990"),
+            close=Decimal("9000"),
+        )
+        candles[24] = replace(
+            candles[24],
+            open=Decimal("8995"),
+            high=Decimal("9005"),
+            low=Decimal("1"),
+            close=Decimal("8990"),
         )
     
-        for strategy in strategies:
-            configuration = dict(strategy.configuration())
->           assert configuration["quantity_step"] == "0.0001"
-                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-E           KeyError: 'quantity_step'
+        schedule = build_baseline_schedules(tuple(candles))["mean_reversion_z24.v1"]
+    
+        assert schedule.actions[23].value == "enter_long"
+>       assert schedule.actions[24].value == "exit_to_cash"
+E       AssertionError: assert 'hold_long' == 'exit_to_cash'
+E         
+E         - exit_to_cash
+E         + hold_long
 
-tests/unit/strategy/test_baselines.py:40: KeyError
+tests/unit/strategy/test_baselines.py:65: AssertionError
 =========================== short test summary info ============================
-FAILED tests/unit/strategy/test_baselines.py::test_runnable_baseline_configuration_includes_sizing_assumptions - KeyError: 'quantity_step'
+FAILED tests/unit/strategy/test_baselines.py::test_mean_reversion_baseline_exits_when_common_atr_stop_is_crossed - AssertionError: assert 'hold_long' == 'exit_to_cash'
+  
+  - exit_to_cash
+  + hold_long
 !!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!
-1 failed, 2 passed in 1.39s
+1 failed, 3 passed in 1.52s

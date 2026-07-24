@@ -1,6 +1,6 @@
 """Regression tests for feature/candle index alignment."""
 
-from decimal import Context, localcontext, ROUND_HALF_EVEN
+from decimal import ROUND_HALF_EVEN, Context, localcontext
 
 from gemini_trading.strategy.features import FeatureRegistry
 from strategy_fixture_support import rising_candles

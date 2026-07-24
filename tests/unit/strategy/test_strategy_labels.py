@@ -3,6 +3,7 @@
 from dataclasses import replace
 from decimal import ROUND_HALF_EVEN, Context, Decimal, localcontext
 
+from gemini_trading.domain.candle import Candle
 from gemini_trading.domain.order import OrderSide
 from gemini_trading.execution.simulator.costs import market_fill_costs
 from gemini_trading.execution.simulator.precision import round_fill_price
@@ -10,7 +11,7 @@ from gemini_trading.strategy.labels import LabelPolicy
 from strategy_fixture_support import base_simulation, rising_candles
 
 
-def _label_fixture() -> tuple:
+def _label_fixture() -> tuple[Candle, ...]:
     candles = list(rising_candles(50))
     entry = candles[43]
     exit_candle = candles[46]

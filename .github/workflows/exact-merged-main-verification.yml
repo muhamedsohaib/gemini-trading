@@ -1,0 +1,75 @@
+name: Exact merged-main verification
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  exact-quality:
+    runs-on: ubuntu-latest
+    env:
+      VERIFIED_MAIN_SHA: 024f2971f4606233c4943c389c62ebc4a06bcfe7
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          ref: 024f2971f4606233c4943c389c62ebc4a06bcfe7
+          fetch-depth: 0
+      - name: Assert exact merged-main commit
+        run: |
+          test "$(git rev-parse HEAD)" = "$VERIFIED_MAIN_SHA"
+          test "$(git status --short)" = ""
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.11.25"
+          enable-cache: true
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - run: uv run ruff format --check .
+      - run: uv run ruff check .
+      - run: uv run pyright
+      - run: uv run pytest
+      - run: uv run python -m build
+      - run: uv run pip-audit
+      - name: Validate tracked-file policy
+        run: >-
+          uv run python -c "import subprocess;
+          from gemini_trading.safety.repository_policy import validate_tracked_paths;
+          validate_tracked_paths(subprocess.check_output(['git','ls-files'], text=True).splitlines())"
+      - name: Scan tracked files for secrets
+        run: uv run pre-commit run detect-secrets --all-files
+      - name: Verify CLI surfaces
+        run: |
+          uv run gemini-trading --help
+          uv run gemini-trading strategy-evaluate --help
+          uv run gemini-trading strategy-replay --help
+          uv run gemini-trading strategy-verify --help
+      - name: Assert verification leaves exact checkout clean
+        run: |
+          test "$(git rev-parse HEAD)" = "$VERIFIED_MAIN_SHA"
+          test "$(git status --short)" = ""
+      - name: Record exact verification target
+        run: |
+          echo "Verified merged main: $VERIFIED_MAIN_SHA" >> "$GITHUB_STEP_SUMMARY"
+          echo "Boundary: RESEARCH_ONLY" >> "$GITHUB_STEP_SUMMARY"
+          echo "No paper, demo, live, or real-capital authorization." >> "$GITHUB_STEP_SUMMARY"
+
+  exact-gitleaks:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          ref: 024f2971f4606233c4943c389c62ebc4a06bcfe7
+          fetch-depth: 0
+      - name: Assert exact merged-main commit
+        run: test "$(git rev-parse HEAD)" = "024f2971f4606233c4943c389c62ebc4a06bcfe7"
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

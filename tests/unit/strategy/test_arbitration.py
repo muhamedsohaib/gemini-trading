@@ -92,9 +92,7 @@ def test_unstable_or_conflicting_evidence_abstains() -> None:
 
 
 def test_expected_gross_must_strictly_exceed_seventy_basis_points() -> None:
-    decision = arbiter().decide(
-        flat_input(trend_expected_gross_return=Decimal("0.0070"))
-    )
+    decision = arbiter().decide(flat_input(trend_expected_gross_return=Decimal("0.0070")))
 
     assert decision.action is StrategyAction.REMAIN_IN_CASH
     assert "expected_edge_below_entry_hurdle" in decision.reasons
@@ -110,9 +108,7 @@ def test_hold_and_exit_probability_boundaries_are_hysteretic() -> None:
 
 
 def test_minimum_hold_blocks_probability_exit_but_not_stop_or_instability() -> None:
-    probability = arbiter().decide(
-        long_input(hold_age=1, trend_probability=Decimal("0.30"))
-    )
+    probability = arbiter().decide(long_input(hold_age=1, trend_probability=Decimal("0.30")))
     stopped = arbiter().decide(long_input(hold_age=1, current_low=Decimal("99")))
     unstable = arbiter().decide(long_input(hold_age=1, regime=RegimeState.UNSTABLE))
 
@@ -122,12 +118,8 @@ def test_minimum_hold_blocks_probability_exit_but_not_stop_or_instability() -> N
 
 
 def test_indeterminate_hysteresis_tolerates_one_candle_only() -> None:
-    first = arbiter().decide(
-        long_input(regime=RegimeState.INDETERMINATE, indeterminate_streak=0)
-    )
-    second = arbiter().decide(
-        long_input(regime=RegimeState.INDETERMINATE, indeterminate_streak=1)
-    )
+    first = arbiter().decide(long_input(regime=RegimeState.INDETERMINATE, indeterminate_streak=0))
+    second = arbiter().decide(long_input(regime=RegimeState.INDETERMINATE, indeterminate_streak=1))
 
     assert first.action is StrategyAction.REMAIN_LONG
     assert first.indeterminate_streak == 1

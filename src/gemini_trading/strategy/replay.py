@@ -192,15 +192,15 @@ def parse_study_case_evidence(raw: bytes) -> tuple[StudyCaseEvidence, ...]:
         if set(mapping) != _CASE_KEYS:
             raise StudyReplayMismatchError("strategy study experiment fields do not match schema")
         fold_value = mapping.get("fold_number")
-        if fold_value is not None and (isinstance(fold_value, bool) or not isinstance(fold_value, int)):
+        if fold_value is not None and (
+            isinstance(fold_value, bool) or not isinstance(fold_value, int)
+        ):
             raise StudyReplayMismatchError("invalid strategy study experiment fold_number")
         try:
             records.append(
                 StudyCaseEvidence(
                     case_id=_required_str(mapping, "case_id", "strategy study experiment"),
-                    phase=StudyPhase(
-                        _required_str(mapping, "phase", "strategy study experiment")
-                    ),
+                    phase=StudyPhase(_required_str(mapping, "phase", "strategy study experiment")),
                     fold_number=cast(int | None, fold_value),
                     terminal_status=_required_str(
                         mapping,
@@ -306,7 +306,9 @@ class StrategyStudyReplayService:
         result_bytes = file_mapping["study-result-manifest.json"]
         result_mapping = _json_object(result_bytes, "strategy study result manifest")
         if set(result_mapping) != _RESULT_KEYS:
-            raise StudyReplayMismatchError("strategy study result manifest fields do not match schema")
+            raise StudyReplayMismatchError(
+                "strategy study result manifest fields do not match schema"
+            )
         if (
             _required_str(result_mapping, "schema_version", "strategy study result manifest")
             != "strategy-study-result-v1"
@@ -323,7 +325,9 @@ class StrategyStudyReplayService:
         artifact_hashes = _artifact_hashes(result_mapping)
         for name, expected_hash in artifact_hashes:
             if hashlib.sha256(file_mapping[name]).hexdigest() != expected_hash:
-                raise StudyReplayMismatchError(f"strategy study artifact hash does not match: {name}")
+                raise StudyReplayMismatchError(
+                    f"strategy study artifact hash does not match: {name}"
+                )
         identity_payload: dict[str, object] = {
             "schema_version": "strategy-study-result-v1",
             "study_id": study_id,
@@ -337,9 +341,13 @@ class StrategyStudyReplayService:
             "strategy study result manifest",
         )
         if result_id != recorded_result_id:
-            raise StudyReplayMismatchError("strategy study result identity does not match artifacts")
+            raise StudyReplayMismatchError(
+                "strategy study result identity does not match artifacts"
+            )
         if canonical_json_bytes({**identity_payload, "study_result_id": result_id}) != result_bytes:
-            raise StudyReplayMismatchError("strategy study result manifest canonical bytes do not match")
+            raise StudyReplayMismatchError(
+                "strategy study result manifest canonical bytes do not match"
+            )
 
         manifest = parse_study_manifest(file_mapping["study-manifest.json"])
         if manifest.study_id != study_id:

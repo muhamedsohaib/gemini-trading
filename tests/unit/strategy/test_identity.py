@@ -5,7 +5,7 @@ from dataclasses import replace
 from decimal import Decimal
 
 import pytest
-from tests.strategy_fixture_support import example_study_manifest
+from strategy_fixture_support import example_study_manifest
 
 from gemini_trading.strategy.identity import (
     StrategyStudyManifest,

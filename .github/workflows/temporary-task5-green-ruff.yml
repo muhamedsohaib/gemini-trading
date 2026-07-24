@@ -1,4 +1,4 @@
-name: Temporary Task 5 Green Ruff Diagnostic
+name: Temporary Task 5 Green Ruff Fix
 
 on:
   pull_request:
@@ -7,7 +7,7 @@ permissions:
   contents: write
 
 jobs:
-  diagnose:
+  fix:
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
@@ -21,11 +21,28 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync --all-groups --frozen
-      - name: Capture Ruff output
+      - name: Apply exact SIM102 correction
         run: |
-          mkdir -p reports/temporary
-          uv run ruff check . --output-format concise > reports/temporary/task5-green-ruff.txt 2>&1 || true
+          python - <<'PY'
+          from pathlib import Path
+          path = Path("src/gemini_trading/strategy/arbitration.py")
+          text = path.read_text()
+          old = """        if self.action in {StrategyAction.EXIT_TO_CASH, StrategyAction.REMAIN_IN_CASH}:
+              if self.action is StrategyAction.REMAIN_IN_CASH and self.active_specialist is not None:
+                  raise ValueError(\"cash decision cannot retain an active specialist\")
+          """
+          new = """        if (
+              self.action is StrategyAction.REMAIN_IN_CASH
+              and self.active_specialist is not None
+          ):
+              raise ValueError(\"cash decision cannot retain an active specialist\")
+          """
+          if old not in text:
+              raise SystemExit("expected validation block not found")
+          path.write_text(text.replace(old, new))
+          PY
+      - run: uv run ruff check src/gemini_trading/strategy/arbitration.py
       - uses: stefanzweifel/git-auto-commit-action@v6
         with:
-          commit_message: "ci: persist task five green ruff diagnostic"
-          file_pattern: reports/temporary/task5-green-ruff.txt
+          commit_message: "style: collapse candidate cash validation"
+          file_pattern: src/gemini_trading/strategy/arbitration.py

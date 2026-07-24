@@ -30,9 +30,7 @@ def test_candidate_strategy_end_to_end_is_deterministic_and_non_promotable(
 ) -> None:
     blocked_prefixes = ("COV_", "COVERAGE", "PYTEST", "DD_")
     environment = {
-        key: value
-        for key, value in os.environ.items()
-        if not key.startswith(blocked_prefixes)
+        key: value for key, value in os.environ.items() if not key.startswith(blocked_prefixes)
     }
     environment["GEMINI_TRADING_MODE"] = "research"
     environment["PYTHONPATH"] = os.pathsep.join(

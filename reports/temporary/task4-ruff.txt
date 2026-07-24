@@ -1,7 +1,3 @@
-tests/property/strategy/test_probability_bounds.py:15:19: UP018 [*] Unnecessary `float` call (rewrite as a literal)
-tests/property/strategy/test_probability_bounds.py:16:23: UP018 [*] Unnecessary `float` call (rewrite as a literal)
-tests/property/strategy/test_probability_bounds.py:17:33: UP018 [*] Unnecessary `float` call (rewrite as a literal)
-tests/property/strategy/test_probability_bounds.py:18:33: UP018 [*] Unnecessary `float` call (rewrite as a literal)
 tests/unit/strategy/test_models.py:54:39: UP018 [*] Unnecessary `float` call (rewrite as a literal)
-Found 5 errors.
-[*] 5 fixable with the `--fix` option.
+Found 1 error.
+[*] 1 fixable with the `--fix` option.

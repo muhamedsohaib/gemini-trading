@@ -2,14 +2,13 @@
 
 from decimal import Decimal
 
-from unit.research.test_metrics import known_evidence
-
 from gemini_trading.strategy.contracts import RegimeState
 from gemini_trading.strategy.evaluation import (
     attribute_regime_metrics,
     deterministic_moving_block_bootstrap,
 )
 from gemini_trading.strategy.regimes import RegimeObservation
+from unit.research.test_metrics import known_evidence
 
 
 def _observation(candle_index: int, state: RegimeState) -> RegimeObservation:

@@ -188,8 +188,7 @@ def calculate_metrics(evidence: BacktestEvidence) -> BacktestMetrics:
         annualized_geometric_return = (
             _ZERO
             if observed_periods == 0
-            else (ending_equity / starting_equity)
-            ** (int(_PERIODS_PER_YEAR) // observed_periods)
+            else (ending_equity / starting_equity) ** (int(_PERIODS_PER_YEAR) // observed_periods)
             - _ONE
         )
         annualization_scale = _PERIODS_PER_YEAR.sqrt()
@@ -204,14 +203,10 @@ def calculate_metrics(evidence: BacktestEvidence) -> BacktestMetrics:
             * annualization_scale
         )
         sortino_ratio = (
-            None
-            if downside_deviation == 0
-            else annualized_geometric_return / downside_deviation
+            None if downside_deviation == 0 else annualized_geometric_return / downside_deviation
         )
         return_to_drawdown = (
-            None
-            if maximum_drawdown == 0
-            else annualized_geometric_return / maximum_drawdown
+            None if maximum_drawdown == 0 else annualized_geometric_return / maximum_drawdown
         )
         mean_equity = (
             _ZERO

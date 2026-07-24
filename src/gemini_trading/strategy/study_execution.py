@@ -178,8 +178,7 @@ def component_value_supported(
     if primary_return_to_drawdown is None or ablation_return_to_drawdown is None:
         return False
     material_improvement = (
-        ablation_return_to_drawdown
-        >= Decimal("1.10") * primary_return_to_drawdown
+        ablation_return_to_drawdown >= Decimal("1.10") * primary_return_to_drawdown
     )
     drawdown_condition = (
         ablation_maximum_drawdown < primary_maximum_drawdown
@@ -206,13 +205,11 @@ def shuffled_labels_passes_any_economic_gate(
         return_to_drawdown >= Decimal("0.50")
         or (
             strongest_simple_return_to_drawdown is not None
-            and return_to_drawdown
-            >= Decimal("1.10") * strongest_simple_return_to_drawdown
+            and return_to_drawdown >= Decimal("1.10") * strongest_simple_return_to_drawdown
         )
         or (
             strongest_specialist_return_to_drawdown is not None
-            and return_to_drawdown
-            >= Decimal("1.05") * strongest_specialist_return_to_drawdown
+            and return_to_drawdown >= Decimal("1.05") * strongest_specialist_return_to_drawdown
         )
     )
 
@@ -324,9 +321,7 @@ def build_promotion_report(
         executor.evidence[(*final_key, "ablation.no_disagreement.v1")]
     )
     no_volume = calculate_metrics(executor.evidence[(*final_key, "ablation.no_volume.v1")])
-    no_protection = calculate_metrics(
-        executor.evidence[(*final_key, "ablation.no_protection.v1")]
-    )
+    no_protection = calculate_metrics(executor.evidence[(*final_key, "ablation.no_protection.v1")])
     promotion_evidence = PromotionEvidence(
         development_folds=tuple(folds),
         final=final,

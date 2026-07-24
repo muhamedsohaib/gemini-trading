@@ -1,27 +1,27 @@
-name: Task 12 diagnostics
+name: Task 12 formatter
 
 on:
   push:
     branches:
       - feature/candidate-multi-model-strategy-v0-1
-  pull_request:
-    branches:
-      - main
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  diagnostics:
+  format:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6.0.2
+        with:
+          ref: feature/candidate-multi-model-strategy-v0-1
       - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
       - uses: actions/setup-python@v6.2.0
         with:
           python-version: "3.12"
       - run: uv sync --all-groups --frozen
-      - name: Format touched Task 12 files
+      - name: Apply exact Ruff formatting
         run: >-
           uv run ruff format
           src/gemini_trading/strategy/study_strategy.py
@@ -32,21 +32,21 @@ jobs:
           src/gemini_trading/cli/strategy.py
           tests/candidate_strategy_e2e_worker.py
           tests/acceptance/test_candidate_strategy_end_to_end.py
-      - name: Capture strict Pyright
-        run: uv run pyright > task12-pyright.txt 2>&1 || true
-      - name: Capture focused acceptance
-        run: uv run pytest tests/acceptance/test_candidate_strategy_end_to_end.py tests/acceptance/test_candidate_strategy_documentation.py -v > task12-pytest.txt 2>&1 || true
-      - uses: actions/upload-artifact@v4
-        with:
-          name: task12-diagnostics
-          path: |
-            src/gemini_trading/strategy/study_strategy.py
-            src/gemini_trading/strategy/study_predictions.py
-            src/gemini_trading/strategy/study_execution.py
-            src/gemini_trading/strategy/study_plans.py
-            src/gemini_trading/strategy/evaluator.py
-            src/gemini_trading/cli/strategy.py
-            tests/candidate_strategy_e2e_worker.py
+      - name: Commit exact formatter output
+        run: |
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            src/gemini_trading/strategy/study_strategy.py \
+            src/gemini_trading/strategy/study_predictions.py \
+            src/gemini_trading/strategy/study_execution.py \
+            src/gemini_trading/strategy/study_plans.py \
+            src/gemini_trading/strategy/evaluator.py \
+            src/gemini_trading/cli/strategy.py \
+            tests/candidate_strategy_e2e_worker.py \
             tests/acceptance/test_candidate_strategy_end_to_end.py
-            task12-pyright.txt
-            task12-pytest.txt
+          git commit -m "style: format Candidate end-to-end evaluator"
+          git push origin HEAD:feature/candidate-multi-model-strategy-v0-1

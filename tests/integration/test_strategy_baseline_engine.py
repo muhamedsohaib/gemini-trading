@@ -1,4 +1,4 @@
-"""RED integration tests for locked baseline execution equivalence."""
+"""Integration tests for locked baseline execution equivalence."""
 
 import hashlib
 from datetime import timedelta

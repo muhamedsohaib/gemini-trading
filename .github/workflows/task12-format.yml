@@ -1,0 +1,30 @@
+name: Task 12 formatter
+
+on:
+  push:
+    branches:
+      - feature/candidate-multi-model-strategy-v0-1
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - run: uv run ruff format tests/candidate_strategy_e2e_worker.py tests/acceptance/test_candidate_strategy_end_to_end.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: task12-formatted-tests
+          path: |
+            tests/candidate_strategy_e2e_worker.py
+            tests/acceptance/test_candidate_strategy_end_to_end.py

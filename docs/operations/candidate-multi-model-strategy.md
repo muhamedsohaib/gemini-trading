@@ -157,11 +157,11 @@ Replay reads only immutable local evidence. It reconstructs the closed supported
 
 Verification independently checks dataset and provenance references, artifact hashes, component, study, experiment, and result identities, final-test single-use receipt, complete mandatory gates, referenced research experiments, exact replay equivalence, and exact code commit. Missing, malformed, tampered, incomplete, or commit-mismatched evidence fails closed.
 
-## Current milestone limitation
+## Current milestone status
 
-The CLI, immutable storage, replay, and verification surfaces are implemented. Until the concrete dataset-to-study evaluator and Task 12 end-to-end acceptance are complete, `strategy-evaluate` deliberately fails closed rather than creating synthetic economic evidence. This limitation must be removed only by a tested real pipeline, never by fabricated hashes or placeholder results.
+The concrete provider-free evaluator, immutable storage, replay, verification, CLI, and deterministic synthetic end-to-end acceptance are implemented. The acceptance study produced `INCONCLUSIVE` with `promotable:false`, identical repeated study and result identities, identical 22-file hashes, successful provider-free replay and independent verification, and safe tamper rejection.
 
-No real seven-year Candidate v0.1 historical study has been claimed at this stage.
+This diagnostic result verifies architecture and reproducibility only. The synthetic dataset did not meet the seven-year history requirement, multiple mandatory gates failed or were not evaluable, and no real seven-year Candidate v0.1 historical study has been performed or claimed.
 
 ## Modelling limitations
 

@@ -2,13 +2,14 @@
 
 ## Status
 
-- Milestone state: implementation in progress
+- Milestone state: implementation complete; protected-main closure pending
 - Promotion boundary: `RESEARCH_ONLY`
 - Pull request: #20, draft
 - Approved design and plan base: `21fb5cd07702c76c522d3e82f740ec7c320e51f7`
-- Completed implementation tasks: 1–11
-- Current task: 12 — documentation, concrete end-to-end evaluation, final evidence, and exact verification
+- Completed implementation tasks: 1–12
 - Real seven-year historical Candidate run: not performed or claimed
+- Diagnostic classification: `INCONCLUSIVE`
+- CLI promotable value: `false`
 - Profitability: not established
 
 ## Completed boundaries
@@ -58,38 +59,42 @@ Evidence:
 - RED CI: `30076588226`
 - GREEN head: `88d99e709f0c40b7f5ed2270412eeddcdb3fefab`
 - Focused tests: 12 passed
-- GREEN CI: `30078079673` — complete quality and security workflow passed
+- GREEN CI: `30078079673`
 
-The concrete dataset-to-study evaluator remains deliberately fail-closed. No placeholder hashes or fabricated economic result is emitted.
+### Task 12 — concrete evaluator, documentation, and acceptance
 
-## Task 12 evidence in progress
+- Concrete provider-free dataset-to-study evaluator implemented.
+- Deterministic specialist training, calibration, regimes, arbitration, comparators, controls, cost stress, sensitivity, bootstrap, study execution, and immutable evidence generation integrated.
+- Operations documentation, step-verification protocol, README entry, and end-to-end acceptance added.
+- Synthetic acceptance exercises local evaluation, repeated deterministic identities, referenced-experiment replay, strategy-study replay, independent verification, tamper rejection, network denial, and unsafe-mode rejection.
+- Synthetic/short history is forced to `INCONCLUSIVE` and `promotable:false`.
 
-### Documentation RED
+Evidence:
 
-- RED head: `1b04d11c95c3516a611d4cb4bca77a826e368304`
-- RED CI: `30078344627`
-- Expected failure: required Candidate operations document absent
+- Documentation RED head: `1b04d11c95c3516a611d4cb4bca77a826e368304`
+- Documentation RED CI: `30078344627`
+- Focused Task 12 acceptance: 12 passed during implementation diagnostics
+- Full implementation CI: `30082950174` — passed
+- Deterministic acceptance workflow: `30083215682` — two focused runs and two exact receipts passed; receipt diff empty
+- Clean implementation head: `465b6f1efc547c73cce360c88e811d97cbb25349`
+- Clean implementation CI: `30083561600` — passed
+- Study ID: `511749dfe6f008c94fd5989dcb4c3855b1f0f9270cad0c6f156549ba4b29d9ba`
+- Study result ID: `5e4eb02af9fee6726504f9bbba6c8e307d9cdcd9fae58d099b8c7119f84e31b6`
+- Mandatory gates: 32 recorded — 11 pass, 14 fail, 7 not evaluated
+- Complete collected tests at acceptance checkpoint: 442
+- Dependency-lock SHA-256: `e72fcb7f84e3ebee85d01953539ff0449b00e8b2cc6b57d0c22660ffbf8075da`
 
-### Documentation implementation
+The diagnostic result verifies deterministic architecture and fail-closed evidence handling only. It does not establish trading edge, durable profitability, paper readiness, live readiness, or capital authorization.
 
-Added:
+## Remaining protected-main closure
 
-- `docs/operations/candidate-multi-model-strategy.md`
-- `docs/operations/candidate-multi-model-strategy-step-verification.md`
-- Candidate section in `README.md`
-- this progress report
-
-The operations document records the research-only boundary, exact market and interval, seven-year requirement, sealed 18-month final test, CLI commands, valid rejection outcome, immutable evidence, replay/verification trust boundary, limitations, and the current fail-closed evaluator status.
-
-## Remaining work
-
-1. Implement the concrete dataset-to-study evaluator using the existing verified canonical dataset and research engine.
-2. Add deterministic synthetic BTCUSDT H4 end-to-end acceptance.
-3. Exercise features, labels, splits, model training, calibration, regimes, arbitration, comparators, experiments, immutable study artifacts, replay, verification, tamper rejection, and unsafe-mode rejection.
-4. Require synthetic classification `INCONCLUSIVE` and identical repeated identities.
-5. Run complete quality, security, focused acceptance, exact PR-head, independent review, protected merge, and exact merged-main verification.
-6. Write `reports/verification/candidate-multi-model-strategy-final.md` with exact observed evidence.
-7. Close Issue #16 only after merged-main verification.
+1. Commit the final report and correct stale documentation language.
+2. Pass ordinary CI on the resulting exact PR head.
+3. Complete cumulative advisory review of scope, failed gates, and limitations.
+4. Mark PR #20 ready for review.
+5. Merge only through protected `main` after approval.
+6. Run exact merged-main verification.
+7. Close Issue #16 only after merged-main verification is recorded.
 
 ## Safety confirmation
 

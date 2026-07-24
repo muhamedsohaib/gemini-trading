@@ -80,17 +80,14 @@ def test_locked_baselines_share_the_exact_research_engine_policy(
         for item in evidences
     )
     assert all(
-        item.experiment_manifest.timing_policy is TimingPolicy.NEXT_CANDLE
-        for item in evidences
+        item.experiment_manifest.timing_policy is TimingPolicy.NEXT_CANDLE for item in evidences
     )
     assert all(
         item.experiment_manifest.limit_fill_policy is LimitFillPolicy.CONSERVATIVE
         for item in evidences
     )
     buy_hold = next(
-        item
-        for item in evidences
-        if item.experiment_manifest.strategy_id == "buy_hold.v1"
+        item for item in evidences if item.experiment_manifest.strategy_id == "buy_hold.v1"
     )
     assert buy_hold.fills
     assert buy_hold.fills[0].candle_index == 1

@@ -38,9 +38,9 @@ def _payloads_with_exact_gates() -> dict[str, object]:
 def test_shared_research_services_accept_strategy_reconstructor() -> None:
     assert "strategy_reconstructor" in signature(ReplayService).parameters
     assert "strategy_reconstructor" in signature(ResearchVerificationService).parameters
-    assert "research_strategy_reconstructor" in signature(
-        StrategyStudyVerificationService
-    ).parameters
+    assert (
+        "research_strategy_reconstructor" in signature(StrategyStudyVerificationService).parameters
+    )
 
 
 def test_closed_reconstruction_registry_is_exact() -> None:

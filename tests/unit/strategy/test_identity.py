@@ -5,6 +5,7 @@ from dataclasses import replace
 from decimal import Decimal
 
 import pytest
+from tests.strategy_fixture_support import example_study_manifest
 
 from gemini_trading.strategy.identity import (
     StrategyStudyManifest,
@@ -12,7 +13,6 @@ from gemini_trading.strategy.identity import (
     serialize_study_manifest,
     study_id,
 )
-from tests.strategy_fixture_support import example_study_manifest
 
 
 def test_component_identity_is_canonical_and_schema_scoped() -> None:

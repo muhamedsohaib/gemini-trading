@@ -1,0 +1,8 @@
+/home/runner/work/gemini-trading/gemini-trading/src/gemini_trading/strategy/models.py
+  /home/runner/work/gemini-trading/gemini-trading/src/gemini_trading/strategy/models.py:14:6 - warning: Stub file not found for "sklearn.ensemble" (reportMissingTypeStubs)
+  /home/runner/work/gemini-trading/gemini-trading/src/gemini_trading/strategy/models.py:15:6 - warning: Stub file not found for "sklearn.linear_model" (reportMissingTypeStubs)
+  /home/runner/work/gemini-trading/gemini-trading/src/gemini_trading/strategy/models.py:16:6 - warning: Stub file not found for "threadpoolctl" (reportMissingTypeStubs)
+/home/runner/work/gemini-trading/gemini-trading/tests/integration/test_strategy_walk_forward_study.py
+  /home/runner/work/gemini-trading/gemini-trading/tests/integration/test_strategy_walk_forward_study.py:32:5 - error: Type of "calls" is partially unknown
+    Type of "calls" is "list[Unknown]" (reportUnknownVariableType)
+1 error, 3 warnings, 0 informations

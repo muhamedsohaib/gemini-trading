@@ -1,0 +1,25 @@
+name: Task 11 development snapshot
+
+on:
+  push:
+    branches:
+      - feature/candidate-multi-model-strategy-v0-1
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: task11-source-snapshot
+          path: |
+            src
+            tests
+            pyproject.toml
+            uv.lock
+            README.md
+            docs/superpowers/plans/2026-07-24-candidate-multi-model-strategy-v0-1.md

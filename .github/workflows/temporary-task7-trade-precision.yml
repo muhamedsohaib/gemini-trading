@@ -1,0 +1,48 @@
+name: Temporary Task 7 Trade Precision
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.11.25"
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - name: Apply trade precision
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('src/gemini_trading/research/metrics.py')
+          text = path.read_text()
+          marker = '_CONTEXT = Context(prec=34, rounding=ROUND_HALF_EVEN)\n'
+          replacement = marker + '_TRADE_CONTEXT = Context(prec=32, rounding=ROUND_HALF_EVEN)\n'
+          if '_TRADE_CONTEXT' not in text:
+              text = text.replace(marker, replacement, 1)
+          start = text.index('def completed_trades(')
+          context = text.index('    with localcontext(_CONTEXT):', start)
+          text = text[:context] + text[context:].replace(
+              '    with localcontext(_CONTEXT):',
+              '    with localcontext(_TRADE_CONTEXT):',
+              1,
+          )
+          path.write_text(text)
+          PY
+      - run: uv run ruff format src/gemini_trading/research/metrics.py
+      - run: uv run pytest -q -o addopts='' tests/unit/research/test_metrics.py
+      - uses: stefanzweifel/git-auto-commit-action@v6
+        with:
+          commit_message: "fix: lock completed trade return precision"
+          file_pattern: src/gemini_trading/research/metrics.py

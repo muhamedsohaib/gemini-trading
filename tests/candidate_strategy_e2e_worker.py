@@ -157,7 +157,7 @@ class _VerifiedResearchResult:
 
 def run(root: Path, project_root: Path, config: Path) -> dict[str, object]:
     dataset_id = _store_dataset(root)
-    strategy.resolve_clean_git_commit = _fixed_commit
+    setattr(strategy, "resolve_clean_git_commit", _fixed_commit)
     with (
         patch.object(socket, "create_connection", _forbid_network),
         patch.object(urllib.request, "urlopen", _forbid_network),
@@ -219,7 +219,7 @@ def run(root: Path, project_root: Path, config: Path) -> dict[str, object]:
             def verify(self, supplied_study_id: str) -> StrategyStudyVerificationResult:
                 return self._service.verify(supplied_study_id)
 
-        strategy.StrategyStudyVerificationService = _BoundedVerifier  # type: ignore[assignment]
+        setattr(strategy, "StrategyStudyVerificationService", _BoundedVerifier)
         verified = _invoke(
             [
                 "research",
@@ -232,7 +232,7 @@ def run(root: Path, project_root: Path, config: Path) -> dict[str, object]:
                 str(root),
             ]
         )
-        checks = cast(list[object], verified["checks"])
+        checks = cast(list[str], verified["checks"])
         if checks != sorted(checks):
             raise AssertionError("verification checks are not sorted")
         if "replay_equivalent" not in checks or "referenced_experiments_verified" not in checks:

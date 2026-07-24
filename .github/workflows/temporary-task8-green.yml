@@ -7,7 +7,7 @@ permissions:
   contents: write
 
 jobs:
-  green:
+  diagnose:
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
@@ -27,14 +27,10 @@ jobs:
           tests/integration/test_strategy_walk_forward_study.py
           tests/integration/test_strategy_ablation_suite.py
           tests/regression/test_final_test_seal.py
-      - run: uv run ruff check src/gemini_trading/strategy/study.py tests/integration/test_strategy_walk_forward_study.py tests/integration/test_strategy_ablation_suite.py tests/regression/test_final_test_seal.py
-      - run: uv run pyright
-      - run: >-
-          uv run pytest -q -o addopts=''
-          tests/integration/test_strategy_walk_forward_study.py
-          tests/integration/test_strategy_ablation_suite.py
-          tests/regression/test_final_test_seal.py
+      - run: |
+          mkdir -p reports/temporary
+          uv run pyright > reports/temporary/task8-pyright.txt 2>&1 || true
       - uses: stefanzweifel/git-auto-commit-action@v6
         with:
-          commit_message: "feat: run sealed multi model strategy studies"
-          file_pattern: src/gemini_trading/strategy/study.py tests/integration/test_strategy_walk_forward_study.py tests/integration/test_strategy_ablation_suite.py tests/regression/test_final_test_seal.py
+          commit_message: "ci: persist task eight pyright diagnostic"
+          file_pattern: reports/temporary/task8-pyright.txt

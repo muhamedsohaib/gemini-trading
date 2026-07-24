@@ -19,8 +19,8 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync --all-groups --frozen
-      - name: Capture Ruff output
-        run: uv run ruff check . > ruff-output.txt 2>&1 || true
+      - name: Capture Ruff diff
+        run: uv run ruff check . --fix --diff > ruff-output.txt 2>&1 || true
       - name: Publish Ruff output
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

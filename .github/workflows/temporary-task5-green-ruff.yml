@@ -26,20 +26,24 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           path = Path("src/gemini_trading/strategy/arbitration.py")
-          text = path.read_text()
-          old = """        if self.action in {StrategyAction.EXIT_TO_CASH, StrategyAction.REMAIN_IN_CASH}:
-              if self.action is StrategyAction.REMAIN_IN_CASH and self.active_specialist is not None:
-                  raise ValueError(\"cash decision cannot retain an active specialist\")
-          """
-          new = """        if (
-              self.action is StrategyAction.REMAIN_IN_CASH
-              and self.active_specialist is not None
-          ):
-              raise ValueError(\"cash decision cannot retain an active specialist\")
-          """
-          if old not in text:
-              raise SystemExit("expected validation block not found")
-          path.write_text(text.replace(old, new))
+          lines = path.read_text().splitlines()
+          target = "        if self.action in {StrategyAction.EXIT_TO_CASH, StrategyAction.REMAIN_IN_CASH}:"
+          index = lines.index(target)
+          expected = [
+              target,
+              "            if self.action is StrategyAction.REMAIN_IN_CASH and self.active_specialist is not None:",
+              "                raise ValueError(\"cash decision cannot retain an active specialist\")",
+          ]
+          if lines[index : index + 3] != expected:
+              raise SystemExit("expected validation lines not found")
+          lines[index : index + 3] = [
+              "        if (",
+              "            self.action is StrategyAction.REMAIN_IN_CASH",
+              "            and self.active_specialist is not None",
+              "        ):",
+              "            raise ValueError(\"cash decision cannot retain an active specialist\")",
+          ]
+          path.write_text("\n".join(lines) + "\n")
           PY
       - run: uv run ruff check src/gemini_trading/strategy/arbitration.py
       - uses: stefanzweifel/git-auto-commit-action@v6

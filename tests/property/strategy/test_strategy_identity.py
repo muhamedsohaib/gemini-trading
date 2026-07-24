@@ -4,7 +4,7 @@ from dataclasses import replace
 
 from hypothesis import given
 from hypothesis import strategies as st
-from tests.strategy_fixture_support import example_study_manifest
+from strategy_fixture_support import example_study_manifest
 
 from gemini_trading.strategy.identity import study_id
 

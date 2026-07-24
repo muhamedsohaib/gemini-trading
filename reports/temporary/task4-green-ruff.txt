@@ -1,0 +1,3 @@
+src/gemini_trading/strategy/models.py:180:1: UP040 Type alias `ModelArtifact` uses `TypeAlias` annotation instead of the `type` keyword
+Found 1 error.
+No fixes available (1 hidden fix can be enabled with the `--unsafe-fixes` option).

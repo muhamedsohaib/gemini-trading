@@ -7,6 +7,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol, cast
 
+from gemini_trading.research.replay import (
+    StrategyReconstructor,
+    fixture_strategy_from_manifest,
+)
 from gemini_trading.research.verification import ResearchVerificationService
 from gemini_trading.strategy.errors import StudyVerificationError
 from gemini_trading.strategy.evaluation import MANDATORY_GATE_IDS, PromotionClassification
@@ -97,6 +101,7 @@ class StrategyStudyVerificationService:
     root: Path
     current_commit_resolver: Callable[[], str]
     research_verifier: ResearchVerifier | None = None
+    research_strategy_reconstructor: StrategyReconstructor = fixture_strategy_from_manifest
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "root", Path(self.root))
@@ -107,6 +112,7 @@ class StrategyStudyVerificationService:
         return ResearchVerificationService(
             root=self.root,
             current_commit_resolver=self.current_commit_resolver,
+            strategy_reconstructor=self.research_strategy_reconstructor,
         ).verify(experiment_id)
 
     def verify(self, study_id: str) -> StrategyStudyVerificationResult:

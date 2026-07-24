@@ -33,7 +33,7 @@ def test_specialist_prediction_validates_probability_and_raw_score() -> None:
     prediction = SpecialistPrediction(
         candle_index=42,
         specialist=SpecialistKind.TREND,
-        raw_score_hex=float(1.25).hex(),
+        raw_score_hex=(1.25).hex(),
         probability=Decimal("0.62"),
         expected_gross_return=Decimal("0.0071"),
     )
@@ -44,7 +44,7 @@ def test_specialist_prediction_validates_probability_and_raw_score() -> None:
         SpecialistPrediction(
             candle_index=42,
             specialist=SpecialistKind.TREND,
-            raw_score_hex=float(1.25).hex(),
+            raw_score_hex=(1.25).hex(),
             probability=Decimal("1.01"),
             expected_gross_return=Decimal("0.0071"),
         )

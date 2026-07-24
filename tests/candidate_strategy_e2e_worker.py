@@ -157,8 +157,8 @@ class _VerifiedResearchResult:
 
 def run(root: Path, project_root: Path, config: Path) -> dict[str, object]:
     dataset_id = _store_dataset(root)
-    setattr(strategy, "resolve_clean_git_commit", _fixed_commit)
     with (
+        patch.object(strategy, "resolve_clean_git_commit", _fixed_commit),
         patch.object(socket, "create_connection", _forbid_network),
         patch.object(urllib.request, "urlopen", _forbid_network),
         patch.object(BinanceSpotProvider, "__init__", _forbid_network),
@@ -219,34 +219,8 @@ def run(root: Path, project_root: Path, config: Path) -> dict[str, object]:
             def verify(self, supplied_study_id: str) -> StrategyStudyVerificationResult:
                 return self._service.verify(supplied_study_id)
 
-        setattr(strategy, "StrategyStudyVerificationService", _BoundedVerifier)
-        verified = _invoke(
-            [
-                "research",
-                "strategy-verify",
-                "--study-id",
-                study_id,
-                "--project-root",
-                str(project_root),
-                "--output-root",
-                str(root),
-            ]
-        )
-        checks = cast(list[str], verified["checks"])
-        if checks != sorted(checks):
-            raise AssertionError("verification checks are not sorted")
-        if "replay_equivalent" not in checks or "referenced_experiments_verified" not in checks:
-            raise AssertionError("verification checks are incomplete")
-
-        artifact_path = root / "data" / "strategy-studies" / study_id / "feature-registry.json"
-        artifact_path.write_bytes(b"{}\n")
-        from contextlib import redirect_stderr, redirect_stdout
-        from io import StringIO
-
-        stdout = StringIO()
-        stderr = StringIO()
-        with redirect_stdout(stdout), redirect_stderr(stderr):
-            tampered_code = main(
+        with patch.object(strategy, "StrategyStudyVerificationService", _BoundedVerifier):
+            verified = _invoke(
                 [
                     "research",
                     "strategy-verify",
@@ -258,8 +232,34 @@ def run(root: Path, project_root: Path, config: Path) -> dict[str, object]:
                     str(root),
                 ]
             )
-        if tampered_code != 2 or stdout.getvalue() != "" or "Traceback" in stderr.getvalue():
-            raise AssertionError("tampered study did not fail closed safely")
+            checks = cast(list[str], verified["checks"])
+            if checks != sorted(checks):
+                raise AssertionError("verification checks are not sorted")
+            if "replay_equivalent" not in checks or "referenced_experiments_verified" not in checks:
+                raise AssertionError("verification checks are incomplete")
+
+            artifact_path = root / "data" / "strategy-studies" / study_id / "feature-registry.json"
+            artifact_path.write_bytes(b"{}\n")
+            from contextlib import redirect_stderr, redirect_stdout
+            from io import StringIO
+
+            stdout = StringIO()
+            stderr = StringIO()
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                tampered_code = main(
+                    [
+                        "research",
+                        "strategy-verify",
+                        "--study-id",
+                        study_id,
+                        "--project-root",
+                        str(project_root),
+                        "--output-root",
+                        str(root),
+                    ]
+                )
+            if tampered_code != 2 or stdout.getvalue() != "" or "Traceback" in stderr.getvalue():
+                raise AssertionError("tampered study did not fail closed safely")
 
     return {
         "artifact_hashes": [list(item) for item in first_hashes],

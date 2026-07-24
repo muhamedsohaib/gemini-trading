@@ -2,11 +2,13 @@
 
 ## Status
 
-- Milestone state: implementation and cumulative advisory review complete; protected-main closure pending
+- Milestone state: implementation and cumulative advisory review complete; review-ready
 - Promotion boundary: `RESEARCH_ONLY`
-- Pull request: #20, draft pending final report-bearing CI
+- Pull request: #20
 - Approved design and plan base: `21fb5cd07702c76c522d3e82f740ec7c320e51f7`
 - Completed implementation tasks: 1–12
+- Final PR head: `c922151f21e04ea0c10e873c03aec3203ee939b6`
+- Final PR CI: `30087636840` — passed
 - Real seven-year historical Candidate run: not performed or claimed
 - Diagnostic classification: `INCONCLUSIVE`
 - CLI promotable value: `false`
@@ -103,6 +105,8 @@ Evidence:
 - Review RED CI: `30086424983` — strict Pyright failed against the intentionally absent evidence-derived helpers
 - Review-corrected clean code head: `4527e2a2f520b0e15a4f245297a1c4b1bd75b3c4`
 - Review GREEN CI: `30087016792` — frozen sync, Ruff format, Ruff lint, strict Pyright, complete pytest suite, package build, dependency audit, tracked-file policy, detect-secrets, and Gitleaks passed
+- Final report-bearing PR head: `c922151f21e04ea0c10e873c03aec3203ee939b6`
+- Final report-bearing CI: `30087636840` — passed
 - Temporary review-format workflow removed before the review GREEN CI
 - Final changed-file list contains no temporary workflow
 
@@ -110,12 +114,9 @@ The synthetic diagnostic gate totals remain unchanged because its primary return
 
 ## Remaining protected-main closure
 
-1. Pass ordinary CI on the final report-bearing PR head.
-2. Update the PR description and record the cumulative review outcome.
-3. Mark PR #20 ready for review.
-4. Merge only through protected `main` after approval.
-5. Run exact merged-main verification.
-6. Close Issue #16 only after merged-main verification is recorded.
+1. Obtain review approval and merge only through protected `main`.
+2. Run exact merged-main verification.
+3. Close Issue #16 only after merged-main verification is recorded.
 
 ## Safety confirmation
 

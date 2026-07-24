@@ -1,0 +1,51 @@
+name: Temporary Task 6 Config Fix
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - name: Add sizing assumptions
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('src/gemini_trading/strategy/baselines.py')
+          text = path.read_text()
+          old = '''        return (
+              ("strategy_id", self.strategy_id),
+              ("decision_count", str(len(self.schedule.actions))),
+              ("timing", "next_candle_via_research_engine"),
+              ("production_eligible", "false"),
+          )'''
+          new = '''        return (
+              ("strategy_id", self.strategy_id),
+              ("decision_count", str(len(self.schedule.actions))),
+              ("quantity_step", format(self.quantity_step, "f")),
+              ("minimum_quantity", format(self.minimum_quantity, "f")),
+              ("minimum_notional", format(self.minimum_notional, "f")),
+              ("timing", "next_candle_via_research_engine"),
+              ("production_eligible", "false"),
+          )'''
+          if old not in text:
+              raise SystemExit('expected configuration block not found')
+          path.write_text(text.replace(old, new, 1))
+          PY
+      - name: Commit fix
+        run: |
+          git add src/gemini_trading/strategy/baselines.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "fix: include baseline sizing assumptions"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}

@@ -1,0 +1,33 @@
+/home/runner/work/gemini-trading/gemini-trading/src/gemini_trading/strategy/models.py
+  /home/runner/work/gemini-trading/gemini-trading/src/gemini_trading/strategy/models.py:14:6 - warning: Stub file not found for "sklearn.ensemble" (reportMissingTypeStubs)
+  /home/runner/work/gemini-trading/gemini-trading/src/gemini_trading/strategy/models.py:15:6 - warning: Stub file not found for "sklearn.linear_model" (reportMissingTypeStubs)
+  /home/runner/work/gemini-trading/gemini-trading/src/gemini_trading/strategy/models.py:16:6 - warning: Stub file not found for "threadpoolctl" (reportMissingTypeStubs)
+/home/runner/work/gemini-trading/gemini-trading/tests/integration/test_strategy_baseline_engine.py
+  /home/runner/work/gemini-trading/gemini-trading/tests/integration/test_strategy_baseline_engine.py:75:9 - error: Type of "append" is partially unknown
+    Type of "append" is "(object: Unknown, /) -> None" (reportUnknownMemberType)
+  /home/runner/work/gemini-trading/gemini-trading/tests/integration/test_strategy_baseline_engine.py:77:16 - error: Argument type is partially unknown
+    Argument corresponds to parameter "obj" in function "len"
+    Argument type is "list[Unknown]" (reportUnknownArgumentType)
+  /home/runner/work/gemini-trading/gemini-trading/tests/integration/test_strategy_baseline_engine.py:79:9 - error: Type of "experiment_manifest" is unknown (reportUnknownMemberType)
+  /home/runner/work/gemini-trading/gemini-trading/tests/integration/test_strategy_baseline_engine.py:79:9 - error: Type of "simulation_config_sha256" is unknown (reportUnknownMemberType)
+  /home/runner/work/gemini-trading/gemini-trading/tests/integration/test_strategy_baseline_engine.py:79:9 - error: Argument type is partially unknown
+    Argument corresponds to parameter "iterable" in function "all"
+    Argument type is "Generator[Unknown, None, None]" (reportUnknownArgumentType)
+  /home/runner/work/gemini-trading/gemini-trading/tests/integration/test_strategy_baseline_engine.py:80:13 - error: Type of "item" is unknown (reportUnknownVariableType)
+  /home/runner/work/gemini-trading/gemini-trading/tests/integration/test_strategy_baseline_engine.py:83:9 - error: Type of "experiment_manifest" is unknown (reportUnknownMemberType)
+  /home/runner/work/gemini-trading/gemini-trading/tests/integration/test_strategy_baseline_engine.py:83:9 - error: Type of "timing_policy" is unknown (reportUnknownMemberType)
+  /home/runner/work/gemini-trading/gemini-trading/tests/integration/test_strategy_baseline_engine.py:83:80 - error: Type of "item" is unknown (reportUnknownVariableType)
+  /home/runner/work/gemini-trading/gemini-trading/tests/integration/test_strategy_baseline_engine.py:86:9 - error: Type of "experiment_manifest" is unknown (reportUnknownMemberType)
+  /home/runner/work/gemini-trading/gemini-trading/tests/integration/test_strategy_baseline_engine.py:86:9 - error: Type of "limit_fill_policy" is unknown (reportUnknownMemberType)
+  /home/runner/work/gemini-trading/gemini-trading/tests/integration/test_strategy_baseline_engine.py:87:13 - error: Type of "item" is unknown (reportUnknownVariableType)
+  /home/runner/work/gemini-trading/gemini-trading/tests/integration/test_strategy_baseline_engine.py:89:5 - error: Type of "buy_hold" is unknown (reportUnknownVariableType)
+  /home/runner/work/gemini-trading/gemini-trading/tests/integration/test_strategy_baseline_engine.py:90:9 - error: Argument type is partially unknown
+    Argument corresponds to parameter "i" in function "next"
+    Argument type is "Generator[Unknown, None, None]" (reportUnknownArgumentType)
+  /home/runner/work/gemini-trading/gemini-trading/tests/integration/test_strategy_baseline_engine.py:90:18 - error: Type of "item" is unknown (reportUnknownVariableType)
+  /home/runner/work/gemini-trading/gemini-trading/tests/integration/test_strategy_baseline_engine.py:90:39 - error: Type of "experiment_manifest" is unknown (reportUnknownMemberType)
+  /home/runner/work/gemini-trading/gemini-trading/tests/integration/test_strategy_baseline_engine.py:90:39 - error: Type of "strategy_id" is unknown (reportUnknownMemberType)
+  /home/runner/work/gemini-trading/gemini-trading/tests/integration/test_strategy_baseline_engine.py:92:12 - error: Type of "fills" is unknown (reportUnknownMemberType)
+  /home/runner/work/gemini-trading/gemini-trading/tests/integration/test_strategy_baseline_engine.py:93:12 - error: Type of "fills" is unknown (reportUnknownMemberType)
+  /home/runner/work/gemini-trading/gemini-trading/tests/integration/test_strategy_baseline_engine.py:93:12 - error: Type of "candle_index" is unknown (reportUnknownMemberType)
+20 errors, 3 warnings, 0 informations

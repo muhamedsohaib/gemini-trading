@@ -22,29 +22,27 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           path = Path('src/gemini_trading/strategy/baselines.py')
-          text = path.read_text()
-          old = '''        return (
-              ("strategy_id", self.strategy_id),
-              ("decision_count", str(len(self.schedule.actions))),
-              ("timing", "next_candle_via_research_engine"),
-              ("production_eligible", "false"),
-          )'''.replace('              ', '            ')
-          new = '''        return (
-              ("strategy_id", self.strategy_id),
-              ("decision_count", str(len(self.schedule.actions))),
-              ("quantity_step", format(self.quantity_step, "f")),
-              ("minimum_quantity", format(self.minimum_quantity, "f")),
-              ("minimum_notional", format(self.minimum_notional, "f")),
-              ("timing", "next_candle_via_research_engine"),
-              ("production_eligible", "false"),
-          )'''.replace('              ', '            ')
-          if old not in text:
-              raise SystemExit('expected configuration block not found')
-          path.write_text(text.replace(old, new, 1))
+          lines = path.read_text().splitlines()
+          marker = '            ("decision_count", str(len(self.schedule.actions))),'
+          additions = [
+              '            ("quantity_step", format(self.quantity_step, "f")),',
+              '            ("minimum_quantity", format(self.minimum_quantity, "f")),',
+              '            ("minimum_notional", format(self.minimum_notional, "f")),',
+          ]
+          if additions[0] not in lines:
+              try:
+                  index = lines.index(marker)
+              except ValueError:
+                  raise SystemExit('decision_count marker not found') from None
+              lines[index + 1:index + 1] = additions
+              path.write_text('\n'.join(lines) + '\n')
           PY
       - name: Commit fix
         run: |
           git add src/gemini_trading/strategy/baselines.py
+          if git diff --cached --quiet; then
+            exit 0
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "fix: include baseline sizing assumptions"

@@ -8,14 +8,18 @@ from hypothesis import strategies as st
 from gemini_trading.domain.account import AccountSnapshot
 from gemini_trading.domain.order import OrderSide
 from gemini_trading.research.contracts import StrategyContext
-from gemini_trading.strategy.arbitration import ArbitrationInput, MultiModelArbiter
+from gemini_trading.strategy.arbitration import (
+    ArbitrationDecision,
+    ArbitrationInput,
+    MultiModelArbiter,
+)
 from gemini_trading.strategy.candidate import CandidateDecisionSchedule, CandidateMultiModelStrategy
 from gemini_trading.strategy.contracts import RegimeState, SpecialistKind
 from gemini_trading.strategy.policy import CandidatePolicy
 from strategy_fixture_support import btc_candle
 
 
-def candidate(decision) -> CandidateMultiModelStrategy:
+def candidate(decision: ArbitrationDecision) -> CandidateMultiModelStrategy:
     return CandidateMultiModelStrategy(
         schedule=CandidateDecisionSchedule((decision,)),
         quantity_step=Decimal("0.001"),
@@ -24,7 +28,7 @@ def candidate(decision) -> CandidateMultiModelStrategy:
     )
 
 
-def entering_decision():
+def entering_decision() -> ArbitrationDecision:
     return MultiModelArbiter(CandidatePolicy.locked_v0_1()).decide(
         ArbitrationInput(
             candle_index=42,
@@ -50,7 +54,7 @@ def entering_decision():
     )
 
 
-def exiting_decision():
+def exiting_decision() -> ArbitrationDecision:
     return MultiModelArbiter(CandidatePolicy.locked_v0_1()).decide(
         ArbitrationInput(
             candle_index=42,

@@ -20,4 +20,4 @@ tests/unit/strategy/test_baselines.py:40: KeyError
 =========================== short test summary info ============================
 FAILED tests/unit/strategy/test_baselines.py::test_runnable_baseline_configuration_includes_sizing_assumptions - KeyError: 'quantity_step'
 !!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!
-1 failed, 2 passed in 1.59s
+1 failed, 2 passed in 1.43s

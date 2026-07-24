@@ -7,7 +7,7 @@ permissions:
   contents: write
 
 jobs:
-  diagnose:
+  green:
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
@@ -21,7 +21,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync --all-groups --frozen
-      - name: Apply research-result-v2 migration in runner
+      - name: Apply research-result-v2 migration
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -68,10 +68,17 @@ jobs:
           tests/unit/strategy/test_evaluation_metrics.py
           tests/unit/strategy/test_promotion_gates.py
           tests/property/strategy/test_cost_monotonicity.py
-      - run: |
-          mkdir -p reports/temporary
-          uv run pyright > reports/temporary/task7-pyright.txt 2>&1 || true
+      - run: uv run ruff check src/gemini_trading/research/artifacts.py src/gemini_trading/research/verification.py src/gemini_trading/strategy/evaluation.py
+      - run: uv run pyright
+      - run: >-
+          uv run pytest -q -o addopts=''
+          tests/unit/research/test_metrics.py
+          tests/unit/research/test_artifacts.py
+          tests/unit/research/test_verification.py
+          tests/unit/strategy/test_evaluation_metrics.py
+          tests/unit/strategy/test_promotion_gates.py
+          tests/property/strategy/test_cost_monotonicity.py
       - uses: stefanzweifel/git-auto-commit-action@v6
         with:
-          commit_message: "ci: persist task seven pyright diagnostic"
-          file_pattern: reports/temporary/task7-pyright.txt
+          commit_message: "feat: evaluate strategy economics and promotion gates"
+          file_pattern: src/gemini_trading/research/artifacts.py src/gemini_trading/research/verification.py src/gemini_trading/strategy/evaluation.py tests/unit/research/test_artifacts.py tests/unit/strategy/test_evaluation_metrics.py tests/unit/strategy/test_promotion_gates.py tests/property/strategy/test_cost_monotonicity.py

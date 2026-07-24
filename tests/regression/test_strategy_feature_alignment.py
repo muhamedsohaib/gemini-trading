@@ -12,10 +12,12 @@ def test_one_candle_return_is_aligned_to_current_completed_candle() -> None:
     row = matrix.row_for(42)
 
     with localcontext(Context(prec=34, rounding=ROUND_HALF_EVEN)):
-        expected = (candles[42].close / candles[41].close).ln()
+        expected_return = (candles[42].close / candles[41].close).ln()
+        expected_close_location = (
+            (candles[42].close - candles[42].low)
+            / (candles[42].high - candles[42].low)
+        )
 
     assert row.candle_open_time == candles[42].open_time
-    assert matrix.value_for(42, "log_return_1") == expected
-    assert matrix.value_for(42, "close_location_current") == (
-        (candles[42].close - candles[42].low) / (candles[42].high - candles[42].low)
-    )
+    assert matrix.value_for(42, "log_return_1") == expected_return
+    assert matrix.value_for(42, "close_location_current") == expected_close_location

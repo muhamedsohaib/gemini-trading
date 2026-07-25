@@ -22,6 +22,7 @@
 - Design gate: Issue #22
 - Draft implementation PR: #23
 - Dataset artifact inventory and strict handoff contract: implemented
+- Canonical artifact-relative path enforcement, including rejection of normalized aliases such as `./a`: implemented and unit-verified
 - Durable final-test access receipt and exact-resume decision: implemented
 - Immutable development-only pre-final evidence: implemented
 - Operational evaluator phase separation and integration coverage: implemented
@@ -31,11 +32,13 @@
 - Resume receipt-to-study identity binding: implemented
 - Fixed-scope historical-validation CLI: implemented
 - Manual Stage 1 and Stage 2 workflows with artifact barriers: implemented
+- Stage 1 dataset production restricted to the protected `main` branch: implemented
 - Owner-authenticated dataset approval and bot-authenticated cross-run final seal: implemented
 - Stable run-independent local final-access seal: implemented
 - Extended provider-free replay and sealed evidence-chain verification: implemented
 - Synthetic end-to-end acceptance and operator documentation: implemented
 - Temporary implementation and diagnostic workflows: removed
-- Exact-head cumulative CI and final review: pending
+- Cumulative scope and safety review: complete with no strategy-policy, threshold, feature-definition, label, model, or promotion-gate changes
+- Exact-head cumulative CI: pending a successful GitHub runner allocation
 
 Generated raw data, canonical datasets, repository-seal receipts, stable local seals, final-access receipts, pre-final evidence, and full strategy studies remain excluded from tracked repository files.

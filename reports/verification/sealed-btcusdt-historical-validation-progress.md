@@ -24,6 +24,7 @@
 - Dataset artifact inventory and strict handoff contract: implemented
 - Durable final-test access receipt and exact-resume decision: implemented
 - Immutable development-only pre-final evidence: implemented
-- Evaluator phase separation, CLI, workflows, extended verification, and acceptance: in progress
+- Operational evaluator phase separation and integration coverage: implemented
+- Historical-validation CLI, workflows, extended replay/verification, and cumulative acceptance: in progress
 
 Generated raw data, canonical datasets, final-access receipts, pre-final evidence, and full strategy studies remain excluded from tracked repository files.

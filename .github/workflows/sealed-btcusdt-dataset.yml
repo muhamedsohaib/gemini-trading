@@ -12,7 +12,7 @@ jobs:
     timeout-minutes: 90
     env:
       GEMINI_TRADING_MODE: research
-      OUTPUT_ROOT: ${{ runner.temp }}/sealed-output
+      OUTPUT_ROOT: /tmp/sealed-output
     steps:
       - uses: actions/checkout@v6.0.2
         with:
@@ -76,7 +76,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: sealed-btcusdt-dataset-${{ github.sha }}-${{ github.run_id }}
-          path: ${{ runner.temp }}/sealed-output/
+          path: /tmp/sealed-output/
           if-no-files-found: error
           retention-days: 90
           compression-level: 6

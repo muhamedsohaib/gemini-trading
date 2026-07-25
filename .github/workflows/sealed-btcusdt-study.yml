@@ -54,13 +54,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           APPROVAL_MARKER: "<!-- sealed-dataset-approved:${{ inputs.source_commit }}:${{ inputs.dataset_run_id }}:${{ inputs.dataset_id }} -->"
         run: |
-          gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/22/comments" > issue-comments.json
+          gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/issues/22/comments" > "${RUNNER_TEMP}/issue-comments.json"
           python - <<'PY'
           import json
           import os
           from pathlib import Path
 
-          comments = json.loads(Path("issue-comments.json").read_text())
+          pages = json.loads((Path(os.environ["RUNNER_TEMP"]) / "issue-comments.json").read_text())
+          comments = [comment for page in pages for comment in page]
           marker = os.environ["APPROVAL_MARKER"]
           owner = os.environ["GITHUB_REPOSITORY_OWNER"]
           approved = any(
@@ -141,13 +142,13 @@ jobs:
             --handoff "${OUTPUT_ROOT}/data/historical-validation/handoff/${{ inputs.dataset_id }}/dataset-handoff.json" \
             --config "${GITHUB_WORKSPACE}/tests/fixtures/strategy/candidate-v0.1-config.json" \
             --project-root "${GITHUB_WORKSPACE}" \
-            --output-root "${OUTPUT_ROOT}" | tee prepare.json
+            --output-root "${OUTPUT_ROOT}" | tee "${RUNNER_TEMP}/prepare.json"
           python - <<'PY'
           import json
           import os
           from pathlib import Path
 
-          payload = json.loads(Path("prepare.json").read_text())
+          payload = json.loads((Path(os.environ["RUNNER_TEMP"]) / "prepare.json").read_text())
           with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
               output.write(f"pre_final_id={payload['pre_final_id']}\n")
           PY
@@ -209,13 +210,14 @@ jobs:
         run: |
           MARKER="<!-- sealed-final-access:${PRE_FINAL_ID} -->"
           export MARKER
-          gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/22/comments" > issue-comments.json
+          gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/issues/22/comments" > "${RUNNER_TEMP}/issue-comments.json"
           python - <<'PY'
           import json
           import os
           from pathlib import Path
 
-          comments = json.loads(Path("issue-comments.json").read_text())
+          pages = json.loads((Path(os.environ["RUNNER_TEMP"]) / "issue-comments.json").read_text())
+          comments = [comment for page in pages for comment in page]
           marker = os.environ["MARKER"]
           sealed = any(
               marker in str(comment.get("body", ""))
@@ -269,13 +271,13 @@ jobs:
             --workflow-run-id "${GITHUB_RUN_ID}" \
             --workflow-run-attempt "${GITHUB_RUN_ATTEMPT}" \
             --project-root "${GITHUB_WORKSPACE}" \
-            --output-root "${OUTPUT_ROOT}" | tee authorize.json
+            --output-root "${OUTPUT_ROOT}" | tee "${RUNNER_TEMP}/authorize.json"
           python - <<'PY'
           import json
           import os
           from pathlib import Path
 
-          payload = json.loads(Path("authorize.json").read_text())
+          payload = json.loads((Path(os.environ["RUNNER_TEMP"]) / "authorize.json").read_text())
           with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
               output.write(f"receipt_id={payload['receipt_id']}\n")
           PY
@@ -301,7 +303,43 @@ jobs:
 
           Fresh final evaluation is prohibited. Only exact provider-free continuation from complete immutable final outputs may be considered."
           gh api --method PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${COMMENT_ID}" -f body="${BODY}" > /dev/null
+      - name: Mark repository seal inconclusive after authorization failure
+        if: failure() && steps.repository-seal.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMENT_ID: ${{ steps.repository-seal.outputs.comment_id }}
+          PRE_FINAL_ID: ${{ needs.prepare.outputs.pre_final_id }}
+        run: |
+          MARKER="<!-- sealed-final-access:${PRE_FINAL_ID} -->"
+          BODY="${MARKER}
+
+          Repository-side one-time final-access seal is \`INCONCLUSIVE\`.
+
+          - Source commit: \`${{ inputs.source_commit }}\`
+          - Dataset ID: \`${{ inputs.dataset_id }}\`
+          - Pre-final ID: \`${PRE_FINAL_ID}\`
+          - Workflow run: \`${GITHUB_RUN_ID}\`
+          - Workflow attempt: \`${GITHUB_RUN_ATTEMPT}\`
+          - Boundary: \`RESEARCH_ONLY\`
+
+          The repository seal was recorded, but complete durable authorization evidence was not produced. Fresh final evaluation remains prohibited."
+          gh api --method PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${COMMENT_ID}" -f body="${BODY}" > /dev/null
+          mkdir -p "${OUTPUT_ROOT}/data/historical-validation/repository-seal"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path(os.environ["OUTPUT_ROOT"]) / "data" / "historical-validation" / "repository-seal" / "authorization-inconclusive.json"
+          path.write_text(json.dumps({
+              "classification": "INCONCLUSIVE",
+              "pre_final_id": os.environ["PRE_FINAL_ID"],
+              "reason": "repository seal exists but durable authorization did not complete",
+              "schema_version": "sealed-authorization-interruption-v1",
+          }, separators=(",", ":"), sort_keys=True) + "\n")
+          PY
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: sealed-final-access-${{ github.run_id }}
           path: ${{ runner.temp }}/sealed-output/
@@ -357,19 +395,19 @@ jobs:
             --pre-final-id "${{ needs.prepare.outputs.pre_final_id }}" \
             --receipt-id "${{ needs.authorize-final.outputs.receipt_id }}" \
             --project-root "${GITHUB_WORKSPACE}" \
-            --output-root "${OUTPUT_ROOT}" | tee finalize.json
+            --output-root "${OUTPUT_ROOT}" | tee "${RUNNER_TEMP}/finalize.json"
       - name: Replay and independently verify completed study
         if: steps.finalize.outcome == 'success'
         run: |
-          STUDY_ID="$(python -c 'import json; print(json.load(open("finalize.json"))["study_id"])')"
+          STUDY_ID="$(python -c 'import json,os; from pathlib import Path; print(json.loads((Path(os.environ["RUNNER_TEMP"]) / "finalize.json").read_text())["study_id"])')"
           uv run gemini-trading research strategy-replay \
             --study-id "${STUDY_ID}" \
             --project-root "${GITHUB_WORKSPACE}" \
-            --output-root "${OUTPUT_ROOT}" | tee replay.json
+            --output-root "${OUTPUT_ROOT}" | tee "${RUNNER_TEMP}/replay.json"
           uv run gemini-trading research strategy-verify \
             --study-id "${STUDY_ID}" \
             --project-root "${GITHUB_WORKSPACE}" \
-            --output-root "${OUTPUT_ROOT}" | tee verify.json
+            --output-root "${OUTPUT_ROOT}" | tee "${RUNNER_TEMP}/verify.json"
       - name: Record inconclusive interrupted completion
         if: failure()
         env:
@@ -395,9 +433,9 @@ jobs:
           name: sealed-candidate-study-${{ github.run_id }}
           path: |
             ${{ runner.temp }}/sealed-output/
-            finalize.json
-            replay.json
-            verify.json
+            ${{ runner.temp }}/finalize.json
+            ${{ runner.temp }}/replay.json
+            ${{ runner.temp }}/verify.json
           if-no-files-found: error
           retention-days: 90
           compression-level: 6

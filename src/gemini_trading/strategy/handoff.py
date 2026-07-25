@@ -118,7 +118,9 @@ def build_artifact_inventory(
         try:
             candidate.relative_to(root_resolved)
         except ValueError:
-            raise HistoricalValidationError("artifact-relative path escaped artifact root") from None
+            raise HistoricalValidationError(
+                "artifact-relative path escaped artifact root"
+            ) from None
         try:
             content = candidate.read_bytes()
         except OSError:
@@ -216,7 +218,9 @@ class DatasetHandoffManifest:
             raise DatasetHandoffError("dataset handoff is not verified")
         if not self.files:
             raise DatasetHandoffError("dataset handoff file inventory is empty")
-        if tuple(item.path for item in self.files) != tuple(sorted(item.path for item in self.files)):
+        if tuple(item.path for item in self.files) != tuple(
+            sorted(item.path for item in self.files)
+        ):
             raise DatasetHandoffError("dataset handoff file inventory is not sorted")
         if len({item.path for item in self.files}) != len(self.files):
             raise DatasetHandoffError("duplicate artifact-relative path")

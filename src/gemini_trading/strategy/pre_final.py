@@ -16,7 +16,11 @@ from gemini_trading.data.storage.local_immutable import write_immutable
 from gemini_trading.research.serialization import canonical_json_bytes, canonical_jsonl_bytes
 from gemini_trading.strategy.errors import PreFinalArtifactError
 from gemini_trading.strategy.handoff import DatasetHandoffManifest
-from gemini_trading.strategy.study import REQUIRED_DEVELOPMENT_CASE_IDS, StudyCaseEvidence, StudyPhase
+from gemini_trading.strategy.study import (
+    REQUIRED_DEVELOPMENT_CASE_IDS,
+    StudyCaseEvidence,
+    StudyPhase,
+)
 
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 _GIT_COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
@@ -31,7 +35,9 @@ REQUIRED_PRE_FINAL_NAMES = (
     "pre-final-result-manifest.json",
     "split-plan.json",
 )
-_CORE_NAMES = tuple(name for name in REQUIRED_PRE_FINAL_NAMES if name != "pre-final-result-manifest.json")
+_CORE_NAMES = tuple(
+    name for name in REQUIRED_PRE_FINAL_NAMES if name != "pre-final-result-manifest.json"
+)
 
 
 def _sha256_bytes(content: bytes) -> str:
@@ -103,9 +109,7 @@ def _validate_development_records(records: tuple[StudyCaseEvidence, ...]) -> Non
         records_for_fold = grouped[fold_number]
         case_ids = tuple(item.case_id for item in records_for_fold)
         if len(case_ids) != len(expected) or set(case_ids) != expected:
-            raise PreFinalArtifactError(
-                f"incomplete development evidence for fold {fold_number}"
-            )
+            raise PreFinalArtifactError(f"incomplete development evidence for fold {fold_number}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -176,9 +180,7 @@ def build_pre_final_artifacts(
         "pre-final-manifest.json": manifest_bytes,
         "split-plan.json": split_plan_bytes,
     }
-    artifact_hashes = tuple(
-        sorted((name, _sha256_bytes(core_files[name])) for name in _CORE_NAMES)
-    )
+    artifact_hashes = tuple(sorted((name, _sha256_bytes(core_files[name])) for name in _CORE_NAMES))
     result_manifest = canonical_json_bytes(
         {
             "schema_version": _PRE_FINAL_RESULT_SCHEMA,
@@ -212,7 +214,9 @@ class LocalPreFinalStore:
             try:
                 write_immutable(path, content)
             except RawStorageConflictError:
-                raise PreFinalArtifactError(f"immutable pre-final artifact conflicts: {name}") from None
+                raise PreFinalArtifactError(
+                    f"immutable pre-final artifact conflicts: {name}"
+                ) from None
             paths.append((name, path))
         return tuple(paths)
 
@@ -353,9 +357,7 @@ def verify_pre_final_artifacts(
         manifest, "configuration_sha256"
     ):
         raise PreFinalArtifactError("pre-final configuration hash mismatch")
-    if _sha256_bytes(file_map["split-plan.json"]) != _required_str(
-        manifest, "split_plan_sha256"
-    ):
+    if _sha256_bytes(file_map["split-plan.json"]) != _required_str(manifest, "split_plan_sha256"):
         raise PreFinalArtifactError("pre-final split-plan hash mismatch")
 
     records = _records_from_bytes(file_map["development-experiments.jsonl"])
@@ -385,7 +387,10 @@ def verify_pre_final_artifacts(
         development_records=records,
     )
     rebuilt_id = _sha256_bytes(canonical_json_bytes(identity))
-    if rebuilt_id != artifacts.pre_final_id or _required_str(manifest, "pre_final_id") != rebuilt_id:
+    if (
+        rebuilt_id != artifacts.pre_final_id
+        or _required_str(manifest, "pre_final_id") != rebuilt_id
+    ):
         raise PreFinalArtifactError("pre-final identity mismatch")
     return (
         "pre_final_files_verified",

@@ -84,7 +84,10 @@ class DurableFinalAccessReceipt:
         if self.evaluation_count != 1:
             raise FinalAccessError("final-access receipt must record exactly one evaluation")
         _sha256(self.receipt_id, "receipt ID")
-        if _receipt_id(self.schema_version, self.identity, self.evaluation_count) != self.receipt_id:
+        if (
+            _receipt_id(self.schema_version, self.identity, self.evaluation_count)
+            != self.receipt_id
+        ):
             raise FinalAccessError("final-access receipt identity mismatch")
 
 

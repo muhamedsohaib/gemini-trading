@@ -8,6 +8,24 @@ permissions:
   contents: read
 
 jobs:
+  runner-smoke:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Confirm runner allocation
+        run: echo "runner-started"
+
+  github-owned-action-smoke:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          ref: db065cc5052319704257cc590b6c60209143d54e
+          fetch-depth: 0
+      - name: Confirm exact reviewed head
+        run: |
+          test "$(git rev-parse HEAD)" = "db065cc5052319704257cc590b6c60209143d54e"
+          test -z "$(git status --porcelain)"
+
   exact-head-quality:
     runs-on: ubuntu-22.04
     steps:

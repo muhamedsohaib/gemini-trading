@@ -19,6 +19,7 @@ from gemini_trading.strategy.handoff import ArtifactInventoryEntry, build_artifa
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 _GIT_COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 _RECEIPT_SCHEMA = "durable-final-access-v1"
+_SEAL_SCHEMA = "durable-final-seal-v1"
 _IDENTITY_FIELDS = {
     "code_commit",
     "dataset_id",
@@ -29,7 +30,16 @@ _IDENTITY_FIELDS = {
     "workflow_run_id",
     "workflow_run_attempt",
 }
+_STABLE_IDENTITY_FIELDS = {
+    "code_commit",
+    "dataset_id",
+    "configuration_sha256",
+    "policy_sha256",
+    "split_plan_sha256",
+    "pre_final_id",
+}
 _RECEIPT_FIELDS = {"schema_version", "identity", "evaluation_count", "receipt_id"}
+_SEAL_FIELDS = {"schema_version", "identity", "seal_id", "receipt_id"}
 
 
 def _sha256(value: str, field_name: str) -> str:
@@ -119,6 +129,17 @@ def _identity_payload(identity: FinalAccessIdentity) -> dict[str, object]:
     }
 
 
+def _stable_identity_payload(identity: FinalAccessIdentity) -> dict[str, object]:
+    return {
+        "code_commit": identity.code_commit,
+        "dataset_id": identity.dataset_id,
+        "configuration_sha256": identity.configuration_sha256,
+        "policy_sha256": identity.policy_sha256,
+        "split_plan_sha256": identity.split_plan_sha256,
+        "pre_final_id": identity.pre_final_id,
+    }
+
+
 def _receipt_core_payload(
     schema_version: str,
     identity: FinalAccessIdentity,
@@ -141,6 +162,12 @@ def _receipt_id(
     ).hexdigest()
 
 
+def final_access_seal_id(identity: FinalAccessIdentity) -> str:
+    """Return the stable run-independent identity of one sealed final evaluation."""
+
+    return hashlib.sha256(canonical_json_bytes(_stable_identity_payload(identity))).hexdigest()
+
+
 def serialize_receipt(receipt: DurableFinalAccessReceipt) -> bytes:
     """Serialize one receipt using exact canonical JSON bytes."""
 
@@ -151,6 +178,17 @@ def serialize_receipt(receipt: DurableFinalAccessReceipt) -> bytes:
                 receipt.identity,
                 receipt.evaluation_count,
             ),
+            "receipt_id": receipt.receipt_id,
+        }
+    )
+
+
+def _seal_bytes(receipt: DurableFinalAccessReceipt) -> bytes:
+    return canonical_json_bytes(
+        {
+            "schema_version": _SEAL_SCHEMA,
+            "identity": _stable_identity_payload(receipt.identity),
+            "seal_id": final_access_seal_id(receipt.identity),
             "receipt_id": receipt.receipt_id,
         }
     )
@@ -213,6 +251,27 @@ def load_receipt(raw: bytes) -> DurableFinalAccessReceipt:
     return receipt
 
 
+def _verify_seal(raw: bytes, receipt: DurableFinalAccessReceipt) -> None:
+    try:
+        loaded: object = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        raise FinalAccessError("invalid final-access seal JSON") from None
+    mapping = _mapping(loaded, "final-access seal")
+    if set(mapping) != _SEAL_FIELDS:
+        raise FinalAccessError("invalid final-access seal fields")
+    identity = _mapping(mapping.get("identity"), "final-access seal identity")
+    if set(identity) != _STABLE_IDENTITY_FIELDS:
+        raise FinalAccessError("invalid final-access seal identity fields")
+    if identity != _stable_identity_payload(receipt.identity):
+        raise FinalAccessError("final-access seal identity mismatch")
+    if _string(mapping, "seal_id") != final_access_seal_id(receipt.identity):
+        raise FinalAccessError("final-access seal ID mismatch")
+    if _string(mapping, "receipt_id") != receipt.receipt_id:
+        raise FinalAccessError("final-access seal receipt mismatch")
+    if canonical_json_bytes(mapping) != raw:
+        raise FinalAccessError("final-access seal encoding is not canonical")
+
+
 @dataclass(frozen=True, slots=True)
 class FinalAccessStore:
     """Filesystem store that prohibits repeated final authorization."""
@@ -225,15 +284,21 @@ class FinalAccessStore:
     def _base(self) -> Path:
         return self.root / "data" / "historical-validation" / "final-access"
 
-    def _directory(self, receipt_id: str) -> Path:
+    def _receipt_directory(self, receipt_id: str) -> Path:
         _sha256(receipt_id, "receipt ID")
-        return self._base() / receipt_id
+        return self._base() / "receipts" / receipt_id
 
-    def _path(self, receipt_id: str) -> Path:
-        return self._directory(receipt_id) / "final-access-receipt.json"
+    def _receipt_path(self, receipt_id: str) -> Path:
+        return self._receipt_directory(receipt_id) / "final-access-receipt.json"
+
+    def _seal_directory(self, identity: FinalAccessIdentity) -> Path:
+        return self._base() / "seals" / final_access_seal_id(identity)
+
+    def _seal_path(self, identity: FinalAccessIdentity) -> Path:
+        return self._seal_directory(identity) / "final-access-seal.json"
 
     def authorize(self, identity: FinalAccessIdentity) -> DurableFinalAccessReceipt:
-        """Persist the receipt before any final rows may be materialized."""
+        """Persist a stable seal and receipt before final rows may be materialized."""
 
         receipt_id = _receipt_id(_RECEIPT_SCHEMA, identity, 1)
         receipt = DurableFinalAccessReceipt(
@@ -242,29 +307,42 @@ class FinalAccessStore:
             evaluation_count=1,
             receipt_id=receipt_id,
         )
-        directory = self._directory(receipt_id)
-        directory.parent.mkdir(parents=True, exist_ok=True)
+        seal_directory = self._seal_directory(identity)
+        seal_directory.parent.mkdir(parents=True, exist_ok=True)
         try:
-            directory.mkdir(exist_ok=False)
+            seal_directory.mkdir(exist_ok=False)
+        except FileExistsError:
+            raise FinalAccessError("final-test access seal already exists") from None
+        write_immutable(self._seal_path(identity), _seal_bytes(receipt))
+
+        receipt_directory = self._receipt_directory(receipt_id)
+        receipt_directory.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            receipt_directory.mkdir(exist_ok=False)
         except FileExistsError:
             raise FinalAccessError("final-test access receipt already exists") from None
         try:
-            write_immutable(self._path(receipt_id), serialize_receipt(receipt))
+            write_immutable(self._receipt_path(receipt_id), serialize_receipt(receipt))
         except Exception:
-            # The directory remains as fail-closed evidence of a consumed authorization attempt.
+            # The stable seal remains as fail-closed evidence of consumed authorization.
             raise
         return receipt
 
     def load(self, receipt_id: str) -> DurableFinalAccessReceipt:
-        """Load and independently validate one canonical receipt."""
+        """Load and independently validate one canonical receipt and stable seal."""
 
         try:
-            raw = self._path(receipt_id).read_bytes()
+            raw = self._receipt_path(receipt_id).read_bytes()
         except OSError:
             raise FinalAccessError("final-test access receipt is missing") from None
         receipt = load_receipt(raw)
         if receipt.receipt_id != receipt_id:
             raise FinalAccessError("final-test access receipt path mismatch")
+        try:
+            seal_raw = self._seal_path(receipt.identity).read_bytes()
+        except OSError:
+            raise FinalAccessError("final-test access seal is missing") from None
+        _verify_seal(seal_raw, receipt)
         return receipt
 
     def require(
@@ -333,6 +411,7 @@ __all__ = [
     "ResumeDecision",
     "assess_exact_resume",
     "authorize_then_load_final",
+    "final_access_seal_id",
     "load_receipt",
     "serialize_receipt",
 ]

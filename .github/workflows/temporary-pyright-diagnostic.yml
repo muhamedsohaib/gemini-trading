@@ -6,7 +6,6 @@ on:
 
 permissions:
   contents: read
-  issues: write
 
 jobs:
   diagnose:
@@ -20,38 +19,14 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync --all-groups --frozen
-      - name: Post concise Pyright output
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Capture Pyright output
         run: |
           set +e
           uv run pyright > "${RUNNER_TEMP}/pyright.txt" 2>&1
-          STATUS=$?
-          export STATUS
-          python - <<'PY'
-          import json
-          import os
-          import subprocess
-          from pathlib import Path
-
-          output = (Path(os.environ["RUNNER_TEMP"]) / "pyright.txt").read_text()
-          body = (
-              "<!-- temporary-pyright-diagnostic -->\n"
-              f"Pyright exit status: `{os.environ['STATUS']}`\n\n"
-              "```text\n"
-              f"{output[-12000:]}"
-              "\n```"
-          )
-          subprocess.run(
-              [
-                  "gh",
-                  "api",
-                  "--method",
-                  "POST",
-                  f"repos/{os.environ['GITHUB_REPOSITORY']}/issues/23/comments",
-                  "-f",
-                  f"body={body}",
-              ],
-              check=True,
-          )
-          PY
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: temporary-pyright-diagnostic-${{ github.sha }}
+          path: ${{ runner.temp }}/pyright.txt
+          if-no-files-found: error
+          retention-days: 1

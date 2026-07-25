@@ -1,4 +1,4 @@
-name: Temporary Sealed Test Diagnostic
+name: Temporary Sealed Source Snapshot
 
 on:
   pull_request:
@@ -8,25 +8,17 @@ permissions:
   contents: read
 
 jobs:
-  diagnose:
+  snapshot:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2
-      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
-        with:
-          version: "0.11.25"
-      - uses: actions/setup-python@v6.2.0
-        with:
-          python-version: "3.12"
-      - run: uv sync --all-groups --frozen
-      - name: Capture focused pytest output
-        run: |
-          set +e
-          uv run pytest tests/integration/test_sealed_historical_validation.py::test_prepare_does_not_materialize_final_phase -q > "${RUNNER_TEMP}/focused-test.txt" 2>&1
-          exit 0
       - uses: actions/upload-artifact@v4
         with:
-          name: temporary-sealed-test-diagnostic-${{ github.sha }}
-          path: ${{ runner.temp }}/focused-test.txt
+          name: temporary-sealed-source-${{ github.sha }}
+          path: |
+            src/
+            tests/
+            .github/workflows/sealed-btcusdt-dataset.yml
+            .github/workflows/sealed-btcusdt-study.yml
           if-no-files-found: error
           retention-days: 1

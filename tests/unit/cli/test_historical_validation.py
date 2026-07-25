@@ -133,14 +133,14 @@ def test_resume_rejects_receipt_not_bound_to_study(
             assert name == "study-manifest.json"
             return b"manifest"
 
+    def parsed_manifest(raw: bytes) -> argparse.Namespace:
+        assert raw == b"manifest"
+        return argparse.Namespace(durable_final_access_receipt_id="c" * 64)
+
     monkeypatch.setattr(historical_validation, "load_runtime_policy", lambda: None)
     monkeypatch.setattr(historical_validation, "FinalAccessStore", ReceiptStore)
     monkeypatch.setattr(historical_validation, "LocalStrategyStudyStore", StudyStore)
-    monkeypatch.setattr(
-        historical_validation,
-        "parse_study_manifest",
-        lambda raw: argparse.Namespace(durable_final_access_receipt_id="c" * 64),
-    )
+    monkeypatch.setattr(historical_validation, "parse_study_manifest", parsed_manifest)
 
     with pytest.raises(CliUsageError, match="receipt does not match strategy study"):
         run_historical_validation(

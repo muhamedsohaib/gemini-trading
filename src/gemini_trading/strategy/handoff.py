@@ -94,6 +94,7 @@ def validate_artifact_relative_path(value: str) -> str:
     path = PurePosixPath(value)
     if (
         not value
+        or value != path.as_posix()
         or "\\" in value
         or path.is_absolute()
         or any(part in {"", ".", ".."} for part in path.parts)

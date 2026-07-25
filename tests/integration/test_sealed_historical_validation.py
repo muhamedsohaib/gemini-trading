@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from datetime import timedelta
 from decimal import Decimal
 from pathlib import Path
 from typing import cast
@@ -48,7 +49,7 @@ def _verified_dataset(root: Path) -> VerifiedDataset:
         instrument=candles[0].instrument,
         timeframe=candles[0].timeframe,
         start_time=candles[0].open_time,
-        end_time=candles[-1].close_time.replace(microsecond=0),
+        end_time=candles[-1].close_time + timedelta(milliseconds=1),
         candles=candles,
         canonical_bytes=canonical_bytes,
     )

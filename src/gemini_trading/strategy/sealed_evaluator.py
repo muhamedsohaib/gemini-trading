@@ -19,7 +19,11 @@ from gemini_trading.strategy.artifacts import (
     build_study_artifacts,
 )
 from gemini_trading.strategy.baselines import build_baseline_schedules
-from gemini_trading.strategy.errors import FinalAccessError, PreFinalArtifactError, StudyArtifactError
+from gemini_trading.strategy.errors import (
+    FinalAccessError,
+    PreFinalArtifactError,
+    StudyArtifactError,
+)
 from gemini_trading.strategy.features import FeatureMatrix, FeatureRegistry
 from gemini_trading.strategy.final_access import DurableFinalAccessReceipt, FinalAccessIdentity
 from gemini_trading.strategy.handoff import DatasetHandoffManifest
@@ -402,9 +406,7 @@ def _payloads(
             "maximum_lookback_candles": preparation.registry.maximum_lookback_candles,
             "definitions": [asdict(item) for item in preparation.registry.definitions],
             "trend_feature_names": list(preparation.registry.trend_feature_names),
-            "mean_reversion_feature_names": list(
-                preparation.registry.mean_reversion_feature_names
-            ),
+            "mean_reversion_feature_names": list(preparation.registry.mean_reversion_feature_names),
             "regime_feature_names": list(preparation.registry.regime_feature_names),
         },
         "feature-matrix.jsonl": [

@@ -40,6 +40,11 @@ from gemini_trading.strategy.study_strategy import (
     ReplayableStudyStrategy,
     reconstruct_study_strategy,
 )
+from gemini_trading.strategy.sealed_evaluator import (
+    complete_candidate_strategy_study,
+    final_access_identity,
+    prepare_candidate_strategy_study,
+)
 
 
 def _canonical_mapping(raw: bytes) -> dict[str, object]:
@@ -256,6 +261,9 @@ def evaluate_candidate_strategy_study(
 
 __all__ = [
     "ReplayableStudyStrategy",
+    "complete_candidate_strategy_study",
     "evaluate_candidate_strategy_study",
+    "final_access_identity",
+    "prepare_candidate_strategy_study",
     "reconstruct_study_strategy",
 ]

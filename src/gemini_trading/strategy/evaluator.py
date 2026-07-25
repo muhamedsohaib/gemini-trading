@@ -22,6 +22,11 @@ from gemini_trading.strategy.errors import StudyArtifactError
 from gemini_trading.strategy.features import FeatureRegistry
 from gemini_trading.strategy.labels import LabelPolicy
 from gemini_trading.strategy.policy import CandidatePolicy, serialize_candidate_policy
+from gemini_trading.strategy.sealed_evaluator import (
+    complete_candidate_strategy_study,
+    final_access_identity,
+    prepare_candidate_strategy_study,
+)
 from gemini_trading.strategy.study import (
     REQUIRED_FINAL_CASE_IDS,
     StrategyStudyRunner,
@@ -39,11 +44,6 @@ from gemini_trading.strategy.study_predictions import PredictionBundle, fit_pred
 from gemini_trading.strategy.study_strategy import (
     ReplayableStudyStrategy,
     reconstruct_study_strategy,
-)
-from gemini_trading.strategy.sealed_evaluator import (
-    complete_candidate_strategy_study,
-    final_access_identity,
-    prepare_candidate_strategy_study,
 )
 
 

@@ -25,12 +25,17 @@
 - Durable final-test access receipt and exact-resume decision: implemented
 - Immutable development-only pre-final evidence: implemented
 - Operational evaluator phase separation and integration coverage: implemented
+- Development feature, label, baseline, and simulator evidence restricted before the final-test boundary: implemented and focused-regression verified
+- Study replay strategies bind deterministic evaluation end boundaries: implemented
+- Windowed buy-and-hold and already-long baseline state reconstruction: implemented
+- Resume receipt-to-study identity binding: implemented
 - Fixed-scope historical-validation CLI: implemented
 - Manual Stage 1 and Stage 2 workflows with artifact barriers: implemented
 - Owner-authenticated dataset approval and bot-authenticated cross-run final seal: implemented
 - Stable run-independent local final-access seal: implemented
 - Extended provider-free replay and sealed evidence-chain verification: implemented
 - Synthetic end-to-end acceptance and operator documentation: implemented
+- Temporary implementation and diagnostic workflows: removed
 - Exact-head cumulative CI and final review: pending
 
 Generated raw data, canonical datasets, repository-seal receipts, stable local seals, final-access receipts, pre-final evidence, and full strategy studies remain excluded from tracked repository files.

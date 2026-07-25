@@ -15,6 +15,7 @@ from gemini_trading.data.verification.service import VerificationService
 from gemini_trading.research.dataset_reader import load_verified_dataset
 from gemini_trading.research.replay import resolve_clean_git_commit
 from gemini_trading.safety.execution_mode import load_runtime_policy
+from gemini_trading.strategy.artifacts import LocalStrategyStudyStore
 from gemini_trading.strategy.final_access import FinalAccessIdentity, FinalAccessStore
 from gemini_trading.strategy.handoff import (
     DatasetHandoffManifest,
@@ -29,6 +30,7 @@ from gemini_trading.strategy.pre_final import (
     PreFinalArtifacts,
     verify_pre_final_artifacts,
 )
+from gemini_trading.strategy.replay import parse_study_manifest
 from gemini_trading.strategy.sealed_evaluator import (
     complete_candidate_strategy_study,
     prepare_candidate_strategy_study,
@@ -293,7 +295,12 @@ def _strategy_resume(arguments: argparse.Namespace) -> dict[str, object]:
     receipt_id = _sha256_argument(arguments, "receipt_id")
     project_root = _root(arguments, "project_root")
     output_root = _root(arguments, "output_root")
-    FinalAccessStore(output_root).load(receipt_id)
+    receipt = FinalAccessStore(output_root).load(receipt_id)
+    manifest = parse_study_manifest(
+        LocalStrategyStudyStore(output_root).read_artifact(study_id, "study-manifest.json")
+    )
+    if manifest.durable_final_access_receipt_id != receipt.receipt_id:
+        raise CliUsageError("receipt does not match strategy study")
     result = StrategyStudyVerificationService(
         root=output_root,
         current_commit_resolver=lambda: resolve_clean_git_commit(project_root),

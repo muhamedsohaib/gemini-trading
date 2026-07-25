@@ -34,6 +34,7 @@ class ReplayableStudyStrategy:
     quantity_step: Decimal
     minimum_quantity: Decimal
     minimum_notional: Decimal
+    evaluation_end_exclusive: int | None = None
     production_eligible: bool = field(default=False, init=False)
 
     def __post_init__(self) -> None:
@@ -43,6 +44,11 @@ class ReplayableStudyStrategy:
         indexes = tuple(index for index, _ in self.events)
         if indexes != tuple(sorted(indexes)) or len(indexes) != len(set(indexes)):
             raise ValueError("scheduled strategy events must be unique and ordered")
+        if self.evaluation_end_exclusive is not None:
+            if isinstance(self.evaluation_end_exclusive, bool) or self.evaluation_end_exclusive < 1:
+                raise ValueError("evaluation_end_exclusive must be positive")
+            if indexes and indexes[-1] >= self.evaluation_end_exclusive:
+                raise ValueError("scheduled event exceeds evaluation boundary")
         for value, field_name in (
             (self.quantity_step, "quantity_step"),
             (self.minimum_quantity, "minimum_quantity"),
@@ -67,6 +73,12 @@ class ReplayableStudyStrategy:
         )
         return (
             ("case_id", self.case_id),
+            (
+                "evaluation_end_exclusive",
+                "full"
+                if self.evaluation_end_exclusive is None
+                else str(self.evaluation_end_exclusive),
+            ),
             ("events", event_payload),
             ("minimum_notional", format(self.minimum_notional, "f")),
             ("minimum_quantity", format(self.minimum_quantity, "f")),
@@ -124,6 +136,7 @@ def reconstruct_study_strategy(manifest: ExperimentManifest) -> ReplayableStudyS
     configuration = dict(manifest.strategy_config)
     expected = {
         "case_id",
+        "evaluation_end_exclusive",
         "events",
         "minimum_notional",
         "minimum_quantity",
@@ -161,6 +174,8 @@ def reconstruct_study_strategy(manifest: ExperimentManifest) -> ReplayableStudyS
             if isinstance(index, bool) or not isinstance(index, int) or not isinstance(action, str):
                 raise ValueError
             events.append((index, ScheduledAction(action)))
+        raw_boundary = configuration["evaluation_end_exclusive"]
+        evaluation_end_exclusive = None if raw_boundary == "full" else int(raw_boundary)
         strategy = ReplayableStudyStrategy(
             strategy_id_value=manifest.strategy_id,
             case_id=configuration["case_id"],
@@ -168,6 +183,7 @@ def reconstruct_study_strategy(manifest: ExperimentManifest) -> ReplayableStudyS
             quantity_step=Decimal(configuration["quantity_step"]),
             minimum_quantity=Decimal(configuration["minimum_quantity"]),
             minimum_notional=Decimal(configuration["minimum_notional"]),
+            evaluation_end_exclusive=evaluation_end_exclusive,
         )
     except (KeyError, ValueError, ArithmeticError):
         raise ReplayMismatchError("strategy study experiment reconstruction failed") from None

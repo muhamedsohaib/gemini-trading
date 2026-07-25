@@ -27,8 +27,10 @@
 - Operational evaluator phase separation and integration coverage: implemented
 - Fixed-scope historical-validation CLI: implemented
 - Manual Stage 1 and Stage 2 workflows with artifact barriers: implemented
+- Owner-authenticated dataset approval and bot-authenticated cross-run final seal: implemented
+- Stable run-independent local final-access seal: implemented
 - Extended provider-free replay and sealed evidence-chain verification: implemented
 - Synthetic end-to-end acceptance and operator documentation: implemented
 - Exact-head cumulative CI and final review: pending
 
-Generated raw data, canonical datasets, final-access receipts, pre-final evidence, and full strategy studies remain excluded from tracked repository files.
+Generated raw data, canonical datasets, repository-seal receipts, stable local seals, final-access receipts, pre-final evidence, and full strategy studies remain excluded from tracked repository files.

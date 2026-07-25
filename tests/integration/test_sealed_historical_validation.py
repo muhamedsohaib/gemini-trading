@@ -93,14 +93,7 @@ def _handoff(root: Path, dataset_id: str) -> DatasetHandoffManifest:
         files=files,
         inventory_root_sha256=inventory_root_sha256(files),
     )
-    path = (
-        root
-        / "data"
-        / "historical-validation"
-        / "handoff"
-        / dataset_id
-        / "dataset-handoff.json"
-    )
+    path = root / "data" / "historical-validation" / "handoff" / dataset_id / "dataset-handoff.json"
     write_immutable(path, serialize_dataset_handoff(handoff))
     return handoff
 

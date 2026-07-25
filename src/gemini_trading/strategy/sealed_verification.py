@@ -65,12 +65,7 @@ def verify_sealed_evidence_chain(
     )
     dataset_id = _required_str(pre_final_manifest, "dataset_id", "pre-final manifest")
     handoff_path = (
-        root
-        / "data"
-        / "historical-validation"
-        / "handoff"
-        / dataset_id
-        / "dataset-handoff.json"
+        root / "data" / "historical-validation" / "handoff" / dataset_id / "dataset-handoff.json"
     )
     try:
         handoff = load_dataset_handoff(handoff_path.read_bytes())

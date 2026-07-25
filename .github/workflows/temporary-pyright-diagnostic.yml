@@ -1,0 +1,57 @@
+name: Temporary Pyright Diagnostic
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.11.25"
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - name: Post concise Pyright output
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          uv run pyright > "${RUNNER_TEMP}/pyright.txt" 2>&1
+          STATUS=$?
+          export STATUS
+          python - <<'PY'
+          import json
+          import os
+          import subprocess
+          from pathlib import Path
+
+          output = (Path(os.environ["RUNNER_TEMP"]) / "pyright.txt").read_text()
+          body = (
+              "<!-- temporary-pyright-diagnostic -->\n"
+              f"Pyright exit status: `{os.environ['STATUS']}`\n\n"
+              "```text\n"
+              f"{output[-12000:]}"
+              "\n```"
+          )
+          subprocess.run(
+              [
+                  "gh",
+                  "api",
+                  "--method",
+                  "POST",
+                  f"repos/{os.environ['GITHUB_REPOSITORY']}/issues/23/comments",
+                  "-f",
+                  f"body={body}",
+              ],
+              check=True,
+          )
+          PY

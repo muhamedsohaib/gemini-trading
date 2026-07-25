@@ -15,7 +15,10 @@ jobs:
       - name: Capture failed CI log
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh run view 30164409124 --repo "${GITHUB_REPOSITORY}" --log-failed > "${RUNNER_TEMP}/failed-ci.txt"
+        run: |
+          set +e
+          gh run view 30164409124 --repo "${GITHUB_REPOSITORY}" --log-failed > "${RUNNER_TEMP}/failed-ci.txt" 2>&1
+          exit 0
       - uses: actions/upload-artifact@v4
         with:
           name: temporary-failed-ci-${{ github.sha }}

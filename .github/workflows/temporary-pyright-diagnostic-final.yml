@@ -1,0 +1,34 @@
+name: Temporary Pyright diagnostic final
+
+on:
+  push:
+    branches: [research/sealed-btcusdt-historical-validation]
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          ref: research/sealed-btcusdt-historical-validation
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.11.25"
+          enable-cache: true
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - name: Capture diagnostics and remove workflow
+        run: |
+          uv run pyright > reports/verification/sealed-validation-pyright-final.txt 2>&1 || true
+          git rm .github/workflows/temporary-pyright-diagnostic-final.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: capture final sealed validation Pyright diagnostics"
+          git push origin HEAD:research/sealed-btcusdt-historical-validation

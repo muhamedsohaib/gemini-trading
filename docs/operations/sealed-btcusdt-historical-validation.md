@@ -2,7 +2,7 @@
 
 ## Safety and authority
 
-This procedure is `RESEARCH_ONLY`. It uses public Binance Spot market data and has no credentials, private endpoints, exchange-order submission, paper brokerage, demo or live authority, leverage, futures, shorting, portfolio allocation, or real-capital authorization.
+This procedure is `RESEARCH_ONLY`. It uses public Binance Spot market data. It has no credentials and no real-capital authorization. It has no private endpoints, exchange-order submission, paper brokerage, demo or live authority, leverage, futures, shorting, or portfolio allocation.
 
 A historical `PASS` is evidence for a separate paper-trading design review only. It does not prove future profitability and does not promote the Candidate automatically. `REJECTED` and `INCONCLUSIVE` are valid final outcomes.
 

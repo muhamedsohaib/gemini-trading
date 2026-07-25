@@ -25,8 +25,9 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync --all-groups --frozen
-      - name: Assert exact clean commit
+      - name: Assert exact clean merged-main commit
         run: |
+          test "${GITHUB_REF_NAME}" = "main"
           test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
           test -z "$(git status --porcelain)"
       - name: Ingest fixed BTCUSDT history

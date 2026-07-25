@@ -12,7 +12,7 @@ jobs:
     timeout-minutes: 90
     env:
       GEMINI_TRADING_MODE: research
-      OUTPUT_ROOT: ${{ github.workspace }}/sealed-output
+      OUTPUT_ROOT: ${{ runner.temp }}/sealed-output
     steps:
       - uses: actions/checkout@v6.0.2
         with:
@@ -70,13 +70,12 @@ jobs:
             --workflow-run-id "${GITHUB_RUN_ID}" \
             --workflow-run-attempt "${GITHUB_RUN_ATTEMPT}" \
             --output-root "${OUTPUT_ROOT}" | tee handoff.json
-      - name: Assert output is untracked
-        run: |
-          test -z "$(git status --porcelain)"
+      - name: Assert worktree stayed clean
+        run: test -z "$(git status --porcelain)"
       - uses: actions/upload-artifact@v4
         with:
           name: sealed-btcusdt-dataset-${{ github.sha }}-${{ github.run_id }}
-          path: sealed-output/
+          path: ${{ runner.temp }}/sealed-output/
           if-no-files-found: error
           retention-days: 90
           compression-level: 6

@@ -1,0 +1,213 @@
+name: Temporary extend sealed verification
+
+on:
+  push:
+    branches: [research/sealed-btcusdt-historical-validation]
+
+permissions:
+  contents: write
+
+jobs:
+  extend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          ref: research/sealed-btcusdt-historical-validation
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.11.25"
+          enable-cache: true
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - name: Extend replay and verification
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          replay = Path('src/gemini_trading/strategy/replay.py')
+          text = replay.read_text()
+          old = '''_STUDY_MANIFEST_KEYS = {
+              "schema_version",
+              "study_id",
+              "split_plan_sha256",
+              "policy_sha256",
+              "configuration_sha256",
+              "code_commit",
+              "final_test_receipt_id",
+              "final_evaluation_count",
+          }
+          '''
+          new = '''_LEGACY_STUDY_MANIFEST_KEYS = {
+              "schema_version",
+              "study_id",
+              "split_plan_sha256",
+              "policy_sha256",
+              "configuration_sha256",
+              "code_commit",
+              "final_test_receipt_id",
+              "final_evaluation_count",
+          }
+          _SEALED_STUDY_MANIFEST_KEYS = {
+              *_LEGACY_STUDY_MANIFEST_KEYS,
+              "pre_final_id",
+              "dataset_handoff_inventory_root",
+              "durable_final_access_receipt_id",
+          }
+          '''
+          if old not in text:
+              raise SystemExit('manifest key block not found')
+          text = text.replace(old, new, 1)
+          old = '''    final_test_receipt_id: str
+              final_evaluation_count: int
+          '''
+          new = '''    final_test_receipt_id: str
+              final_evaluation_count: int
+              pre_final_id: str | None = None
+              dataset_handoff_inventory_root: str | None = None
+              durable_final_access_receipt_id: str | None = None
+          '''
+          if old not in text:
+              raise SystemExit('manifest dataclass block not found')
+          text = text.replace(old, new, 1)
+          old = '''    mapping = _json_object(raw, "strategy study manifest")
+              if set(mapping) != _STUDY_MANIFEST_KEYS:
+                  raise StudyReplayMismatchError("strategy study manifest fields do not match schema")
+          '''
+          new = '''    mapping = _json_object(raw, "strategy study manifest")
+              field_names = set(mapping)
+              if field_names not in {
+                  frozenset(_LEGACY_STUDY_MANIFEST_KEYS),
+                  frozenset(_SEALED_STUDY_MANIFEST_KEYS),
+              }:
+                  raise StudyReplayMismatchError("strategy study manifest fields do not match schema")
+              sealed = field_names == _SEALED_STUDY_MANIFEST_KEYS
+          '''
+          if old not in text:
+              raise SystemExit('manifest parse block not found')
+          text = text.replace(old, new, 1)
+          old = '''        final_evaluation_count=_required_int(
+                  mapping,
+                  "final_evaluation_count",
+                  "strategy study manifest",
+              ),
+          )
+          '''
+          new = '''        final_evaluation_count=_required_int(
+                  mapping,
+                  "final_evaluation_count",
+                  "strategy study manifest",
+              ),
+              pre_final_id=(
+                  _sha256(
+                      _required_str(mapping, "pre_final_id", "strategy study manifest"),
+                      "pre-final identity",
+                  )
+                  if sealed
+                  else None
+              ),
+              dataset_handoff_inventory_root=(
+                  _sha256(
+                      _required_str(
+                          mapping,
+                          "dataset_handoff_inventory_root",
+                          "strategy study manifest",
+                      ),
+                      "dataset handoff inventory root",
+                  )
+                  if sealed
+                  else None
+              ),
+              durable_final_access_receipt_id=(
+                  _sha256(
+                      _required_str(
+                          mapping,
+                          "durable_final_access_receipt_id",
+                          "strategy study manifest",
+                      ),
+                      "durable final-access receipt identity",
+                  )
+                  if sealed
+                  else None
+              ),
+          )
+          '''
+          if old not in text:
+              raise SystemExit('manifest constructor block not found')
+          replay.write_text(text.replace(old, new, 1))
+
+          verification = Path('src/gemini_trading/strategy/verification.py')
+          text = verification.read_text()
+          text = text.replace(
+              'from gemini_trading.strategy.replay import (\n',
+              'from gemini_trading.strategy.replay import (\n',
+              1,
+          )
+          import_marker = '''from gemini_trading.strategy.replay import (
+              SUPPORTED_REPLAY_STRATEGY_IDS,
+              StrategyStudyReplayService,
+              parse_study_case_evidence,
+              validate_replay_strategy_id,
+          )
+          '''
+          import_replacement = import_marker + '''from gemini_trading.strategy.replay import parse_study_manifest
+          from gemini_trading.strategy.sealed_verification import verify_sealed_evidence_chain
+          '''
+          if import_marker not in text:
+              raise SystemExit('verification import marker not found')
+          text = text.replace(import_marker, import_replacement, 1)
+          old = '''        _verify_mandatory_gates(
+                  replayed.artifact_bytes("promotion-gates.json"),
+                  replayed.classification,
+              )
+
+              checks = tuple(
+                  sorted(
+                      {
+          '''
+          new = '''        _verify_mandatory_gates(
+                  replayed.artifact_bytes("promotion-gates.json"),
+                  replayed.classification,
+              )
+              stored_manifest = parse_study_manifest(
+                  replayed.artifact_bytes("study-manifest.json")
+              )
+              sealed_checks = verify_sealed_evidence_chain(
+                  root=self.root,
+                  study_id=study_id,
+                  manifest=stored_manifest,
+              )
+
+              checks = tuple(
+                  sorted(
+                      {
+          '''
+          if old not in text:
+              raise SystemExit('verification checks marker not found')
+          text = text.replace(old, new, 1)
+          old = '''                    "study_result_identity_verified",
+                          }
+                      )
+                  )
+          '''
+          new = '''                    "study_result_identity_verified",
+                              *sealed_checks,
+                          }
+                      )
+                  )
+          '''
+          if old not in text:
+              raise SystemExit('verification check set marker not found')
+          verification.write_text(text.replace(old, new, 1))
+          PY
+          uv run ruff check --fix . || true
+          uv run ruff format .
+          git rm .github/workflows/temporary-extend-sealed-verification.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: verify sealed historical evidence chain"
+          git push origin HEAD:research/sealed-btcusdt-historical-validation

@@ -1,0 +1,24 @@
+name: Temporary Failed Test Diagnostic
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Capture failed CI log
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run view 30164409124 --repo "${GITHUB_REPOSITORY}" --log-failed > "${RUNNER_TEMP}/failed-ci.txt"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: temporary-failed-ci-${{ github.sha }}
+          path: ${{ runner.temp }}/failed-ci.txt
+          if-no-files-found: error
+          retention-days: 1

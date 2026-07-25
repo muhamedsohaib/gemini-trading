@@ -1,0 +1,50 @@
+name: Temporary fix repository seal
+
+on:
+  push:
+    branches: [research/sealed-btcusdt-historical-validation]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          ref: research/sealed-btcusdt-historical-validation
+          fetch-depth: 0
+      - name: Correct repository-seal step
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('.github/workflows/sealed-btcusdt-study.yml')
+          text = path.read_text()
+          old = '''          echo "comment_id=${COMMENT_ID}" >> "${GITHUB_OUTPUT}"
+                    mkdir -p "${OUTPUT_ROOT}/data/historical-validation/repository-seal"
+          '''
+          new = '''          echo "comment_id=${COMMENT_ID}" >> "${GITHUB_OUTPUT}"
+                    export COMMENT_ID
+                    mkdir -p "${OUTPUT_ROOT}/data/historical-validation/repository-seal"
+          '''
+          if old not in text:
+              raise SystemExit('comment export marker not found')
+          text = text.replace(old, new, 1)
+          duplicate = '''        env:
+                    COMMENT_ID: ${{ steps.repository-seal.outputs.comment_id }}
+                - name: Persist final-test access receipt
+          '''
+          replacement = '''      - name: Persist final-test access receipt
+          '''
+          if duplicate not in text:
+              raise SystemExit('duplicate env marker not found')
+          path.write_text(text.replace(duplicate, replacement, 1))
+          PY
+          git rm .github/workflows/temporary-fix-repository-seal.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: correct repository seal workflow step"
+          git push origin HEAD:research/sealed-btcusdt-historical-validation

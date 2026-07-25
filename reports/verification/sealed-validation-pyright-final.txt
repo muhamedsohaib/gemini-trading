@@ -1,0 +1,35 @@
+/home/runner/work/gemini-trading/gemini-trading/src/gemini_trading/cli/historical_validation.py
+  /home/runner/work/gemini-trading/gemini-trading/src/gemini_trading/cli/historical_validation.py:222:17 - error: Argument of type "DatasetHandoffManifest" cannot be assigned to parameter "handoff" of type "DatasetHandoffReference" in function "prepare_candidate_strategy_study"
+    "DatasetHandoffManifest" is not assignable to "DatasetHandoffReference" (reportArgumentType)
+  /home/runner/work/gemini-trading/gemini-trading/src/gemini_trading/cli/historical_validation.py:267:19 - error: Argument of type "object" cannot be assigned to parameter "pre_final" of type "PreFinalArtifacts" in function "complete_candidate_strategy_study"
+    "object" is not assignable to "PreFinalArtifacts" (reportArgumentType)
+  /home/runner/work/gemini-trading/gemini-trading/src/gemini_trading/cli/historical_validation.py:269:17 - error: Argument of type "DatasetHandoffManifest" cannot be assigned to parameter "handoff" of type "DatasetHandoffReference" in function "complete_candidate_strategy_study"
+    "DatasetHandoffManifest" is not assignable to "DatasetHandoffReference" (reportArgumentType)
+/home/runner/work/gemini-trading/gemini-trading/src/gemini_trading/strategy/models.py
+  /home/runner/work/gemini-trading/gemini-trading/src/gemini_trading/strategy/models.py:14:6 - warning: Stub file not found for "sklearn.ensemble" (reportMissingTypeStubs)
+  /home/runner/work/gemini-trading/gemini-trading/src/gemini_trading/strategy/models.py:15:6 - warning: Stub file not found for "sklearn.linear_model" (reportMissingTypeStubs)
+  /home/runner/work/gemini-trading/gemini-trading/src/gemini_trading/strategy/models.py:16:6 - warning: Stub file not found for "threadpoolctl" (reportMissingTypeStubs)
+/home/runner/work/gemini-trading/gemini-trading/src/gemini_trading/strategy/sealed_evaluator.py
+  /home/runner/work/gemini-trading/gemini-trading/src/gemini_trading/strategy/sealed_evaluator.py:7:38 - error: "Protocol" is unknown import symbol (reportAttributeAccessIssue)
+  /home/runner/work/gemini-trading/gemini-trading/src/gemini_trading/strategy/sealed_evaluator.py:7:38 - error: Type of "Protocol" is unknown (reportUnknownVariableType)
+  /home/runner/work/gemini-trading/gemini-trading/src/gemini_trading/strategy/sealed_evaluator.py:59:31 - error: Base class type is unknown, obscuring type of derived class (reportUntypedBaseClass)
+  /home/runner/work/gemini-trading/gemini-trading/src/gemini_trading/strategy/sealed_evaluator.py:593:24 - error: Type of "classification" is unknown (reportUnknownMemberType)
+  /home/runner/work/gemini-trading/gemini-trading/src/gemini_trading/strategy/sealed_evaluator.py:593:24 - error: Argument type is unknown
+    Argument corresponds to parameter "classification" in function "build_study_artifacts" (reportUnknownArgumentType)
+  /home/runner/work/gemini-trading/gemini-trading/src/gemini_trading/strategy/sealed_evaluator.py:593:31 - error: Cannot access attribute "classification" for class "object"
+    Attribute "classification" is unknown (reportAttributeAccessIssue)
+/home/runner/work/gemini-trading/gemini-trading/tests/integration/test_sealed_historical_validation.py
+  /home/runner/work/gemini-trading/gemini-trading/tests/integration/test_sealed_historical_validation.py:11:43 - error: "_synthetic_candles" is private and used outside of the module in which it is declared (reportPrivateUsage)
+  /home/runner/work/gemini-trading/gemini-trading/tests/integration/test_sealed_historical_validation.py:29:5 - error: "_build_preparation" is private and used outside of the module in which it is declared (reportPrivateUsage)
+  /home/runner/work/gemini-trading/gemini-trading/tests/integration/test_sealed_historical_validation.py:111:17 - error: Argument of type "DatasetHandoffManifest" cannot be assigned to parameter "handoff" of type "DatasetHandoffReference" in function "prepare_candidate_strategy_study"
+    "DatasetHandoffManifest" is not assignable to "DatasetHandoffReference" (reportArgumentType)
+  /home/runner/work/gemini-trading/gemini-trading/tests/integration/test_sealed_historical_validation.py:132:17 - error: Argument of type "DatasetHandoffManifest" cannot be assigned to parameter "handoff" of type "DatasetHandoffReference" in function "prepare_candidate_strategy_study"
+    "DatasetHandoffManifest" is not assignable to "DatasetHandoffReference" (reportArgumentType)
+  /home/runner/work/gemini-trading/gemini-trading/tests/integration/test_sealed_historical_validation.py:142:17 - error: Argument of type "DatasetHandoffManifest" cannot be assigned to parameter "handoff" of type "DatasetHandoffReference" in function "final_access_identity"
+    "DatasetHandoffManifest" is not assignable to "DatasetHandoffReference" (reportArgumentType)
+  /home/runner/work/gemini-trading/gemini-trading/tests/integration/test_sealed_historical_validation.py:153:17 - error: Argument of type "DatasetHandoffManifest" cannot be assigned to parameter "handoff" of type "DatasetHandoffReference" in function "complete_candidate_strategy_study"
+    "DatasetHandoffManifest" is not assignable to "DatasetHandoffReference" (reportArgumentType)
+/home/runner/work/gemini-trading/gemini-trading/tests/unit/cli/test_historical_validation.py
+  /home/runner/work/gemini-trading/gemini-trading/tests/unit/cli/test_historical_validation.py:10:37 - error: "_build_parser" is private and used outside of the module in which it is declared (reportPrivateUsage)
+  /home/runner/work/gemini-trading/gemini-trading/tests/unit/cli/test_historical_validation.py:110:31 - error: "_fixed_config_path" is private and used outside of the module in which it is declared (reportPrivateUsage)
+17 errors, 3 warnings, 0 informations

@@ -81,7 +81,13 @@ Record the following exact Stage 1 evidence on Issue #22:
 - replay result;
 - independent verification result.
 
-Stage 2 remains prohibited until an explicit Issue #22 approval comment names those exact identities.
+Stage 2 remains prohibited until the repository owner posts an Issue #22 comment containing this exact machine-readable marker:
+
+```text
+<!-- sealed-dataset-approved:<source-commit>:<dataset-run-id>:<dataset-id> -->
+```
+
+The same approval comment must state the artifact name, artifact ID, retrieval run ID, inventory root, candle boundaries, replay outcome, verification outcome, and `RESEARCH_ONLY` boundary. The workflow accepts the marker only when the comment author is the repository owner.
 
 ## Stage 2 — one sealed Candidate study
 
@@ -89,10 +95,22 @@ Dispatch `Sealed BTCUSDT Candidate Study` once using the four approved identitie
 
 The workflow barriers are:
 
-1. `validate-dataset` downloads the exact Stage 1 artifact and recomputes the handoff inventory, source commit, run ID, and dataset ID.
+1. `validate-dataset` requires the exact owner-authored Issue #22 approval marker, downloads the exact Stage 1 artifact, and recomputes the handoff inventory, source commit, run ID, and dataset ID.
 2. `prepare` performs all development folds, baselines, specialists, controls, stresses, sensitivity, and uncertainty work without final-test execution. It publishes immutable pre-final evidence.
-3. `authorize-final` rejects workflow attempts other than `1`, persists the durable access receipt, and does not load final-test rows.
+3. `authorize-final` rejects workflow attempts other than `1`, checks that no bot-authored repository seal exists for the pre-final ID, posts the repository seal, persists the stable local seal and durable access receipt, and does not load final-test rows.
 4. `finalize` requires the matching receipt run and attempt, performs the one authorized final evaluation, then replays and independently verifies the completed study provider-free.
+
+The repository-side one-time seal uses this exact marker:
+
+```text
+<!-- sealed-final-access:<pre-final-id> -->
+```
+
+The seal is posted by `github-actions[bot]` on Issue #22 before the local receipt is created. Workflow-level concurrency serializes all Stage 2 runs, and every later run checks for this marker. A matching bot-authored marker blocks a fresh final evaluation even though GitHub Actions runners and artifacts use separate filesystems.
+
+The local evidence store also creates a stable run-independent seal keyed by the code commit, dataset, policy, configuration, split, and pre-final identities. Changing only the workflow run ID or attempt cannot create a second local authorization on a shared evidence root.
+
+The repository seal and local seal are intentionally fail-closed. If the repository comment is posted but receipt persistence or later evaluation fails, the seal remains and the result is `INCONCLUSIVE`; deleting or bypassing the seal is not an authorized retry procedure.
 
 The access receipt is written before final-test rows are materialized. After it exists:
 
@@ -114,12 +132,13 @@ After Stage 2:
 
 1. download the pre-final, final-access, and study artifacts immediately;
 2. independently recompute all inventories and SHA-256 hashes;
-3. run provider-free strategy replay;
-4. run independent strategy verification;
-5. preserve the durable receipt and all 22 canonical study files;
-6. record the study ID, result ID, classification, gate counts, artifact root hashes, and verification checks.
+3. preserve the Issue #22 dataset-approval and repository-seal comments;
+4. run provider-free strategy replay;
+5. run independent strategy verification;
+6. preserve the stable local seal, durable receipt, repository-seal receipt, and all 22 canonical study files;
+7. record the study ID, result ID, classification, gate counts, artifact root hashes, and verification checks.
 
-Do not rely on workflow logs or status strings alone. The byte sequences and hashes are the evidence.
+Do not rely on workflow logs or status strings alone. The byte sequences, issue markers, and hashes are the evidence.
 
 ## Result semantics
 
@@ -131,8 +150,8 @@ No classification authorizes execution or capital.
 
 ## Closure sequence
 
-1. Create a separate compact closure-report pull request containing identities, hashes, workflow references, classification, gate outcomes, limitations, and the unchanged safety boundary.
+1. Create a separate compact closure-report pull request containing identities, hashes, workflow references, Issue #22 marker comments, classification, gate outcomes, limitations, and the unchanged safety boundary.
 2. Verify the closure report at its exact reviewed head and exact merged-main commit.
-3. Close Issue #22 only after the dataset artifact, durable receipt, 22-file study, replay, and independent verification all agree.
+3. Close Issue #22 only after the dataset artifact, repository seal, stable local seal, durable receipt, 22-file study, replay, and independent verification all agree.
 
 Until both real workflows complete and their downloaded artifacts verify, the repository has implementation evidence only and no real historical Candidate result.

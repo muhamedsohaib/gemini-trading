@@ -1,0 +1,82 @@
+name: Sealed BTCUSDT Dataset
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dataset:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      GEMINI_TRADING_MODE: research
+      OUTPUT_ROOT: ${{ github.workspace }}/sealed-output
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.11.25"
+          enable-cache: true
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - name: Assert exact clean commit
+        run: |
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          test -z "$(git status --porcelain)"
+      - name: Ingest fixed BTCUSDT history
+        id: ingest
+        run: |
+          uv run gemini-trading market-data ingest \
+            --symbol BTCUSDT \
+            --base-asset BTC \
+            --quote-asset USDT \
+            --interval 4h \
+            --start 2018-01-01T00:00:00Z \
+            --end 2026-07-01T00:00:00Z \
+            --output-root "${OUTPUT_ROOT}" | tee ingest.json
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          payload = json.loads(Path("ingest.json").read_text())
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
+              output.write(f"run_id={payload['run_id']}\n")
+              output.write(f"dataset_id={payload['dataset_id']}\n")
+          PY
+      - name: Replay stored dataset evidence
+        run: |
+          uv run gemini-trading market-data replay \
+            --run-id "${{ steps.ingest.outputs.run_id }}" \
+            --output-root "${OUTPUT_ROOT}" | tee replay.json
+      - name: Independently verify dataset
+        run: |
+          uv run gemini-trading market-data verify \
+            --dataset-id "${{ steps.ingest.outputs.dataset_id }}" \
+            --run-id "${{ steps.ingest.outputs.run_id }}" \
+            --output-root "${OUTPUT_ROOT}" | tee verify.json
+      - name: Build verified dataset handoff
+        run: |
+          uv run gemini-trading research strategy-handoff \
+            --run-id "${{ steps.ingest.outputs.run_id }}" \
+            --dataset-id "${{ steps.ingest.outputs.dataset_id }}" \
+            --source-commit "${GITHUB_SHA}" \
+            --workflow-run-id "${GITHUB_RUN_ID}" \
+            --workflow-run-attempt "${GITHUB_RUN_ATTEMPT}" \
+            --output-root "${OUTPUT_ROOT}" | tee handoff.json
+      - name: Assert output is untracked
+        run: |
+          test -z "$(git status --porcelain)"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sealed-btcusdt-dataset-${{ github.sha }}-${{ github.run_id }}
+          path: sealed-output/
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 6

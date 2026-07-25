@@ -1,6 +1,5 @@
 """Regression tests for write-before-read durable final authorization."""
 
-from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -69,8 +68,11 @@ def test_failed_receipt_persistence_never_calls_final_loader() -> None:
 
 def test_repeated_authorization_never_reloads_final_rows(tmp_path: Path) -> None:
     store = FinalAccessStore(tmp_path)
-    loader: Callable[[], tuple[int, ...]] = lambda: (1,)
-    authorize_then_load_final(store, _identity(), loader)
+
+    def initial_loader() -> tuple[int, ...]:
+        return (1,)
+
+    authorize_then_load_final(store, _identity(), initial_loader)
     called = False
 
     def repeated_loader() -> tuple[int, ...]:

@@ -1,37 +1,35 @@
 """Contract tests for the two manually dispatched sealed workflows."""
 
 from pathlib import Path
-from typing import cast
-
-import yaml
 
 _ROOT = Path(__file__).resolve().parents[2]
 _DATASET = _ROOT / ".github" / "workflows" / "sealed-btcusdt-dataset.yml"
 _STUDY = _ROOT / ".github" / "workflows" / "sealed-btcusdt-study.yml"
 
 
-def _workflow(path: Path) -> dict[str, object]:
-    loaded: object = yaml.safe_load(path.read_text(encoding="utf-8"))
-    assert isinstance(loaded, dict)
-    mapping = cast(dict[object, object], loaded)
-    return {str(key): value for key, value in mapping.items()}
-
-
 def _text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def _workflow_dispatch_input_block(text: str) -> str:
+    marker = "  workflow_dispatch:\n    inputs:\n"
+    start = text.index(marker) + len(marker)
+    end = text.index("\npermissions:", start)
+    return text[start:end]
+
+
 def test_dataset_workflow_is_manual_fixed_scope_and_least_privilege() -> None:
-    workflow = _workflow(_DATASET)
     text = _text(_DATASET)
 
-    assert workflow["on"] == {"workflow_dispatch": None}
-    assert workflow["permissions"] == {"contents": "read"}
-    jobs = cast(dict[str, object], workflow["jobs"])
-    assert set(jobs) == {"dataset"}
+    assert text.startswith("name: Sealed BTCUSDT Dataset\n\non:\n  workflow_dispatch:\n")
+    assert "\n  push:" not in text
+    assert "\n  pull_request:" not in text
+    assert "permissions:\n  contents: read\n" in text
+    assert "jobs:\n  dataset:" in text
     assert "fetch-depth: 0" in text
     assert 'python-version: "3.12"' in text
     assert 'version: "0.11.25"' in text
+    assert "OUTPUT_ROOT: ${{ runner.temp }}/sealed-output" in text
     assert "--symbol BTCUSDT" in text
     assert "--base-asset BTC" in text
     assert "--quote-asset USDT" in text
@@ -42,49 +40,45 @@ def test_dataset_workflow_is_manual_fixed_scope_and_least_privilege() -> None:
     assert text.index("market-data replay") < text.index("market-data verify")
     assert text.index("market-data verify") < text.index("strategy-handoff")
     assert "sealed-btcusdt-dataset-${{ github.sha }}-${{ github.run_id }}" in text
+    assert "path: ${{ runner.temp }}/sealed-output/" in text
     assert "retention-days: 90" in text
     assert "secrets." not in text
     assert "workflow_dispatch:\n    inputs:" not in text
 
 
 def test_study_workflow_has_exact_narrow_inputs_and_barriers() -> None:
-    workflow = _workflow(_STUDY)
     text = _text(_STUDY)
-    trigger = cast(dict[str, object], workflow["on"])
-    dispatch = cast(dict[str, object], trigger["workflow_dispatch"])
-    inputs = cast(dict[str, object], dispatch["inputs"])
+    inputs = _workflow_dispatch_input_block(text)
 
-    assert set(inputs) == {
+    expected_inputs = {
         "source_commit",
         "dataset_run_id",
         "dataset_artifact_name",
         "dataset_id",
     }
-    for value in inputs.values():
-        definition = cast(dict[str, object], value)
-        assert definition == {"required": True, "type": "string"}
-    forbidden = {
-        "symbol",
-        "start",
-        "end",
-        "interval",
-        "config",
-        "command",
-        "output_root",
-        "strategy",
+    observed_inputs = {
+        line.strip()[:-1]
+        for line in inputs.splitlines()
+        if line.startswith("      ") and not line.startswith("        ") and line.endswith(":")
     }
-    assert forbidden.isdisjoint(inputs)
-    assert workflow["concurrency"] == {
-        "group": "sealed-btcusdt-study",
-        "cancel-in-progress": False,
-    }
-    jobs = cast(dict[str, object], workflow["jobs"])
-    assert set(jobs) == {
-        "validate-dataset",
-        "prepare",
-        "authorize-final",
-        "finalize",
-    }
+    assert observed_inputs == expected_inputs
+    assert inputs.count("required: true") == 4
+    assert inputs.count("type: string") == 4
+    for forbidden in (
+        "symbol:",
+        "start:",
+        "end:",
+        "interval:",
+        "config:",
+        "command:",
+        "output_root:",
+        "strategy:",
+    ):
+        assert forbidden not in inputs
+    assert "permissions:\n  actions: read\n  contents: read\n" in text
+    assert "concurrency:\n  group: sealed-btcusdt-study\n  cancel-in-progress: false\n" in text
+    for job_name in ("validate-dataset", "prepare", "authorize-final", "finalize"):
+        assert f"  {job_name}:\n" in text
     assert 'test "${GITHUB_RUN_ATTEMPT}" = "1"' in text
     assert "receipt.identity.workflow_run_attempt" in text
     assert "receipt.identity.workflow_run_id" in text
@@ -100,4 +94,6 @@ def test_study_workflow_has_exact_narrow_inputs_and_barriers() -> None:
     assert "overwrite: false" in text
     assert "retention-days: 90" in text
     assert "secrets.GITHUB_TOKEN" in text
+    assert text.count("OUTPUT_ROOT: ${{ runner.temp }}/sealed-output") == 4
     assert "api.binance.com" not in text
+    assert "GITHUB_ENV" not in text

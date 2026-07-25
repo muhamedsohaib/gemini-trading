@@ -25,6 +25,10 @@
 - Durable final-test access receipt and exact-resume decision: implemented
 - Immutable development-only pre-final evidence: implemented
 - Operational evaluator phase separation and integration coverage: implemented
-- Historical-validation CLI, workflows, extended replay/verification, and cumulative acceptance: in progress
+- Fixed-scope historical-validation CLI: implemented
+- Manual Stage 1 and Stage 2 workflows with artifact barriers: implemented
+- Extended provider-free replay and sealed evidence-chain verification: implemented
+- Synthetic end-to-end acceptance and operator documentation: implemented
+- Exact-head cumulative CI and final review: pending
 
 Generated raw data, canonical datasets, final-access receipts, pre-final evidence, and full strategy studies remain excluded from tracked repository files.

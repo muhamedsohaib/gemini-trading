@@ -31,7 +31,7 @@ def test_dataset_workflow_is_manual_fixed_scope_and_least_privilege() -> None:
     assert set(jobs) == {"dataset"}
     assert "fetch-depth: 0" in text
     assert 'python-version: "3.12"' in text
-    assert "version: \"0.11.25\"" in text
+    assert 'version: "0.11.25"' in text
     assert "--symbol BTCUSDT" in text
     assert "--base-asset BTC" in text
     assert "--quote-asset USDT" in text

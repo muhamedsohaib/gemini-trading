@@ -95,9 +95,7 @@ def test_runtime_policy_is_loaded_before_handler(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setattr(historical_validation, "load_runtime_policy", policy)
     monkeypatch.setattr(historical_validation, "_strategy_handoff", handoff)
 
-    result = run_historical_validation(
-        argparse.Namespace(research_command="strategy-handoff")
-    )
+    result = run_historical_validation(argparse.Namespace(research_command="strategy-handoff"))
 
     assert result == {"status": "verified"}
     assert events == ["policy", "handler"]

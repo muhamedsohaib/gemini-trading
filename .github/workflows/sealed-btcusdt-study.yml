@@ -19,6 +19,7 @@ on:
 permissions:
   actions: read
   contents: read
+  issues: write
 
 concurrency:
   group: sealed-btcusdt-study
@@ -48,6 +49,22 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "${{ inputs.source_commit }}"
           test -z "$(git status --porcelain)"
+      - name: Require exact Issue 22 dataset approval
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APPROVAL_MARKER: "<!-- sealed-dataset-approved:${{ inputs.source_commit }}:${{ inputs.dataset_run_id }}:${{ inputs.dataset_id }} -->"
+        run: |
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/22/comments" > issue-comments.json
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          comments = json.loads(Path("issue-comments.json").read_text())
+          marker = os.environ["APPROVAL_MARKER"]
+          if not any(marker in str(comment.get("body", "")) for comment in comments):
+              raise SystemExit("exact Issue #22 dataset approval marker is missing")
+          PY
       - uses: actions/download-artifact@v4
         with:
           name: ${{ inputs.dataset_artifact_name }}
@@ -153,6 +170,7 @@ jobs:
     timeout-minutes: 30
     outputs:
       receipt_id: ${{ steps.authorize.outputs.receipt_id }}
+      repository_seal_comment_id: ${{ steps.repository-seal.outputs.comment_id }}
     env:
       GEMINI_TRADING_MODE: research
       OUTPUT_ROOT: ${{ runner.temp }}/sealed-output
@@ -175,6 +193,65 @@ jobs:
         with:
           name: sealed-pre-final-${{ github.run_id }}
           path: ${{ runner.temp }}/sealed-output
+      - name: Acquire one-time Issue 22 repository seal
+        id: repository-seal
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRE_FINAL_ID: ${{ needs.prepare.outputs.pre_final_id }}
+          SOURCE_COMMIT: ${{ inputs.source_commit }}
+          DATASET_ID: ${{ inputs.dataset_id }}
+        run: |
+          MARKER="<!-- sealed-final-access:${PRE_FINAL_ID} -->"
+          export MARKER
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/22/comments" > issue-comments.json
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          comments = json.loads(Path("issue-comments.json").read_text())
+          marker = os.environ["MARKER"]
+          if any(marker in str(comment.get("body", "")) for comment in comments):
+              raise SystemExit("final-test repository seal already exists")
+          PY
+          BODY="${MARKER}
+
+          Repository-side one-time final-access seal.
+
+          - Source commit: \`${SOURCE_COMMIT}\`
+          - Dataset ID: \`${DATASET_ID}\`
+          - Pre-final ID: \`${PRE_FINAL_ID}\`
+          - Workflow run: \`${GITHUB_RUN_ID}\`
+          - Workflow attempt: \`${GITHUB_RUN_ATTEMPT}\`
+          - Boundary: \`RESEARCH_ONLY\`
+
+          This seal is recorded before the local final-access receipt. If a later step fails, the final outcome remains fail-closed and no fresh final evaluation is authorized."
+          RESPONSE="$(gh api --method POST "repos/${GITHUB_REPOSITORY}/issues/22/comments" -f body="${BODY}")"
+          COMMENT_ID="$(python -c 'import json,sys; print(json.load(sys.stdin)["id"])' <<<"${RESPONSE}")"
+          echo "comment_id=${COMMENT_ID}" >> "${GITHUB_OUTPUT}"
+          mkdir -p "${OUTPUT_ROOT}/data/historical-validation/repository-seal"
+          uv run python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          from gemini_trading.research.serialization import canonical_json_bytes
+
+          payload = {
+              "schema_version": "github-issue-final-seal-v1",
+              "issue_number": 22,
+              "comment_id": int(os.environ["COMMENT_ID"]),
+              "marker": os.environ["MARKER"],
+              "pre_final_id": os.environ["PRE_FINAL_ID"],
+              "source_commit": os.environ["SOURCE_COMMIT"],
+              "dataset_id": os.environ["DATASET_ID"],
+              "workflow_run_id": int(os.environ["GITHUB_RUN_ID"]),
+              "workflow_run_attempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
+          }
+          path = Path(os.environ["OUTPUT_ROOT"]) / "data" / "historical-validation" / "repository-seal" / "github-issue-seal.json"
+          path.write_bytes(canonical_json_bytes(payload))
+          PY
+        env:
+          COMMENT_ID: ${{ steps.repository-seal.outputs.comment_id }}
       - name: Persist final-test access receipt
         id: authorize
         run: |
@@ -193,6 +270,28 @@ jobs:
           with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
               output.write(f"receipt_id={payload['receipt_id']}\n")
           PY
+      - name: Record receipt on repository seal comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMENT_ID: ${{ steps.repository-seal.outputs.comment_id }}
+          RECEIPT_ID: ${{ steps.authorize.outputs.receipt_id }}
+          PRE_FINAL_ID: ${{ needs.prepare.outputs.pre_final_id }}
+        run: |
+          MARKER="<!-- sealed-final-access:${PRE_FINAL_ID} -->"
+          BODY="${MARKER}
+
+          Repository-side one-time final-access seal completed.
+
+          - Source commit: \`${{ inputs.source_commit }}\`
+          - Dataset ID: \`${{ inputs.dataset_id }}\`
+          - Pre-final ID: \`${PRE_FINAL_ID}\`
+          - Durable receipt ID: \`${RECEIPT_ID}\`
+          - Workflow run: \`${GITHUB_RUN_ID}\`
+          - Workflow attempt: \`${GITHUB_RUN_ATTEMPT}\`
+          - Boundary: \`RESEARCH_ONLY\`
+
+          Fresh final evaluation is prohibited. Only exact provider-free continuation from complete immutable final outputs may be considered."
+          gh api --method PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${COMMENT_ID}" -f body="${BODY}" > /dev/null
       - uses: actions/upload-artifact@v4
         with:
           name: sealed-final-access-${{ github.run_id }}

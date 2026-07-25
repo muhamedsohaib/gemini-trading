@@ -64,7 +64,9 @@ class Strategy(Protocol):
 def strategy_evaluation_end_exclusive(strategy: Strategy, candle_count: int) -> int:
     """Resolve an optional identity-bound end boundary, defaulting to the full dataset."""
 
-    value = getattr(strategy, "evaluation_end_exclusive", candle_count)
+    value = getattr(strategy, "evaluation_end_exclusive", None)
+    if value is None:
+        return candle_count
     if isinstance(value, bool) or not isinstance(value, int):
         raise StrategyContractError("strategy evaluation boundary must be an integer")
     if value < 1 or value > candle_count:

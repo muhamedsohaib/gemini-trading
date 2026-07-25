@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
 from datetime import timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -15,29 +14,27 @@ from gemini_trading.data.datasets.canonical_writer import (
     serialize_candles,
     serialize_dataset_manifest,
 )
-from gemini_trading.data.storage.local_immutable import LocalImmutableStore
+from gemini_trading.data.storage.local_immutable import LocalImmutableStore, write_immutable
 from gemini_trading.research.dataset_reader import VerifiedDataset, load_verified_dataset
 from gemini_trading.strategy.artifacts import REQUIRED_STUDY_ARTIFACT_NAMES
+from gemini_trading.strategy.evaluator import reconstruct_study_strategy
 from gemini_trading.strategy.final_access import FinalAccessStore
+from gemini_trading.strategy.handoff import (
+    DatasetHandoffManifest,
+    build_artifact_inventory,
+    inventory_root_sha256,
+    serialize_dataset_handoff,
+)
 from gemini_trading.strategy.sealed_evaluator import (
     _build_preparation,
     complete_candidate_strategy_study,
     final_access_identity,
     prepare_candidate_strategy_study,
 )
+from gemini_trading.strategy.verification import StrategyStudyVerificationService
 from strategy_fixture_support import base_simulation
 
 _CODE_COMMIT = "a" * 40
-
-
-@dataclass(frozen=True, slots=True)
-class _DiagnosticHandoff:
-    dataset_id: str
-    inventory_root_sha256: str = "1" * 64
-    source_commit: str = _CODE_COMMIT
-    workflow_run_id: int = 900
-    workflow_run_attempt: int = 1
-    run_id: str = "diagnostic-run"
 
 
 def _verified_dataset(root: Path) -> VerifiedDataset:
@@ -61,9 +58,56 @@ def _verified_dataset(root: Path) -> VerifiedDataset:
     return load_verified_dataset(LocalImmutableStore(root), manifest.dataset_id)
 
 
+def _handoff(root: Path, dataset_id: str) -> DatasetHandoffManifest:
+    canonical_root = root / "data" / "canonical" / dataset_id
+    paths = tuple(
+        sorted(
+            path.relative_to(root).as_posix()
+            for path in canonical_root.rglob("*")
+            if path.is_file()
+        )
+    )
+    files = build_artifact_inventory(root, paths)
+    handoff = DatasetHandoffManifest(
+        schema_version="sealed-dataset-handoff-v1",
+        repository="muhamedsohaib/gemini-trading",
+        source_commit=_CODE_COMMIT,
+        workflow_name="sealed-btcusdt-dataset",
+        workflow_run_id=900,
+        workflow_run_attempt=1,
+        job_name="dataset",
+        provider="binance_spot",
+        symbol="BTCUSDT",
+        base_asset="BTC",
+        quote_asset="USDT",
+        interval="4h",
+        start="2018-01-01T00:00:00Z",
+        end_exclusive="2026-07-01T00:00:00Z",
+        run_id="diagnostic-run",
+        dataset_id=dataset_id,
+        candle_count=18_618,
+        first_open_time="2018-01-01T00:00:00Z",
+        last_open_time="2026-06-30T20:00:00Z",
+        replay_status="completed",
+        verification_status="verified",
+        files=files,
+        inventory_root_sha256=inventory_root_sha256(files),
+    )
+    path = (
+        root
+        / "data"
+        / "historical-validation"
+        / "handoff"
+        / dataset_id
+        / "dataset-handoff.json"
+    )
+    write_immutable(path, serialize_dataset_handoff(handoff))
+    return handoff
+
+
 def test_prepare_does_not_materialize_final_phase(tmp_path: Path) -> None:
     dataset = _verified_dataset(tmp_path)
-    handoff = _DiagnosticHandoff(dataset.manifest.dataset_id)
+    handoff = _handoff(tmp_path, dataset.manifest.dataset_id)
 
     pre_final = prepare_candidate_strategy_study(
         dataset=dataset,
@@ -85,7 +129,7 @@ def test_prepare_does_not_materialize_final_phase(tmp_path: Path) -> None:
 def test_complete_requires_matching_durable_receipt(tmp_path: Path) -> None:
     dataset = _verified_dataset(tmp_path)
     simulation = base_simulation()
-    handoff = _DiagnosticHandoff(dataset.manifest.dataset_id)
+    handoff = _handoff(tmp_path, dataset.manifest.dataset_id)
     pre_final = prepare_candidate_strategy_study(
         dataset=dataset,
         simulation=simulation,
@@ -130,3 +174,16 @@ def test_complete_requires_matching_durable_receipt(tmp_path: Path) -> None:
     assert manifest["pre_final_id"] == pre_final.pre_final_id
     assert manifest["dataset_handoff_inventory_root"] == handoff.inventory_root_sha256
     assert manifest["durable_final_access_receipt_id"] == receipt.receipt_id
+
+    verified = StrategyStudyVerificationService(
+        root=tmp_path,
+        current_commit_resolver=lambda: _CODE_COMMIT,
+        research_strategy_reconstructor=reconstruct_study_strategy,
+    ).verify(artifacts.study_id)
+    assert {
+        "dataset_handoff_verified",
+        "durable_final_access_verified",
+        "exact_resume_policy_verified",
+        "pre_final_identity_verified",
+        "single_final_access_verified",
+    }.issubset(verified.checks)

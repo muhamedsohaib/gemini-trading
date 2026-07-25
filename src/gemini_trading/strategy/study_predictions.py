@@ -307,7 +307,7 @@ def baseline_events(
             if required_regime is None
             else allowed_regimes is not None and allowed_regimes.get(index) is required_regime
         )
-        if action is BaselineAction.ENTER_LONG and allowed and not long:
+        if action in {BaselineAction.ENTER_LONG, BaselineAction.HOLD_LONG} and allowed and not long:
             events.append((index, ScheduledAction.ENTER_LONG))
             long = True
         elif (action is BaselineAction.EXIT_TO_CASH or not allowed) and long:

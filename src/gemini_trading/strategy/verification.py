@@ -18,8 +18,10 @@ from gemini_trading.strategy.replay import (
     SUPPORTED_REPLAY_STRATEGY_IDS,
     StrategyStudyReplayService,
     parse_study_case_evidence,
+    parse_study_manifest,
     validate_replay_strategy_id,
 )
+from gemini_trading.strategy.sealed_verification import verify_sealed_evidence_chain
 
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 
@@ -141,6 +143,12 @@ class StrategyStudyVerificationService:
             replayed.artifact_bytes("promotion-gates.json"),
             replayed.classification,
         )
+        manifest = parse_study_manifest(replayed.artifact_bytes("study-manifest.json"))
+        sealed_checks = verify_sealed_evidence_chain(
+            root=self.root,
+            study_id=study_id,
+            manifest=manifest,
+        )
 
         checks = tuple(
             sorted(
@@ -154,6 +162,7 @@ class StrategyStudyVerificationService:
                     "replay_equivalent",
                     "study_identity_verified",
                     "study_result_identity_verified",
+                    *sealed_checks,
                 }
             )
         )

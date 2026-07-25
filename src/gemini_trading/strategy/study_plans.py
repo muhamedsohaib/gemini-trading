@@ -67,6 +67,7 @@ def _strategy(
     case_id: str,
     events: tuple[tuple[int, ScheduledAction], ...],
     simulation: SimulationConfig,
+    evaluation_end_exclusive: int,
 ) -> ReplayableStudyStrategy:
     return ReplayableStudyStrategy(
         strategy_id_value=strategy_id,
@@ -75,6 +76,7 @@ def _strategy(
         quantity_step=simulation.quantity_step,
         minimum_quantity=simulation.min_quantity,
         minimum_notional=simulation.min_notional,
+        evaluation_end_exclusive=evaluation_end_exclusive,
     )
 
 
@@ -104,6 +106,12 @@ def prepare_phase(
 ) -> None:
     """Prepare every required comparator, control, stress, and sensitivity case."""
 
+    if not indices:
+        raise StudyArtifactError("study phase requires at least one decision index")
+    evaluation_end_exclusive = min(
+        len(dataset.candles),
+        indices[-1] + 2 + simulation.latency_bars,
+    )
     regimes = {item.candle_index: item.regime.state for item in bundle.predictions}
     base_events = candidate_events(
         bundle,
@@ -289,6 +297,7 @@ def prepare_phase(
                 case_id,
                 event_by_case[case_id],
                 case_simulation,
+                evaluation_end_exclusive,
             ),
             simulation=case_simulation,
         )

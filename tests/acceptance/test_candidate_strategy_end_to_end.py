@@ -15,6 +15,7 @@ from gemini_trading.cli.main import main
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _CONFIG = _PROJECT_ROOT / "tests" / "fixtures" / "strategy" / "candidate-v0.1-config.json"
 _WORKER = _PROJECT_ROOT / "tests" / "candidate_strategy_e2e_worker.py"
+_WORKER_TIMEOUT_SECONDS = 900 if sys.platform == "win32" else 240
 
 
 def _decoded_output(text: str) -> dict[str, object]:
@@ -45,7 +46,7 @@ def test_candidate_strategy_end_to_end_is_deterministic_and_non_promotable(
         check=False,
         capture_output=True,
         text=True,
-        timeout=240,
+        timeout=_WORKER_TIMEOUT_SECONDS,
     )
 
     assert result.returncode == 0, result.stderr

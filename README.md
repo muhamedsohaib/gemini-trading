@@ -60,7 +60,7 @@ See:
 
 The repository includes a bounded research implementation for the first Candidate multi-model strategy. Its locked scope is BTC/USDT on completed 4-hour candles, long or cash only. It combines point-in-time features, conservative cost-aware labels, deterministic trend and mean-reversion specialists, fold-local calibration, regime-aware arbitration, provider-free comparators, sealed walk-forward evaluation, immutable strategy-study artifacts, replay, and independent verification.
 
-Command surface:
+Diagnostic command surface:
 
 ```text
 gemini-trading research strategy-evaluate
@@ -68,15 +68,29 @@ gemini-trading research strategy-replay
 gemini-trading research strategy-verify
 ```
 
-The Candidate remains `RESEARCH_ONLY` and always reports `promotable:false` at the CLI boundary. Rejection and inconclusive evidence are valid outcomes. The concrete provider-free evaluator and deterministic synthetic end-to-end acceptance are implemented. The diagnostic acceptance result is `INCONCLUSIVE`; it verifies architecture and reproducibility only. No real seven-year historical result, durable profitability, execution readiness, or capital authorization is claimed.
+Sealed historical-validation command surface:
+
+```text
+gemini-trading research strategy-handoff
+gemini-trading research strategy-prepare
+gemini-trading research strategy-authorize-final
+gemini-trading research strategy-finalize
+gemini-trading research strategy-resume
+```
+
+The Candidate remains `RESEARCH_ONLY` and always reports `promotable:false` at the CLI boundary. Rejection and inconclusive evidence are valid outcomes. The concrete provider-free evaluator and deterministic synthetic end-to-end acceptance are implemented. The diagnostic acceptance result is `INCONCLUSIVE`; it verifies architecture and reproducibility only.
+
+The two-stage GitHub Actions implementation for the fixed BTCUSDT window `[2018-01-01T00:00:00Z, 2026-07-01T00:00:00Z)` is present, but there is no real historical Candidate result until the dataset and study workflows run against an approved exact merged-main SHA and the downloaded artifacts independently verify. No durable profitability, execution readiness, or capital authorization is claimed.
 
 See:
 
-- `docs/superpowers/plans/2026-07-24-candidate-multi-model-strategy-v0-1.md` for the approved implementation and verification plan.
-- `docs/operations/candidate-multi-model-strategy.md` for the locked protocol, commands, evidence layout, and limitations.
-- `docs/operations/candidate-multi-model-strategy-step-verification.md` for exact-head, deterministic acceptance, and merged-main closure requirements.
-- `reports/verification/candidate-multi-model-strategy-progress.md` for checkpoint history and protected-main closure status.
+- `docs/superpowers/plans/2026-07-24-candidate-multi-model-strategy-v0-1.md` for the approved Candidate implementation plan.
+- `docs/operations/candidate-multi-model-strategy.md` for the locked Candidate protocol, commands, evidence layout, and limitations.
+- `docs/operations/candidate-multi-model-strategy-step-verification.md` for Candidate exact-head and merged-main closure requirements.
+- `docs/operations/sealed-btcusdt-historical-validation.md` for the two-stage operational sequence, final-access rules, artifact handling, and result semantics.
+- `reports/verification/candidate-multi-model-strategy-progress.md` for Candidate checkpoint history and protected-main closure status.
 - `reports/verification/candidate-multi-model-strategy-final.md` for deterministic acceptance identities, gate outcomes, artifact hashes, and limitations.
+- `reports/verification/sealed-btcusdt-historical-validation-progress.md` for the sealed historical-validation implementation status.
 
 ## Safety
 

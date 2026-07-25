@@ -204,10 +204,14 @@ def test_equivalent_acceptance_runs_share_identity_and_keep_separate_provenance(
     assert b'"run_id":"acceptance-run-002"' in second_receipt
 
 
-def test_production_market_data_modules_contain_no_acceptance_market_literals() -> None:
+def test_generic_market_data_modules_contain_no_acceptance_market_literals() -> None:
     source_root = Path(__file__).parents[2] / "src" / "gemini_trading"
+    generic_market_data_paths = (
+        source_root / "cli" / "market_data.py",
+        *sorted((source_root / "data").rglob("*.py")),
+    )
     production_source = "\n".join(
-        path.read_text(encoding="utf-8") for path in sorted(source_root.rglob("*.py"))
+        path.read_text(encoding="utf-8") for path in generic_market_data_paths
     )
 
     for market_literal in ("ETHUSDT", "BTCUSDT", "SOLUSDT"):

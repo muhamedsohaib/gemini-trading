@@ -22,6 +22,12 @@ from gemini_trading.strategy.errors import StudyArtifactError
 from gemini_trading.strategy.features import FeatureRegistry
 from gemini_trading.strategy.labels import LabelPolicy
 from gemini_trading.strategy.policy import CandidatePolicy, serialize_candidate_policy
+from gemini_trading.strategy.sealed_evaluator import (
+    build_candidate_preparation,
+    complete_candidate_strategy_study,
+    final_access_identity,
+    prepare_candidate_strategy_study,
+)
 from gemini_trading.strategy.study import (
     REQUIRED_FINAL_CASE_IDS,
     StrategyStudyRunner,
@@ -256,6 +262,10 @@ def evaluate_candidate_strategy_study(
 
 __all__ = [
     "ReplayableStudyStrategy",
+    "build_candidate_preparation",
+    "complete_candidate_strategy_study",
     "evaluate_candidate_strategy_study",
+    "final_access_identity",
+    "prepare_candidate_strategy_study",
     "reconstruct_study_strategy",
 ]

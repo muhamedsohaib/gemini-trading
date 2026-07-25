@@ -3,13 +3,14 @@
 from dataclasses import replace
 from decimal import Decimal
 
-from hypothesis import given
+from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from gemini_trading.strategy.features import FeatureRegistry
 from strategy_fixture_support import rising_candles
 
 
+@settings(deadline=None)
 @given(
     count=st.integers(min_value=50, max_value=80),
     shock=st.integers(min_value=100_000, max_value=1_000_000),

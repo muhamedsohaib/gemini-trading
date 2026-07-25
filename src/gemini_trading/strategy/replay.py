@@ -33,7 +33,7 @@ _RESULT_KEYS = {
     "classification",
     "study_result_id",
 }
-_STUDY_MANIFEST_KEYS = {
+_LEGACY_STUDY_MANIFEST_KEYS = {
     "schema_version",
     "study_id",
     "split_plan_sha256",
@@ -42,6 +42,12 @@ _STUDY_MANIFEST_KEYS = {
     "code_commit",
     "final_test_receipt_id",
     "final_evaluation_count",
+}
+_SEALED_STUDY_MANIFEST_KEYS = {
+    *_LEGACY_STUDY_MANIFEST_KEYS,
+    "pre_final_id",
+    "dataset_handoff_inventory_root",
+    "durable_final_access_receipt_id",
 }
 _CASE_KEYS = {
     "case_id",
@@ -95,15 +101,10 @@ def _jsonl_objects(raw: bytes, description: str) -> tuple[dict[str, object], ...
         raise StudyReplayMismatchError(f"invalid {description} JSONL") from None
     if not text or not text.endswith("\n"):
         raise StudyReplayMismatchError(f"invalid {description} JSONL")
-    rows: list[dict[str, object]] = []
-    for line in text.splitlines():
-        if not line:
-            raise StudyReplayMismatchError(f"invalid {description} JSONL")
-        rows.append(_json_object(line.encode("utf-8"), description))
-    values = tuple(rows)
-    if canonical_jsonl_bytes(values) != raw:
+    rows = tuple(_json_object(line.encode("utf-8"), description) for line in text.splitlines())
+    if canonical_jsonl_bytes(rows) != raw:
         raise StudyReplayMismatchError(f"{description} canonical bytes do not match")
-    return values
+    return rows
 
 
 def _required_str(mapping: Mapping[str, object], key: str, description: str) -> str:
@@ -137,14 +138,23 @@ class StoredStrategyStudyManifest:
     code_commit: str
     final_test_receipt_id: str
     final_evaluation_count: int
+    pre_final_id: str | None = None
+    dataset_handoff_inventory_root: str | None = None
+    durable_final_access_receipt_id: str | None = None
 
 
 def parse_study_manifest(raw: bytes) -> StoredStrategyStudyManifest:
-    """Parse and canonically validate the stored strategy-study manifest."""
+    """Parse either the exact legacy schema or exact sealed extension."""
 
     mapping = _json_object(raw, "strategy study manifest")
-    if set(mapping) != _STUDY_MANIFEST_KEYS:
+    fields = set(mapping)
+    valid_fields = {
+        frozenset(_LEGACY_STUDY_MANIFEST_KEYS),
+        frozenset(_SEALED_STUDY_MANIFEST_KEYS),
+    }
+    if frozenset(fields) not in valid_fields:
         raise StudyReplayMismatchError("strategy study manifest fields do not match schema")
+    sealed = fields == _SEALED_STUDY_MANIFEST_KEYS
     if _required_str(mapping, "schema_version", "strategy study manifest") != "strategy-study-v1":
         raise StudyReplayMismatchError("unsupported strategy study manifest schema")
     manifest = StoredStrategyStudyManifest(
@@ -174,6 +184,38 @@ def parse_study_manifest(raw: bytes) -> StoredStrategyStudyManifest:
             "final_evaluation_count",
             "strategy study manifest",
         ),
+        pre_final_id=(
+            _sha256(
+                _required_str(mapping, "pre_final_id", "strategy study manifest"),
+                "pre-final identity",
+            )
+            if sealed
+            else None
+        ),
+        dataset_handoff_inventory_root=(
+            _sha256(
+                _required_str(
+                    mapping,
+                    "dataset_handoff_inventory_root",
+                    "strategy study manifest",
+                ),
+                "dataset handoff inventory root",
+            )
+            if sealed
+            else None
+        ),
+        durable_final_access_receipt_id=(
+            _sha256(
+                _required_str(
+                    mapping,
+                    "durable_final_access_receipt_id",
+                    "strategy study manifest",
+                ),
+                "durable final-access receipt identity",
+            )
+            if sealed
+            else None
+        ),
     )
     if _GIT_COMMIT_PATTERN.fullmatch(manifest.code_commit) is None:
         raise StudyReplayMismatchError("invalid strategy study code commit")
@@ -185,7 +227,7 @@ def parse_study_manifest(raw: bytes) -> StoredStrategyStudyManifest:
 
 
 def parse_study_case_evidence(raw: bytes) -> tuple[StudyCaseEvidence, ...]:
-    """Parse, canonically validate, and complete-check experiment references."""
+    """Parse and complete-check every referenced development and final case."""
 
     records: list[StudyCaseEvidence] = []
     for mapping in _jsonl_objects(raw, "strategy study experiments"):
@@ -264,9 +306,12 @@ def _artifact_hashes(mapping: Mapping[str, object]) -> tuple[tuple[str, str], ..
         pair = cast(list[object], raw_item)
         if len(pair) != 2 or not all(isinstance(item, str) for item in pair):
             raise StudyReplayMismatchError("invalid strategy study result artifact entry")
-        name = cast(str, pair[0])
-        digest = _sha256(cast(str, pair[1]), "strategy study artifact hash")
-        values.append((name, digest))
+        values.append(
+            (
+                cast(str, pair[0]),
+                _sha256(cast(str, pair[1]), "strategy study artifact hash"),
+            )
+        )
     result = tuple(values)
     if result != tuple(sorted(result)) or len(result) != len(set(result)):
         raise StudyReplayMismatchError("strategy study result artifacts are not uniquely sorted")
@@ -302,7 +347,6 @@ class StrategyStudyReplayService:
                     f"required strategy study replay artifact is missing: {name}"
                 ) from None
         file_mapping = dict(files)
-
         result_bytes = file_mapping["study-result-manifest.json"]
         result_mapping = _json_object(result_bytes, "strategy study result manifest")
         if set(result_mapping) != _RESULT_KEYS:
@@ -348,15 +392,12 @@ class StrategyStudyReplayService:
             raise StudyReplayMismatchError(
                 "strategy study result manifest canonical bytes do not match"
             )
-
         manifest = parse_study_manifest(file_mapping["study-manifest.json"])
         if manifest.study_id != study_id:
             raise StudyReplayMismatchError("strategy study identity does not match manifest")
-        current_commit = self.current_commit_resolver()
-        if current_commit != manifest.code_commit:
+        if self.current_commit_resolver() != manifest.code_commit:
             raise StudyReplayMismatchError("code commit does not match strategy study manifest")
         parse_study_case_evidence(file_mapping["experiments.jsonl"])
-
         return StrategyStudyArtifacts(
             study_id=study_id,
             study_result_id=result_id,

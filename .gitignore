@@ -37,6 +37,10 @@ q_table.json
 data/raw/
 data/canonical/
 data/research/
+data/strategy-studies/
+
+# Sealed historical-validation workflow evidence
+data/historical-validation/
 
 # Editors and operating systems
 .vscode/

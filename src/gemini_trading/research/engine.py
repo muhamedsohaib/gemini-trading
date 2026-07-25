@@ -20,7 +20,12 @@ from gemini_trading.domain.order import (
 from gemini_trading.execution.simulator.fills import evaluate_order
 from gemini_trading.research.accounting import apply_fill, mark_to_market, verify_reconciliation
 from gemini_trading.research.config import SimulationConfig, serialize_simulation_config
-from gemini_trading.research.contracts import Strategy, StrategyContext, StrategyDecision
+from gemini_trading.research.contracts import (
+    Strategy,
+    StrategyContext,
+    StrategyDecision,
+    strategy_evaluation_end_exclusive,
+)
 from gemini_trading.research.dataset_reader import VerifiedDataset
 from gemini_trading.research.errors import (
     ChronologyViolationError,
@@ -381,6 +386,7 @@ def run_backtest(
     """Run one verified dataset to deterministic terminal evidence."""
 
     engine = BacktestEngine(dataset, manifest, config, strategy)
-    for candle_index, candle in enumerate(dataset.candles):
+    end_exclusive = strategy_evaluation_end_exclusive(strategy, len(dataset.candles))
+    for candle_index, candle in enumerate(dataset.candles[:end_exclusive]):
         engine.process_candle(candle_index, candle)
     return engine.finalize()

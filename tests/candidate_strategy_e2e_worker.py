@@ -283,3 +283,9 @@ def main_worker() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main_worker())
+
+
+def synthetic_candidate_candles():
+    """Return the deterministic synthetic Candidate acceptance candles."""
+
+    return _synthetic_candles()

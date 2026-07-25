@@ -11,6 +11,7 @@ from gemini_trading.strategy.final_access import (
     FinalAccessStore,
     ResumeDecision,
     assess_exact_resume,
+    final_access_seal_id,
     load_receipt,
     serialize_receipt,
 )
@@ -30,24 +31,39 @@ def _identity() -> FinalAccessIdentity:
     )
 
 
-def test_authorize_writes_one_immutable_receipt(tmp_path: Path) -> None:
+def test_authorize_writes_one_immutable_receipt_and_stable_seal(tmp_path: Path) -> None:
     store = FinalAccessStore(tmp_path)
 
     receipt = store.authorize(_identity())
 
     assert store.load(receipt.receipt_id) == receipt
     assert load_receipt(serialize_receipt(receipt)) == receipt
-    with pytest.raises(FinalAccessError, match="already exists"):
+    seal_path = (
+        tmp_path
+        / "data"
+        / "historical-validation"
+        / "final-access"
+        / "seals"
+        / final_access_seal_id(_identity())
+        / "final-access-seal.json"
+    )
+    assert seal_path.is_file()
+    with pytest.raises(FinalAccessError, match="seal already exists"):
         store.authorize(_identity())
 
 
-def test_changed_run_attempt_cannot_reuse_receipt(tmp_path: Path) -> None:
+def test_changed_run_or_attempt_cannot_create_second_authorization(tmp_path: Path) -> None:
     store = FinalAccessStore(tmp_path)
     receipt = store.authorize(_identity())
-    changed = replace(_identity(), workflow_run_attempt=2)
 
-    with pytest.raises(FinalAccessError, match="identity mismatch"):
-        store.require(receipt.receipt_id, changed)
+    for changed in (
+        replace(_identity(), workflow_run_id=457),
+        replace(_identity(), workflow_run_attempt=2),
+    ):
+        with pytest.raises(FinalAccessError, match="seal already exists"):
+            store.authorize(changed)
+        with pytest.raises(FinalAccessError, match="identity mismatch"):
+            store.require(receipt.receipt_id, changed)
 
 
 def test_receipt_rejects_noncanonical_encoding(tmp_path: Path) -> None:

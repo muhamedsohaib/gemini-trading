@@ -62,7 +62,13 @@ jobs:
 
           comments = json.loads(Path("issue-comments.json").read_text())
           marker = os.environ["APPROVAL_MARKER"]
-          if not any(marker in str(comment.get("body", "")) for comment in comments):
+          owner = os.environ["GITHUB_REPOSITORY_OWNER"]
+          approved = any(
+              marker in str(comment.get("body", ""))
+              and str(comment.get("user", {}).get("login", "")) == owner
+              for comment in comments
+          )
+          if not approved:
               raise SystemExit("exact Issue #22 dataset approval marker is missing")
           PY
       - uses: actions/download-artifact@v4
@@ -211,7 +217,12 @@ jobs:
 
           comments = json.loads(Path("issue-comments.json").read_text())
           marker = os.environ["MARKER"]
-          if any(marker in str(comment.get("body", "")) for comment in comments):
+          sealed = any(
+              marker in str(comment.get("body", ""))
+              and str(comment.get("user", {}).get("login", "")) == "github-actions[bot]"
+              for comment in comments
+          )
+          if sealed:
               raise SystemExit("final-test repository seal already exists")
           PY
           BODY="${MARKER}
@@ -229,9 +240,9 @@ jobs:
           RESPONSE="$(gh api --method POST "repos/${GITHUB_REPOSITORY}/issues/22/comments" -f body="${BODY}")"
           COMMENT_ID="$(python -c 'import json,sys; print(json.load(sys.stdin)["id"])' <<<"${RESPONSE}")"
           echo "comment_id=${COMMENT_ID}" >> "${GITHUB_OUTPUT}"
+          export COMMENT_ID
           mkdir -p "${OUTPUT_ROOT}/data/historical-validation/repository-seal"
           uv run python - <<'PY'
-          import json
           import os
           from pathlib import Path
           from gemini_trading.research.serialization import canonical_json_bytes
@@ -250,8 +261,6 @@ jobs:
           path = Path(os.environ["OUTPUT_ROOT"]) / "data" / "historical-validation" / "repository-seal" / "github-issue-seal.json"
           path.write_bytes(canonical_json_bytes(payload))
           PY
-        env:
-          COMMENT_ID: ${{ steps.repository-seal.outputs.comment_id }}
       - name: Persist final-test access receipt
         id: authorize
         run: |

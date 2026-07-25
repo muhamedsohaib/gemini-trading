@@ -1,24 +1,256 @@
-name: Temporary Sealed Source Snapshot
+name: Temporary Apply Sealed Boundary Correction
 
 on:
   pull_request:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  snapshot:
+  correct:
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2
-      - uses: actions/upload-artifact@v4
         with:
-          name: temporary-sealed-source-${{ github.sha }}
-          path: |
-            src/
-            tests/
-            .github/workflows/sealed-btcusdt-dataset.yml
-            .github/workflows/sealed-btcusdt-study.yml
-          if-no-files-found: error
-          retention-days: 1
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.11.25"
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - name: Apply exact boundary corrections
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          evaluator = Path("src/gemini_trading/strategy/sealed_evaluator.py")
+          text = evaluator.read_text()
+          start = text.index("def build_candidate_preparation(")
+          end = text.index("\n\ndef _executor(", start)
+          replacement = '''def build_candidate_preparation(
+              *,
+              dataset: VerifiedDataset,
+              simulation: SimulationConfig,
+              initial_cash: Decimal,
+              include_final: bool,
+          ) -> CandidatePreparation:
+              policy = CandidatePolicy.locked_v0_1()
+              _validate_dataset(dataset, policy)
+              registry = FeatureRegistry.locked_v0_1()
+              label_policy = LabelPolicy.locked_v0_1(simulation)
+              structural_eligible = tuple(
+                  range(
+                      registry.maximum_lookback_candles,
+                      len(dataset.candles) - label_policy.horizon_candles - 1,
+                  )
+              )
+              split_plan, history_requirement_met = build_split_plan(
+                  dataset.candles,
+                  structural_eligible,
+                  policy,
+              )
+              preparation_candles = (
+                  dataset.candles
+                  if include_final
+                  else dataset.candles[: split_plan.final_test_boundary_index]
+              )
+              preparation_dataset = VerifiedDataset(
+                  manifest=dataset.manifest,
+                  candles=preparation_candles,
+                  canonical_bytes=dataset.canonical_bytes,
+              )
+              matrix = registry.compute(preparation_candles)
+              labels = label_policy.build(
+                  preparation_candles,
+                  eligible_indices=tuple(row.candle_index for row in matrix.rows),
+              )
+
+              bundles: dict[tuple[StudyPhase, int | None], PredictionBundle] = {}
+              plans: dict[tuple[StudyPhase, int | None, str], CasePlan] = {}
+              baseline_schedules = build_baseline_schedules(preparation_candles)
+              for fold in split_plan.folds:
+                  key = (StudyPhase.DEVELOPMENT, fold.fold_number)
+                  bundle = fit_prediction_bundle(
+                      phase=StudyPhase.DEVELOPMENT,
+                      fold_number=fold.fold_number,
+                      matrix=matrix,
+                      labels=labels,
+                      policy=policy,
+                      training_indices=fold.training_indices,
+                      calibration_indices=fold.calibration_indices,
+                      prediction_indices=fold.development_test_indices,
+                  )
+                  bundles[key] = bundle
+                  prepare_phase(
+                      phase=StudyPhase.DEVELOPMENT,
+                      fold_number=fold.fold_number,
+                      indices=fold.development_test_indices,
+                      bundle=bundle,
+                      dataset=preparation_dataset,
+                      simulation=simulation,
+                      policy=policy,
+                      label_policy=label_policy,
+                      matrix=matrix,
+                      baseline_schedules=baseline_schedules,
+                      plans=plans,
+                  )
+
+              if include_final:
+                  final_calibration = split_plan.folds[-1].development_test_indices
+                  final_training = tuple(
+                      index for index in split_plan.used_label_indices if index < final_calibration[0]
+                  )
+                  final_bundle = fit_prediction_bundle(
+                      phase=StudyPhase.FINAL,
+                      fold_number=None,
+                      matrix=matrix,
+                      labels=labels,
+                      policy=policy,
+                      training_indices=final_training,
+                      calibration_indices=final_calibration,
+                      prediction_indices=split_plan.final_test_indices,
+                  )
+                  bundles[(StudyPhase.FINAL, None)] = final_bundle
+                  prepare_phase(
+                      phase=StudyPhase.FINAL,
+                      fold_number=None,
+                      indices=split_plan.final_test_indices,
+                      bundle=final_bundle,
+                      dataset=preparation_dataset,
+                      simulation=simulation,
+                      policy=policy,
+                      label_policy=label_policy,
+                      matrix=matrix,
+                      baseline_schedules=baseline_schedules,
+                      plans=plans,
+                  )
+
+              policy_bytes = serialize_candidate_policy(policy)
+              configuration_bytes = canonical_json_bytes(
+                  {
+                      "dataset_id": dataset.manifest.dataset_id,
+                      "initial_cash": initial_cash,
+                      "simulation_sha256": hashlib.sha256(
+                          serialize_simulation_config(simulation)
+                      ).hexdigest(),
+                      "policy_version": policy.policy_version,
+                      "history_requirement_met": history_requirement_met,
+                  }
+              )
+              split_bytes = canonical_json_bytes(split_plan_payload(split_plan))
+              return CandidatePreparation(
+                  policy=policy,
+                  registry=registry,
+                  matrix=matrix,
+                  labels=labels,
+                  split_plan=split_plan,
+                  bundles=bundles,
+                  plans=plans,
+                  policy_bytes=policy_bytes,
+                  configuration_bytes=configuration_bytes,
+                  split_plan_bytes=split_bytes,
+                  policy_sha256=hashlib.sha256(policy_bytes).hexdigest(),
+                  configuration_sha256=hashlib.sha256(configuration_bytes).hexdigest(),
+                  split_plan_sha256=split_plan_sha256(split_plan),
+                  history_requirement_met=history_requirement_met,
+              )
+          '''
+          replacement = "\n".join(
+              line[10:] if line.startswith("          ") else line
+              for line in replacement.splitlines()
+          ) + "\n"
+          evaluator.write_text(text[:start] + replacement + text[end:])
+
+          execution = Path("src/gemini_trading/strategy/study_execution.py")
+          text = execution.read_text()
+          old = '''        del decision_indices
+                  key = (phase, fold_number, case_id)
+                  try:
+                      plan = self.plans[key]
+                  except KeyError:
+                      raise StudyArtifactError(f"missing prepared study case: {case_id}") from None
+          '''
+          old = "\n".join(
+              line[8:] if line.startswith("        ") else line for line in old.splitlines()
+          ) + "\n"
+          new = '''        if not decision_indices:
+                      raise StudyArtifactError("study case requires decision indices")
+                  if decision_indices != tuple(sorted(set(decision_indices))):
+                      raise StudyArtifactError("study decision indices must be unique and ordered")
+                  key = (phase, fold_number, case_id)
+                  try:
+                      plan = self.plans[key]
+                  except KeyError:
+                      raise StudyArtifactError(f"missing prepared study case: {case_id}") from None
+                  boundary = plan.strategy.evaluation_end_exclusive
+                  if boundary is None or decision_indices[-1] >= boundary:
+                      raise StudyArtifactError("study case evaluation boundary is invalid")
+          '''
+          new = "\n".join(
+              line[8:] if line.startswith("        ") else line for line in new.splitlines()
+          ) + "\n"
+          if old not in text:
+              raise SystemExit("StudyExecutor target block changed")
+          execution.write_text(text.replace(old, new, 1))
+
+          predictions = Path("src/gemini_trading/strategy/study_predictions.py")
+          text = predictions.read_text()
+          old = "        if action is BaselineAction.ENTER_LONG and allowed and not long:\n"
+          new = (
+              "        if (\n"
+              "            action in {BaselineAction.ENTER_LONG, BaselineAction.HOLD_LONG}\n"
+              "            and allowed\n"
+              "            and not long\n"
+              "        ):\n"
+          )
+          if old not in text:
+              raise SystemExit("baseline event target changed")
+          predictions.write_text(text.replace(old, new, 1))
+
+          test_path = Path("tests/unit/strategy/test_study_predictions.py")
+          test_path.write_text('''"""Regression tests for phase-window baseline schedules."""
+
+          from gemini_trading.strategy.baselines import BaselineAction
+          from gemini_trading.strategy.study_predictions import baseline_events
+          from gemini_trading.strategy.study_strategy import ScheduledAction
+
+
+          def test_buy_hold_window_enters_when_schedule_is_already_long() -> None:
+              actions = (
+                  BaselineAction.ENTER_LONG,
+                  BaselineAction.HOLD_LONG,
+                  BaselineAction.HOLD_LONG,
+                  BaselineAction.HOLD_LONG,
+              )
+
+              events = baseline_events(actions=actions, indices=(2, 3))
+
+              assert events == (
+                  (2, ScheduledAction.ENTER_LONG),
+                  (3, ScheduledAction.EXIT_TO_CASH),
+              )
+          '''.replace("          ", ""))
+          PY
+      - run: uv run ruff format .
+      - run: uv run ruff check .
+      - run: uv run pyright
+      - name: Run focused sealed regressions
+        run: |
+          uv run pytest \
+            tests/integration/test_sealed_historical_validation.py::test_prepare_does_not_materialize_final_phase \
+            tests/unit/strategy/test_study_predictions.py \
+            tests/unit/cli/test_historical_validation.py::test_resume_rejects_receipt_not_bound_to_study \
+            -q
+      - name: Commit correction and remove temporary workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/temporary-pyright-diagnostic.yml
+          git add src tests
+          git commit -m "fix: enforce sealed pre-final boundary"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}

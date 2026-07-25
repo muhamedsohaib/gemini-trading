@@ -1,4 +1,4 @@
-name: Temporary Pyright Diagnostic
+name: Temporary Sealed Test Diagnostic
 
 on:
   pull_request:
@@ -19,14 +19,14 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync --all-groups --frozen
-      - name: Capture Pyright output
+      - name: Capture focused pytest output
         run: |
           set +e
-          uv run pyright > "${RUNNER_TEMP}/pyright.txt" 2>&1
+          uv run pytest tests/integration/test_sealed_historical_validation.py::test_prepare_does_not_materialize_final_phase -q > "${RUNNER_TEMP}/focused-test.txt" 2>&1
           exit 0
       - uses: actions/upload-artifact@v4
         with:
-          name: temporary-pyright-diagnostic-${{ github.sha }}
-          path: ${{ runner.temp }}/pyright.txt
+          name: temporary-sealed-test-diagnostic-${{ github.sha }}
+          path: ${{ runner.temp }}/focused-test.txt
           if-no-files-found: error
           retention-days: 1

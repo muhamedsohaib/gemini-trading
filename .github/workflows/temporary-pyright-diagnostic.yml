@@ -168,49 +168,47 @@ jobs:
 
           execution = Path("src/gemini_trading/strategy/study_execution.py")
           text = execution.read_text()
-          old = '''        del decision_indices
-                  key = (phase, fold_number, case_id)
-                  try:
-                      plan = self.plans[key]
-                  except KeyError:
-                      raise StudyArtifactError(f"missing prepared study case: {case_id}") from None
-          '''
-          old = "\n".join(
-              line[8:] if line.startswith("        ") else line for line in old.splitlines()
-          ) + "\n"
-          new = '''        if not decision_indices:
-                      raise StudyArtifactError("study case requires decision indices")
-                  if decision_indices != tuple(sorted(set(decision_indices))):
-                      raise StudyArtifactError("study decision indices must be unique and ordered")
-                  key = (phase, fold_number, case_id)
-                  try:
-                      plan = self.plans[key]
-                  except KeyError:
-                      raise StudyArtifactError(f"missing prepared study case: {case_id}") from None
-                  boundary = plan.strategy.evaluation_end_exclusive
-                  if boundary is None or decision_indices[-1] >= boundary:
-                      raise StudyArtifactError("study case evaluation boundary is invalid")
-          '''
-          new = "\n".join(
-              line[8:] if line.startswith("        ") else line for line in new.splitlines()
-          ) + "\n"
-          if old not in text:
+          target = "        del decision_indices\n        key = (phase, fold_number, case_id)\n"
+          replacement = (
+              "        if not decision_indices:\n"
+              "            raise StudyArtifactError(\"study case requires decision indices\")\n"
+              "        if decision_indices != tuple(sorted(set(decision_indices))):\n"
+              "            raise StudyArtifactError(\"study decision indices must be unique and ordered\")\n"
+              "        key = (phase, fold_number, case_id)\n"
+          )
+          if target not in text:
               raise SystemExit("StudyExecutor target block changed")
-          execution.write_text(text.replace(old, new, 1))
+          text = text.replace(target, replacement, 1)
+          target = (
+              "        except KeyError:\n"
+              "            raise StudyArtifactError(f\"missing prepared study case: {case_id}\") from None\n"
+              "        seed_payload = f\"{phase.value}:{fold_number}:{case_id}\"\n"
+          )
+          replacement = (
+              "        except KeyError:\n"
+              "            raise StudyArtifactError(f\"missing prepared study case: {case_id}\") from None\n"
+              "        boundary = plan.strategy.evaluation_end_exclusive\n"
+              "        if boundary is None or decision_indices[-1] >= boundary:\n"
+              "            raise StudyArtifactError(\"study case evaluation boundary is invalid\")\n"
+              "        seed_payload = f\"{phase.value}:{fold_number}:{case_id}\"\n"
+          )
+          if target not in text:
+              raise SystemExit("StudyExecutor plan block changed")
+          execution.write_text(text.replace(target, replacement, 1))
 
           predictions = Path("src/gemini_trading/strategy/study_predictions.py")
           text = predictions.read_text()
-          old = "        if action is BaselineAction.ENTER_LONG and allowed and not long:\n"
-          new = (
+          target = "        if action is BaselineAction.ENTER_LONG and allowed and not long:\n"
+          replacement = (
               "        if (\n"
               "            action in {BaselineAction.ENTER_LONG, BaselineAction.HOLD_LONG}\n"
               "            and allowed\n"
               "            and not long\n"
               "        ):\n"
           )
-          if old not in text:
+          if target not in text:
               raise SystemExit("baseline event target changed")
-          predictions.write_text(text.replace(old, new, 1))
+          predictions.write_text(text.replace(target, replacement, 1))
 
           test_path = Path("tests/unit/strategy/test_study_predictions.py")
           test_path.write_text('''"""Regression tests for phase-window baseline schedules."""

@@ -8,7 +8,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import cast
 
-from candidate_strategy_e2e_worker import _synthetic_candles
+from candidate_strategy_e2e_worker import synthetic_candidate_candles
 from gemini_trading.data.datasets.canonical_writer import (
     build_dataset_manifest,
     serialize_candles,
@@ -26,7 +26,7 @@ from gemini_trading.strategy.handoff import (
     serialize_dataset_handoff,
 )
 from gemini_trading.strategy.sealed_evaluator import (
-    _build_preparation,
+    build_candidate_preparation,
     complete_candidate_strategy_study,
     final_access_identity,
     prepare_candidate_strategy_study,
@@ -38,7 +38,7 @@ _CODE_COMMIT = "a" * 40
 
 
 def _verified_dataset(root: Path) -> VerifiedDataset:
-    candles = _synthetic_candles()
+    candles = synthetic_candidate_candles()
     canonical_bytes = serialize_candles(candles)
     manifest = build_dataset_manifest(
         schema_version="candle-dataset-v1",
@@ -131,7 +131,7 @@ def test_complete_requires_matching_durable_receipt(tmp_path: Path) -> None:
         code_commit=_CODE_COMMIT,
         handoff=handoff,
     )
-    preparation = _build_preparation(
+    preparation = build_candidate_preparation(
         dataset=dataset,
         simulation=simulation,
         initial_cash=Decimal("10000"),

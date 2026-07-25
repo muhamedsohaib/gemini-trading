@@ -23,7 +23,7 @@ class SafeArgumentParser(argparse.ArgumentParser):
         raise CliUsageError(message)
 
 
-def _build_parser() -> SafeArgumentParser:
+def build_parser() -> SafeArgumentParser:
     parser = SafeArgumentParser(prog="gemini-trading")
     commands = parser.add_subparsers(
         dest="command",
@@ -172,7 +172,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     command: object = None
     try:
-        arguments = _build_parser().parse_args(argv)
+        arguments = build_parser().parse_args(argv)
         command = getattr(arguments, "command", None)
         if command == "market-data":
             payload = run_market_data(arguments)

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Mapping, Protocol
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from decimal import Decimal
 from pathlib import Path
@@ -24,6 +24,7 @@ from gemini_trading.strategy.errors import (
     PreFinalArtifactError,
     StudyArtifactError,
 )
+from gemini_trading.strategy.evaluation import PromotionReport
 from gemini_trading.strategy.features import FeatureMatrix, FeatureRegistry
 from gemini_trading.strategy.final_access import DurableFinalAccessReceipt, FinalAccessIdentity
 from gemini_trading.strategy.handoff import DatasetHandoffManifest
@@ -54,17 +55,6 @@ from gemini_trading.strategy.study_execution import (
 )
 from gemini_trading.strategy.study_plans import build_split_plan, prepare_phase
 from gemini_trading.strategy.study_predictions import PredictionBundle, fit_prediction_bundle
-
-
-class DatasetHandoffReference(Protocol):
-    """Minimum verified handoff identity consumed by the phase boundary."""
-
-    dataset_id: str
-    inventory_root_sha256: str
-    source_commit: str
-    workflow_run_id: int
-    workflow_run_attempt: int
-    run_id: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,7 +94,7 @@ def _validate_dataset(dataset: VerifiedDataset, policy: CandidatePolicy) -> None
         raise StudyArtifactError("candidate dataset timeframe does not match locked policy")
 
 
-def _build_preparation(
+def build_candidate_preparation(
     *,
     dataset: VerifiedDataset,
     simulation: SimulationConfig,
@@ -284,7 +274,7 @@ def prepare_candidate_strategy_study(
     initial_cash: Decimal,
     output_root: Path,
     code_commit: str,
-    handoff: DatasetHandoffReference,
+    handoff: DatasetHandoffManifest,
 ) -> PreFinalArtifacts:
     """Complete all development work without fitting or executing the final phase."""
 
@@ -292,7 +282,7 @@ def prepare_candidate_strategy_study(
         raise PreFinalArtifactError("pre-final dataset handoff identity mismatch")
     if handoff.source_commit != code_commit:
         raise PreFinalArtifactError("pre-final source commit mismatch")
-    preparation = _build_preparation(
+    preparation = build_candidate_preparation(
         dataset=dataset,
         simulation=simulation,
         initial_cash=initial_cash,
@@ -308,7 +298,7 @@ def prepare_candidate_strategy_study(
     records = _execute_development(executor, preparation)
     artifacts = build_pre_final_artifacts(
         dataset_id=dataset.manifest.dataset_id,
-        handoff=cast(DatasetHandoffManifest, handoff),
+        handoff=handoff,
         code_commit=code_commit,
         policy_bytes=preparation.policy_bytes,
         configuration_bytes=preparation.configuration_bytes,
@@ -323,7 +313,7 @@ def prepare_candidate_strategy_study(
 def final_access_identity(
     *,
     pre_final: PreFinalArtifacts,
-    handoff: DatasetHandoffReference,
+    handoff: DatasetHandoffManifest,
     preparation: CandidatePreparation,
     code_commit: str,
     workflow_run_id: int,
@@ -379,7 +369,7 @@ def _study_evidence(
 def _payloads(
     preparation: CandidatePreparation,
     executor: StudyExecutor,
-) -> tuple[dict[str, object], object]:
+) -> tuple[dict[str, object], PromotionReport]:
     report, bootstrap = build_promotion_report(
         executor,
         dict(preparation.bundles),
@@ -477,7 +467,7 @@ def _extend_manifest(
     evidence: StrategyStudyEvidence,
     code_commit: str,
     pre_final: PreFinalArtifacts,
-    handoff: DatasetHandoffReference,
+    handoff: DatasetHandoffManifest,
     receipt: DurableFinalAccessReceipt,
 ) -> StrategyStudyArtifacts:
     files = dict(artifacts.files)
@@ -524,7 +514,7 @@ def complete_candidate_strategy_study(
     *,
     pre_final: PreFinalArtifacts,
     receipt: DurableFinalAccessReceipt,
-    handoff: DatasetHandoffReference,
+    handoff: DatasetHandoffManifest,
     dataset: VerifiedDataset,
     simulation: SimulationConfig,
     initial_cash: Decimal,
@@ -535,11 +525,11 @@ def complete_candidate_strategy_study(
 
     verify_pre_final_artifacts(
         pre_final,
-        expected_handoff=cast(DatasetHandoffManifest, handoff),
+        expected_handoff=handoff,
         expected_code_commit=code_commit,
         expected_dataset_id=dataset.manifest.dataset_id,
     )
-    development = _build_preparation(
+    development = build_candidate_preparation(
         dataset=dataset,
         simulation=simulation,
         initial_cash=initial_cash,
@@ -556,7 +546,7 @@ def complete_candidate_strategy_study(
     if receipt.identity != expected_identity:
         raise FinalAccessError("final-test access identity mismatch")
 
-    preparation = _build_preparation(
+    preparation = build_candidate_preparation(
         dataset=dataset,
         simulation=simulation,
         initial_cash=initial_cash,
@@ -608,7 +598,7 @@ def complete_candidate_strategy_study(
 
 __all__ = [
     "CandidatePreparation",
-    "DatasetHandoffReference",
+    "build_candidate_preparation",
     "complete_candidate_strategy_study",
     "final_access_identity",
     "prepare_candidate_strategy_study",

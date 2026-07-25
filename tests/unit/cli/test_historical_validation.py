@@ -6,13 +6,16 @@ from pathlib import Path
 import pytest
 
 from gemini_trading.cli import historical_validation
-from gemini_trading.cli.historical_validation import run_historical_validation
-from gemini_trading.cli.main import _build_parser, main
+from gemini_trading.cli.historical_validation import (
+    resolve_locked_candidate_config,
+    run_historical_validation,
+)
+from gemini_trading.cli.main import build_parser, main
 from gemini_trading.cli.market_data import CliUsageError
 
 
 def test_parser_accepts_only_fixed_historical_validation_shapes() -> None:
-    parser = _build_parser()
+    parser = build_parser()
 
     handoff = parser.parse_args(
         [
@@ -61,7 +64,7 @@ def test_parser_accepts_only_fixed_historical_validation_shapes() -> None:
 )
 def test_parser_rejects_scope_override_inputs(extra: tuple[str, str]) -> None:
     with pytest.raises(CliUsageError):
-        _build_parser().parse_args(
+        build_parser().parse_args(
             [
                 "research",
                 "strategy-handoff",
@@ -107,7 +110,7 @@ def test_locked_config_rejects_arbitrary_override(tmp_path: Path) -> None:
     arguments = argparse.Namespace(config=str(tmp_path / "other.json"))
 
     with pytest.raises(CliUsageError, match="locked Candidate configuration"):
-        historical_validation._fixed_config_path(arguments, project_root)
+        resolve_locked_candidate_config(arguments, project_root)
 
 
 def test_malformed_ids_and_attempts_fail_safely(

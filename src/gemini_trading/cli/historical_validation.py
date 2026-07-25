@@ -24,7 +24,11 @@ from gemini_trading.strategy.handoff import (
     serialize_dataset_handoff,
     verify_dataset_handoff,
 )
-from gemini_trading.strategy.pre_final import LocalPreFinalStore, verify_pre_final_artifacts
+from gemini_trading.strategy.pre_final import (
+    LocalPreFinalStore,
+    PreFinalArtifacts,
+    verify_pre_final_artifacts,
+)
 from gemini_trading.strategy.sealed_evaluator import (
     complete_candidate_strategy_study,
     prepare_candidate_strategy_study,
@@ -89,7 +93,7 @@ def _safe_relative(path: Path, root: Path) -> str:
         raise CliUsageError("result path escaped the configured output root") from None
 
 
-def _fixed_config_path(arguments: argparse.Namespace, project_root: Path) -> Path:
+def resolve_locked_candidate_config(arguments: argparse.Namespace, project_root: Path) -> Path:
     supplied = Path(_argument(arguments, "config")).resolve(strict=False)
     expected = (project_root / _FIXED_CONFIG).resolve(strict=False)
     if supplied != expected:
@@ -128,7 +132,9 @@ def _required_str(mapping: dict[str, object], key: str, description: str) -> str
     return value
 
 
-def _pre_final_identity(output_root: Path, pre_final_id: str) -> tuple[object, dict[str, object]]:
+def _pre_final_identity(
+    output_root: Path, pre_final_id: str
+) -> tuple[PreFinalArtifacts, dict[str, object]]:
     artifacts = LocalPreFinalStore(output_root).load(pre_final_id)
     verify_pre_final_artifacts(artifacts)
     manifest = _object(artifacts.artifact_bytes("pre-final-manifest.json"), "pre-final manifest")
@@ -205,7 +211,7 @@ def _strategy_prepare(arguments: argparse.Namespace) -> dict[str, object]:
     project_root = _root(arguments, "project_root")
     output_root = _root(arguments, "output_root")
     handoff_path = Path(_argument(arguments, "handoff")).resolve(strict=False)
-    config_path = _fixed_config_path(arguments, project_root)
+    config_path = resolve_locked_candidate_config(arguments, project_root)
     handoff = _read_handoff(handoff_path)
     verify_dataset_handoff(handoff, output_root)
     config = load_candidate_strategy_config(config_path)
@@ -319,4 +325,4 @@ def run_historical_validation(arguments: argparse.Namespace) -> dict[str, object
     raise CliUsageError("unsupported historical-validation command")
 
 
-__all__ = ["run_historical_validation"]
+__all__ = ["resolve_locked_candidate_config", "run_historical_validation"]

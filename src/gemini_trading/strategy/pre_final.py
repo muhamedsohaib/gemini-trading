@@ -318,9 +318,12 @@ def verify_pre_final_artifacts(
     expected_hashes = tuple(sorted((name, _sha256_bytes(file_map[name])) for name in _CORE_NAMES))
     parsed_hashes: list[tuple[str, str]] = []
     for raw_pair in cast(list[object], raw_hashes):
-        if not isinstance(raw_pair, list) or len(raw_pair) != 2:
+        if not isinstance(raw_pair, list):
             raise PreFinalArtifactError("invalid pre-final artifact hash inventory")
-        name, digest = cast(list[object], raw_pair)
+        pair = cast(list[object], raw_pair)
+        if len(pair) != 2:
+            raise PreFinalArtifactError("invalid pre-final artifact hash inventory")
+        name, digest = pair
         if not isinstance(name, str) or not isinstance(digest, str):
             raise PreFinalArtifactError("invalid pre-final artifact hash inventory")
         parsed_hashes.append((name, digest))

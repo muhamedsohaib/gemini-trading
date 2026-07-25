@@ -1,5 +1,6 @@
 """Unit tests for sealed historical-validation artifact handoffs."""
 
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -134,30 +135,4 @@ def test_handoff_rejects_changed_scope(tmp_path: Path) -> None:
     entries = build_artifact_inventory(tmp_path, ("data.txt",))
 
     with pytest.raises(DatasetHandoffError, match="market scope"):
-        DatasetHandoffManifest(
-            **{
-                "schema_version": "sealed-dataset-handoff-v1",
-                "repository": "muhamedsohaib/gemini-trading",
-                "source_commit": "a" * 40,
-                "workflow_name": "sealed-btcusdt-dataset",
-                "workflow_run_id": 123,
-                "workflow_run_attempt": 1,
-                "job_name": "dataset",
-                "provider": "binance_spot",
-                "symbol": "ETHUSDT",
-                "base_asset": "BTC",
-                "quote_asset": "USDT",
-                "interval": "4h",
-                "start": "2018-01-01T00:00:00Z",
-                "end_exclusive": "2026-07-01T00:00:00Z",
-                "run_id": "run-123",
-                "dataset_id": "b" * 64,
-                "candle_count": 18_618,
-                "first_open_time": "2018-01-01T00:00:00Z",
-                "last_open_time": "2026-06-30T20:00:00Z",
-                "replay_status": "completed",
-                "verification_status": "verified",
-                "files": entries,
-                "inventory_root_sha256": inventory_root_sha256(entries),
-            }
-        )
+        replace(_manifest(entries), symbol="ETHUSDT")

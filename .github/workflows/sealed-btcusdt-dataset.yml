@@ -39,13 +39,13 @@ jobs:
             --interval 4h \
             --start 2018-01-01T00:00:00Z \
             --end 2026-07-01T00:00:00Z \
-            --output-root "${OUTPUT_ROOT}" | tee ingest.json
+            --output-root "${OUTPUT_ROOT}" | tee "${RUNNER_TEMP}/ingest.json"
           python - <<'PY'
           import json
           import os
           from pathlib import Path
 
-          payload = json.loads(Path("ingest.json").read_text())
+          payload = json.loads((Path(os.environ["RUNNER_TEMP"]) / "ingest.json").read_text())
           with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
               output.write(f"run_id={payload['run_id']}\n")
               output.write(f"dataset_id={payload['dataset_id']}\n")
@@ -54,13 +54,13 @@ jobs:
         run: |
           uv run gemini-trading market-data replay \
             --run-id "${{ steps.ingest.outputs.run_id }}" \
-            --output-root "${OUTPUT_ROOT}" | tee replay.json
+            --output-root "${OUTPUT_ROOT}" | tee "${RUNNER_TEMP}/replay.json"
       - name: Independently verify dataset
         run: |
           uv run gemini-trading market-data verify \
             --dataset-id "${{ steps.ingest.outputs.dataset_id }}" \
             --run-id "${{ steps.ingest.outputs.run_id }}" \
-            --output-root "${OUTPUT_ROOT}" | tee verify.json
+            --output-root "${OUTPUT_ROOT}" | tee "${RUNNER_TEMP}/verify.json"
       - name: Build verified dataset handoff
         run: |
           uv run gemini-trading research strategy-handoff \
@@ -69,7 +69,7 @@ jobs:
             --source-commit "${GITHUB_SHA}" \
             --workflow-run-id "${GITHUB_RUN_ID}" \
             --workflow-run-attempt "${GITHUB_RUN_ATTEMPT}" \
-            --output-root "${OUTPUT_ROOT}" | tee handoff.json
+            --output-root "${OUTPUT_ROOT}" | tee "${RUNNER_TEMP}/handoff.json"
       - name: Assert worktree stayed clean
         run: test -z "$(git status --porcelain)"
       - uses: actions/upload-artifact@v4

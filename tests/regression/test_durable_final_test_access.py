@@ -33,12 +33,7 @@ def test_final_rows_load_only_after_receipt_and_stable_seal_exist(tmp_path: Path
 
     def load_rows() -> tuple[int, ...]:
         base = tmp_path / "data" / "historical-validation" / "final-access"
-        seal_path = (
-            base
-            / "seals"
-            / final_access_seal_id(_identity())
-            / "final-access-seal.json"
-        )
+        seal_path = base / "seals" / final_access_seal_id(_identity()) / "final-access-seal.json"
         receipts = tuple((base / "receipts").rglob("final-access-receipt.json"))
         observed.append(seal_path.is_file() and len(receipts) == 1)
         return (1, 2, 3)

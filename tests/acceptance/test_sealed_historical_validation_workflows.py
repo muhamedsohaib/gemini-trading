@@ -105,4 +105,7 @@ def test_study_workflow_has_exact_narrow_inputs_and_cross_run_barriers() -> None
     assert text.count("OUTPUT_ROOT: ${{ runner.temp }}/sealed-output") == 4
     assert "api.binance.com" not in text
     assert "GITHUB_ENV" not in text
-    assert "\n        env:\n          COMMENT_ID: ${{ steps.repository-seal.outputs.comment_id }}" not in text
+    assert (
+        "\n        env:\n          COMMENT_ID: ${{ steps.repository-seal.outputs.comment_id }}"
+        not in text
+    )

@@ -1,0 +1,44 @@
+name: Temporary harden issue pagination
+
+on:
+  push:
+    branches: [research/sealed-btcusdt-historical-validation]
+
+permissions:
+  contents: write
+
+jobs:
+  harden:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          ref: research/sealed-btcusdt-historical-validation
+          fetch-depth: 0
+      - name: Harden paginated comment checks
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('.github/workflows/sealed-btcusdt-study.yml')
+          text = path.read_text()
+          old_command = 'gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/22/comments" > issue-comments.json'
+          new_command = 'gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/issues/22/comments" > issue-comments.json'
+          if text.count(old_command) != 2:
+              raise SystemExit('comment pagination commands not found')
+          text = text.replace(old_command, new_command)
+          old_parse = '''          comments = json.loads(Path("issue-comments.json").read_text())
+                    marker = os.environ'''
+          new_parse = '''          pages = json.loads(Path("issue-comments.json").read_text())
+                    comments = [comment for page in pages for comment in page]
+                    marker = os.environ'''
+          if text.count(old_parse) != 2:
+              raise SystemExit('comment pagination parsers not found')
+          path.write_text(text.replace(old_parse, new_parse))
+          PY
+          git rm .github/workflows/temporary-harden-issue-pagination.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: harden sealed issue comment pagination"
+          git push origin HEAD:research/sealed-btcusdt-historical-validation

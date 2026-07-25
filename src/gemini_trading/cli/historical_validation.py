@@ -98,14 +98,7 @@ def _fixed_config_path(arguments: argparse.Namespace, project_root: Path) -> Pat
 
 
 def _handoff_path(output_root: Path, dataset_id: str) -> Path:
-    return (
-        output_root
-        / "data"
-        / "historical-validation"
-        / "handoff"
-        / dataset_id
-        / _HANDOFF_NAME
-    )
+    return output_root / "data" / "historical-validation" / "handoff" / dataset_id / _HANDOFF_NAME
 
 
 def _read_handoff(path: Path) -> DatasetHandoffManifest:
@@ -242,9 +235,7 @@ def _strategy_authorize_final(arguments: argparse.Namespace) -> dict[str, object
     identity = FinalAccessIdentity(
         code_commit=resolve_clean_git_commit(project_root),
         dataset_id=_required_str(manifest, "dataset_id", "pre-final manifest"),
-        configuration_sha256=_required_str(
-            manifest, "configuration_sha256", "pre-final manifest"
-        ),
+        configuration_sha256=_required_str(manifest, "configuration_sha256", "pre-final manifest"),
         policy_sha256=_required_str(manifest, "policy_sha256", "pre-final manifest"),
         split_plan_sha256=_required_str(manifest, "split_plan_sha256", "pre-final manifest"),
         pre_final_id=pre_final_id,

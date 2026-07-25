@@ -6,6 +6,7 @@ import sys
 from collections.abc import Sequence
 from typing import NoReturn, TextIO
 
+from gemini_trading.cli.historical_validation import run_historical_validation
 from gemini_trading.cli.market_data import CliUsageError, run_market_data
 from gemini_trading.cli.research import run_research
 from gemini_trading.cli.strategy import run_strategy
@@ -100,6 +101,49 @@ def _build_parser() -> SafeArgumentParser:
         strategy_command.add_argument("--study-id", required=True)
         strategy_command.add_argument("--project-root", required=True)
         strategy_command.add_argument("--output-root", required=True)
+
+    handoff = research_commands.add_parser(
+        "strategy-handoff", help="seal one verified BTCUSDT dataset handoff"
+    )
+    handoff.add_argument("--run-id", required=True)
+    handoff.add_argument("--dataset-id", required=True)
+    handoff.add_argument("--source-commit", required=True)
+    handoff.add_argument("--workflow-run-id", required=True)
+    handoff.add_argument("--workflow-run-attempt", required=True)
+    handoff.add_argument("--output-root", required=True)
+
+    prepare = research_commands.add_parser(
+        "strategy-prepare", help="prepare development-only Candidate evidence"
+    )
+    prepare.add_argument("--handoff", required=True)
+    prepare.add_argument("--config", required=True)
+    prepare.add_argument("--project-root", required=True)
+    prepare.add_argument("--output-root", required=True)
+
+    authorize = research_commands.add_parser(
+        "strategy-authorize-final", help="persist one final-test access receipt"
+    )
+    authorize.add_argument("--pre-final-id", required=True)
+    authorize.add_argument("--workflow-run-id", required=True)
+    authorize.add_argument("--workflow-run-attempt", required=True)
+    authorize.add_argument("--project-root", required=True)
+    authorize.add_argument("--output-root", required=True)
+
+    finalize = research_commands.add_parser(
+        "strategy-finalize", help="complete the receipt-authorized final study"
+    )
+    finalize.add_argument("--pre-final-id", required=True)
+    finalize.add_argument("--receipt-id", required=True)
+    finalize.add_argument("--project-root", required=True)
+    finalize.add_argument("--output-root", required=True)
+
+    resume = research_commands.add_parser(
+        "strategy-resume", help="verify provider-free completed final evidence"
+    )
+    resume.add_argument("--study-id", required=True)
+    resume.add_argument("--receipt-id", required=True)
+    resume.add_argument("--project-root", required=True)
+    resume.add_argument("--output-root", required=True)
     return parser
 
 
@@ -134,11 +178,19 @@ def main(argv: Sequence[str] | None = None) -> int:
             payload = run_market_data(arguments)
         elif command == "research":
             research_command = getattr(arguments, "research_command", None)
-            payload = (
-                run_strategy(arguments)
-                if isinstance(research_command, str) and research_command.startswith("strategy-")
-                else run_research(arguments)
-            )
+            historical_commands = {
+                "strategy-authorize-final",
+                "strategy-finalize",
+                "strategy-handoff",
+                "strategy-prepare",
+                "strategy-resume",
+            }
+            if research_command in historical_commands:
+                payload = run_historical_validation(arguments)
+            elif isinstance(research_command, str) and research_command.startswith("strategy-"):
+                payload = run_strategy(arguments)
+            else:
+                payload = run_research(arguments)
         else:
             raise CliUsageError("unsupported command")
     except (MarketDataError, ResearchError) as error:

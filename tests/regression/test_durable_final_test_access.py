@@ -10,6 +10,7 @@ from gemini_trading.strategy.final_access import (
     FinalAccessIdentity,
     FinalAccessStore,
     authorize_then_load_final,
+    final_access_seal_id,
 )
 
 
@@ -26,15 +27,20 @@ def _identity() -> FinalAccessIdentity:
     )
 
 
-def test_final_rows_load_only_after_receipt_exists(tmp_path: Path) -> None:
+def test_final_rows_load_only_after_receipt_and_stable_seal_exist(tmp_path: Path) -> None:
     store = FinalAccessStore(tmp_path)
     observed: list[bool] = []
 
     def load_rows() -> tuple[int, ...]:
-        receipt_directories = tuple(
-            (tmp_path / "data" / "historical-validation" / "final-access").iterdir()
+        base = tmp_path / "data" / "historical-validation" / "final-access"
+        seal_path = (
+            base
+            / "seals"
+            / final_access_seal_id(_identity())
+            / "final-access-seal.json"
         )
-        observed.append(len(receipt_directories) == 1)
+        receipts = tuple((base / "receipts").rglob("final-access-receipt.json"))
+        observed.append(seal_path.is_file() and len(receipts) == 1)
         return (1, 2, 3)
 
     receipt, rows = authorize_then_load_final(store, _identity(), load_rows)
@@ -80,7 +86,7 @@ def test_repeated_authorization_never_reloads_final_rows(tmp_path: Path) -> None
         called = True
         return (2,)
 
-    with pytest.raises(FinalAccessError, match="already exists"):
+    with pytest.raises(FinalAccessError, match="seal already exists"):
         authorize_then_load_final(store, _identity(), repeated_loader)
 
     assert called is False

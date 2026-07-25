@@ -46,7 +46,7 @@ def test_dataset_workflow_is_manual_fixed_scope_and_least_privilege() -> None:
     assert "workflow_dispatch:\n    inputs:" not in text
 
 
-def test_study_workflow_has_exact_narrow_inputs_and_barriers() -> None:
+def test_study_workflow_has_exact_narrow_inputs_and_cross_run_barriers() -> None:
     text = _text(_STUDY)
     inputs = _workflow_dispatch_input_block(text)
 
@@ -75,11 +75,19 @@ def test_study_workflow_has_exact_narrow_inputs_and_barriers() -> None:
         "strategy:",
     ):
         assert forbidden not in inputs
-    assert "permissions:\n  actions: read\n  contents: read\n" in text
+    assert "permissions:\n  actions: read\n  contents: read\n  issues: write\n" in text
     assert "concurrency:\n  group: sealed-btcusdt-study\n  cancel-in-progress: false\n" in text
     for job_name in ("validate-dataset", "prepare", "authorize-final", "finalize"):
         assert f"  {job_name}:\n" in text
     assert 'test "${GITHUB_RUN_ATTEMPT}" = "1"' in text
+    assert "sealed-dataset-approved:" in text
+    assert "exact Issue #22 dataset approval marker is missing" in text
+    assert "sealed-final-access:${PRE_FINAL_ID}" in text
+    assert "final-test repository seal already exists" in text
+    assert "github-actions[bot]" in text
+    assert "GITHUB_REPOSITORY_OWNER" in text
+    assert "github-issue-final-seal-v1" in text
+    assert "issues/22/comments" in text
     assert "receipt.identity.workflow_run_attempt" in text
     assert "receipt.identity.workflow_run_id" in text
     assert "strategy-prepare" in text
@@ -97,3 +105,4 @@ def test_study_workflow_has_exact_narrow_inputs_and_barriers() -> None:
     assert text.count("OUTPUT_ROOT: ${{ runner.temp }}/sealed-output") == 4
     assert "api.binance.com" not in text
     assert "GITHUB_ENV" not in text
+    assert "\n        env:\n          COMMENT_ID: ${{ steps.repository-seal.outputs.comment_id }}" not in text

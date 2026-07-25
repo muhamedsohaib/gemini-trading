@@ -26,22 +26,14 @@ jobs:
       - name: Extend replay and verification
         run: |
           python - <<'PY'
+          import re
           from pathlib import Path
 
           replay = Path('src/gemini_trading/strategy/replay.py')
           text = replay.read_text()
-          old = '''_STUDY_MANIFEST_KEYS = {
-              "schema_version",
-              "study_id",
-              "split_plan_sha256",
-              "policy_sha256",
-              "configuration_sha256",
-              "code_commit",
-              "final_test_receipt_id",
-              "final_evaluation_count",
-          }
-          '''
-          new = '''_LEGACY_STUDY_MANIFEST_KEYS = {
+          text, count = re.subn(
+              r'_STUDY_MANIFEST_KEYS = \{.*?\n\}\n_CASE_KEYS =',
+              '''_LEGACY_STUDY_MANIFEST_KEYS = {
               "schema_version",
               "study_id",
               "split_plan_sha256",
@@ -57,46 +49,38 @@ jobs:
               "dataset_handoff_inventory_root",
               "durable_final_access_receipt_id",
           }
-          '''
-          if old not in text:
+          _CASE_KEYS =''',
+              text,
+              count=1,
+              flags=re.DOTALL,
+          )
+          if count != 1:
               raise SystemExit('manifest key block not found')
-          text = text.replace(old, new, 1)
-          old = '''    final_test_receipt_id: str
-              final_evaluation_count: int
-          '''
-          new = '''    final_test_receipt_id: str
-              final_evaluation_count: int
-              pre_final_id: str | None = None
-              dataset_handoff_inventory_root: str | None = None
-              durable_final_access_receipt_id: str | None = None
-          '''
-          if old not in text:
-              raise SystemExit('manifest dataclass block not found')
-          text = text.replace(old, new, 1)
-          old = '''    mapping = _json_object(raw, "strategy study manifest")
-              if set(mapping) != _STUDY_MANIFEST_KEYS:
-                  raise StudyReplayMismatchError("strategy study manifest fields do not match schema")
-          '''
-          new = '''    mapping = _json_object(raw, "strategy study manifest")
-              field_names = set(mapping)
+          text = text.replace(
+              '    final_evaluation_count: int\n\n\ndef parse_study_manifest',
+              '    final_evaluation_count: int\n    pre_final_id: str | None = None\n    dataset_handoff_inventory_root: str | None = None\n    durable_final_access_receipt_id: str | None = None\n\n\ndef parse_study_manifest',
+              1,
+          )
+          text = text.replace(
+              '    if set(mapping) != _STUDY_MANIFEST_KEYS:\n        raise StudyReplayMismatchError("strategy study manifest fields do not match schema")\n',
+              '''    field_names = set(mapping)
               if field_names not in {
                   frozenset(_LEGACY_STUDY_MANIFEST_KEYS),
                   frozenset(_SEALED_STUDY_MANIFEST_KEYS),
               }:
                   raise StudyReplayMismatchError("strategy study manifest fields do not match schema")
               sealed = field_names == _SEALED_STUDY_MANIFEST_KEYS
-          '''
-          if old not in text:
-              raise SystemExit('manifest parse block not found')
-          text = text.replace(old, new, 1)
-          old = '''        final_evaluation_count=_required_int(
+          ''',
+              1,
+          )
+          constructor = '''        final_evaluation_count=_required_int(
                   mapping,
                   "final_evaluation_count",
                   "strategy study manifest",
               ),
           )
           '''
-          new = '''        final_evaluation_count=_required_int(
+          replacement = '''        final_evaluation_count=_required_int(
                   mapping,
                   "final_evaluation_count",
                   "strategy study manifest",
@@ -135,40 +119,38 @@ jobs:
               ),
           )
           '''
-          if old not in text:
+          if constructor not in text:
               raise SystemExit('manifest constructor block not found')
-          replay.write_text(text.replace(old, new, 1))
+          replay.write_text(text.replace(constructor, replacement, 1))
 
           verification = Path('src/gemini_trading/strategy/verification.py')
           text = verification.read_text()
-          text = text.replace(
-              'from gemini_trading.strategy.replay import (\n',
-              'from gemini_trading.strategy.replay import (\n',
-              1,
-          )
-          import_marker = '''from gemini_trading.strategy.replay import (
+          marker = '''from gemini_trading.strategy.replay import (
               SUPPORTED_REPLAY_STRATEGY_IDS,
               StrategyStudyReplayService,
               parse_study_case_evidence,
               validate_replay_strategy_id,
           )
           '''
-          import_replacement = import_marker + '''from gemini_trading.strategy.replay import parse_study_manifest
-          from gemini_trading.strategy.sealed_verification import verify_sealed_evidence_chain
-          '''
-          if import_marker not in text:
+          if marker not in text:
               raise SystemExit('verification import marker not found')
-          text = text.replace(import_marker, import_replacement, 1)
-          old = '''        _verify_mandatory_gates(
+          text = text.replace(
+              marker,
+              marker + 'from gemini_trading.strategy.replay import parse_study_manifest\nfrom gemini_trading.strategy.sealed_verification import verify_sealed_evidence_chain\n',
+              1,
+          )
+          gate_marker = '''        _verify_mandatory_gates(
                   replayed.artifact_bytes("promotion-gates.json"),
                   replayed.classification,
               )
 
               checks = tuple(
-                  sorted(
-                      {
           '''
-          new = '''        _verify_mandatory_gates(
+          if gate_marker not in text:
+              raise SystemExit('verification gate marker not found')
+          text = text.replace(
+              gate_marker,
+              '''        _verify_mandatory_gates(
                   replayed.artifact_bytes("promotion-gates.json"),
                   replayed.classification,
               )
@@ -182,26 +164,18 @@ jobs:
               )
 
               checks = tuple(
-                  sorted(
-                      {
-          '''
-          if old not in text:
-              raise SystemExit('verification checks marker not found')
-          text = text.replace(old, new, 1)
-          old = '''                    "study_result_identity_verified",
-                          }
-                      )
-                  )
-          '''
-          new = '''                    "study_result_identity_verified",
-                              *sealed_checks,
-                          }
-                      )
-                  )
-          '''
-          if old not in text:
+          ''',
+              1,
+          )
+          check_marker = '                    "study_result_identity_verified",\n                }\n'
+          if check_marker not in text:
               raise SystemExit('verification check set marker not found')
-          verification.write_text(text.replace(old, new, 1))
+          text = text.replace(
+              check_marker,
+              '                    "study_result_identity_verified",\n                    *sealed_checks,\n                }\n',
+              1,
+          )
+          verification.write_text(text)
           PY
           uv run ruff check --fix . || true
           uv run ruff format .

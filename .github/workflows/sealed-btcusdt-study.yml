@@ -30,7 +30,7 @@ jobs:
     timeout-minutes: 30
     env:
       GEMINI_TRADING_MODE: research
-      OUTPUT_ROOT: ${{ github.workspace }}/sealed-output
+      OUTPUT_ROOT: ${{ runner.temp }}/sealed-output
     steps:
       - uses: actions/checkout@v6.0.2
         with:
@@ -51,7 +51,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: ${{ inputs.dataset_artifact_name }}
-          path: sealed-output
+          path: ${{ runner.temp }}/sealed-output
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: ${{ inputs.dataset_run_id }}
       - name: Verify exact dataset handoff
@@ -80,7 +80,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: sealed-validated-dataset-${{ github.run_id }}
-          path: sealed-output/
+          path: ${{ runner.temp }}/sealed-output/
           if-no-files-found: error
           retention-days: 90
           compression-level: 6
@@ -93,7 +93,7 @@ jobs:
       pre_final_id: ${{ steps.prepare.outputs.pre_final_id }}
     env:
       GEMINI_TRADING_MODE: research
-      OUTPUT_ROOT: ${{ github.workspace }}/sealed-output
+      OUTPUT_ROOT: ${{ runner.temp }}/sealed-output
     steps:
       - uses: actions/checkout@v6.0.2
         with:
@@ -110,7 +110,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: sealed-validated-dataset-${{ github.run_id }}
-          path: sealed-output
+          path: ${{ runner.temp }}/sealed-output
       - name: Prepare development-only evidence
         id: prepare
         run: |
@@ -142,7 +142,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: sealed-pre-final-${{ github.run_id }}
-          path: sealed-output/
+          path: ${{ runner.temp }}/sealed-output/
           if-no-files-found: error
           retention-days: 90
           compression-level: 6
@@ -155,7 +155,7 @@ jobs:
       receipt_id: ${{ steps.authorize.outputs.receipt_id }}
     env:
       GEMINI_TRADING_MODE: research
-      OUTPUT_ROOT: ${{ github.workspace }}/sealed-output
+      OUTPUT_ROOT: ${{ runner.temp }}/sealed-output
     steps:
       - name: Reject workflow reruns
         run: test "${GITHUB_RUN_ATTEMPT}" = "1"
@@ -174,7 +174,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: sealed-pre-final-${{ github.run_id }}
-          path: sealed-output
+          path: ${{ runner.temp }}/sealed-output
       - name: Persist final-test access receipt
         id: authorize
         run: |
@@ -196,7 +196,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: sealed-final-access-${{ github.run_id }}
-          path: sealed-output/
+          path: ${{ runner.temp }}/sealed-output/
           if-no-files-found: error
           retention-days: 90
           compression-level: 6
@@ -208,7 +208,7 @@ jobs:
     timeout-minutes: 240
     env:
       GEMINI_TRADING_MODE: research
-      OUTPUT_ROOT: ${{ github.workspace }}/sealed-output
+      OUTPUT_ROOT: ${{ runner.temp }}/sealed-output
     steps:
       - uses: actions/checkout@v6.0.2
         with:
@@ -225,7 +225,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: sealed-final-access-${{ github.run_id }}
-          path: sealed-output
+          path: ${{ runner.temp }}/sealed-output
       - name: Require receipt run and attempt identity
         env:
           RECEIPT_ID: ${{ needs.authorize-final.outputs.receipt_id }}
@@ -253,15 +253,7 @@ jobs:
       - name: Replay and independently verify completed study
         if: steps.finalize.outcome == 'success'
         run: |
-          python - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-
-          payload = json.loads(Path("finalize.json").read_text())
-          with Path(os.environ["GITHUB_ENV"]).open("a") as environment:
-              environment.write(f"STUDY_ID={payload['study_id']}\n")
-          PY
+          STUDY_ID="$(python -c 'import json; print(json.load(open("finalize.json"))["study_id"])')"
           uv run gemini-trading research strategy-replay \
             --study-id "${STUDY_ID}" \
             --project-root "${GITHUB_WORKSPACE}" \
@@ -294,7 +286,7 @@ jobs:
         with:
           name: sealed-candidate-study-${{ github.run_id }}
           path: |
-            sealed-output/
+            ${{ runner.temp }}/sealed-output/
             finalize.json
             replay.json
             verify.json

@@ -1,0 +1,116 @@
+name: Temporary isolate sealed workflow files
+
+on:
+  push:
+    branches: [research/sealed-btcusdt-historical-validation]
+
+permissions:
+  contents: write
+
+jobs:
+  isolate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          ref: research/sealed-btcusdt-historical-validation
+          fetch-depth: 0
+      - name: Move transient files outside worktree
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          dataset = Path('.github/workflows/sealed-btcusdt-dataset.yml')
+          text = dataset.read_text()
+          replacements = {
+              '| tee ingest.json': '| tee "${RUNNER_TEMP}/ingest.json"',
+              'payload = json.loads(Path("ingest.json").read_text())': 'payload = json.loads((Path(os.environ["RUNNER_TEMP"]) / "ingest.json").read_text())',
+              '| tee replay.json': '| tee "${RUNNER_TEMP}/replay.json"',
+              '| tee verify.json': '| tee "${RUNNER_TEMP}/verify.json"',
+              '| tee handoff.json': '| tee "${RUNNER_TEMP}/handoff.json"',
+          }
+          for old, new in replacements.items():
+              if old not in text:
+                  raise SystemExit(f'dataset target missing: {old}')
+              text = text.replace(old, new, 1)
+          dataset.write_text(text)
+
+          study = Path('.github/workflows/sealed-btcusdt-study.yml')
+          text = study.read_text()
+          comment_command = 'gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/22/comments" > issue-comments.json'
+          slurp_command = 'gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/issues/22/comments" > "${RUNNER_TEMP}/issue-comments.json"'
+          if text.count(comment_command) != 2:
+              raise SystemExit('study comment command count mismatch')
+          text = text.replace(comment_command, slurp_command)
+          comment_parse = 'comments = json.loads(Path("issue-comments.json").read_text())'
+          paged_parse = 'pages = json.loads((Path(os.environ["RUNNER_TEMP"]) / "issue-comments.json").read_text())\n          comments = [comment for page in pages for comment in page]'
+          if text.count(comment_parse) != 2:
+              raise SystemExit('study comment parser count mismatch')
+          text = text.replace(comment_parse, paged_parse)
+          replacements = {
+              '| tee prepare.json': '| tee "${RUNNER_TEMP}/prepare.json"',
+              'payload = json.loads(Path("prepare.json").read_text())': 'payload = json.loads((Path(os.environ["RUNNER_TEMP"]) / "prepare.json").read_text())',
+              '| tee authorize.json': '| tee "${RUNNER_TEMP}/authorize.json"',
+              'payload = json.loads(Path("authorize.json").read_text())': 'payload = json.loads((Path(os.environ["RUNNER_TEMP"]) / "authorize.json").read_text())',
+              '| tee finalize.json': '| tee "${RUNNER_TEMP}/finalize.json"',
+              'STUDY_ID="$(python -c \'import json; print(json.load(open("finalize.json"))["study_id"])\')"': 'STUDY_ID="$(jq -r \'.study_id\' "${RUNNER_TEMP}/finalize.json")"',
+              '| tee replay.json': '| tee "${RUNNER_TEMP}/replay.json"',
+              '| tee verify.json': '| tee "${RUNNER_TEMP}/verify.json"',
+              '            finalize.json\n            replay.json\n            verify.json': '            ${{ runner.temp }}/finalize.json\n            ${{ runner.temp }}/replay.json\n            ${{ runner.temp }}/verify.json',
+          }
+          for old, new in replacements.items():
+              if old not in text:
+                  raise SystemExit(f'study target missing: {old}')
+              text = text.replace(old, new, 1)
+          marker = '''          gh api --method PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${COMMENT_ID}" -f body="${BODY}" > /dev/null
+              - uses: actions/upload-artifact@v4
+          '''
+          insertion = '''          gh api --method PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${COMMENT_ID}" -f body="${BODY}" > /dev/null
+              - name: Mark repository seal inconclusive after authorization failure
+                if: failure() && steps.repository-seal.outcome == 'success'
+                env:
+                  GH_TOKEN: ${{ github.token }}
+                  COMMENT_ID: ${{ steps.repository-seal.outputs.comment_id }}
+                  PRE_FINAL_ID: ${{ needs.prepare.outputs.pre_final_id }}
+                run: |
+                  MARKER="<!-- sealed-final-access:${PRE_FINAL_ID} -->"
+                  BODY="${MARKER}
+
+                  Repository-side one-time final-access seal is `INCONCLUSIVE`.
+
+                  - Source commit: \`${{ inputs.source_commit }}\`
+                  - Dataset ID: \`${{ inputs.dataset_id }}\`
+                  - Pre-final ID: \`${PRE_FINAL_ID}\`
+                  - Workflow run: \`${GITHUB_RUN_ID}\`
+                  - Workflow attempt: \`${GITHUB_RUN_ATTEMPT}\`
+                  - Boundary: \`RESEARCH_ONLY\`
+
+                  The repository seal was recorded, but complete durable authorization evidence was not produced. Fresh final evaluation remains prohibited."
+                  gh api --method PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${COMMENT_ID}" -f body="${BODY}" > /dev/null
+                  mkdir -p "${OUTPUT_ROOT}/data/historical-validation/repository-seal"
+                  python - <<'PY'
+                  import json
+                  import os
+                  from pathlib import Path
+
+                  path = Path(os.environ["OUTPUT_ROOT"]) / "data" / "historical-validation" / "repository-seal" / "authorization-inconclusive.json"
+                  path.write_text(json.dumps({
+                      "classification": "INCONCLUSIVE",
+                      "pre_final_id": os.environ["PRE_FINAL_ID"],
+                      "reason": "repository seal exists but durable authorization did not complete",
+                      "schema_version": "sealed-authorization-interruption-v1",
+                  }, separators=(",", ":"), sort_keys=True) + "\\n")
+                  PY
+              - uses: actions/upload-artifact@v4
+                if: always()
+          '''
+          if marker not in text:
+              raise SystemExit('authorization upload marker missing')
+          study.write_text(text.replace(marker, insertion, 1))
+          PY
+          git rm .github/workflows/temporary-isolate-sealed-workflow-files.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: isolate sealed workflow transient evidence"
+          git push origin HEAD:research/sealed-btcusdt-historical-validation

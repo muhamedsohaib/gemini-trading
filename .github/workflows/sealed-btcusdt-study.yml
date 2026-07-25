@@ -1,0 +1,303 @@
+name: Sealed BTCUSDT Candidate Study
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_commit:
+        required: true
+        type: string
+      dataset_run_id:
+        required: true
+        type: string
+      dataset_artifact_name:
+        required: true
+        type: string
+      dataset_id:
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: sealed-btcusdt-study
+  cancel-in-progress: false
+
+jobs:
+  validate-dataset:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GEMINI_TRADING_MODE: research
+      OUTPUT_ROOT: ${{ github.workspace }}/sealed-output
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          ref: ${{ inputs.source_commit }}
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.11.25"
+          enable-cache: true
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - name: Assert exact clean source commit
+        run: |
+          test "$(git rev-parse HEAD)" = "${{ inputs.source_commit }}"
+          test -z "$(git status --porcelain)"
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.dataset_artifact_name }}
+          path: sealed-output
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ inputs.dataset_run_id }}
+      - name: Verify exact dataset handoff
+        env:
+          EXPECTED_COMMIT: ${{ inputs.source_commit }}
+          EXPECTED_DATASET_ID: ${{ inputs.dataset_id }}
+          EXPECTED_RUN_ID: ${{ inputs.dataset_run_id }}
+        run: |
+          uv run python - <<'PY'
+          import os
+          from pathlib import Path
+          from gemini_trading.strategy.handoff import load_dataset_handoff, verify_dataset_handoff
+
+          root = Path(os.environ["OUTPUT_ROOT"])
+          dataset_id = os.environ["EXPECTED_DATASET_ID"]
+          path = root / "data" / "historical-validation" / "handoff" / dataset_id / "dataset-handoff.json"
+          handoff = load_dataset_handoff(path.read_bytes())
+          verify_dataset_handoff(
+              handoff,
+              root,
+              expected_commit=os.environ["EXPECTED_COMMIT"],
+              expected_dataset_id=dataset_id,
+              expected_run_id=int(os.environ["EXPECTED_RUN_ID"]),
+          )
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sealed-validated-dataset-${{ github.run_id }}
+          path: sealed-output/
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 6
+
+  prepare:
+    needs: validate-dataset
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    outputs:
+      pre_final_id: ${{ steps.prepare.outputs.pre_final_id }}
+    env:
+      GEMINI_TRADING_MODE: research
+      OUTPUT_ROOT: ${{ github.workspace }}/sealed-output
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          ref: ${{ inputs.source_commit }}
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.11.25"
+          enable-cache: true
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - uses: actions/download-artifact@v4
+        with:
+          name: sealed-validated-dataset-${{ github.run_id }}
+          path: sealed-output
+      - name: Prepare development-only evidence
+        id: prepare
+        run: |
+          uv run gemini-trading research strategy-prepare \
+            --handoff "${OUTPUT_ROOT}/data/historical-validation/handoff/${{ inputs.dataset_id }}/dataset-handoff.json" \
+            --config "${GITHUB_WORKSPACE}/tests/fixtures/strategy/candidate-v0.1-config.json" \
+            --project-root "${GITHUB_WORKSPACE}" \
+            --output-root "${OUTPUT_ROOT}" | tee prepare.json
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          payload = json.loads(Path("prepare.json").read_text())
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
+              output.write(f"pre_final_id={payload['pre_final_id']}\n")
+          PY
+      - name: Independently verify pre-final evidence
+        run: |
+          uv run python - <<'PY'
+          import os
+          from pathlib import Path
+          from gemini_trading.strategy.pre_final import LocalPreFinalStore, verify_pre_final_artifacts
+
+          root = Path(os.environ["OUTPUT_ROOT"])
+          pre_final_id = "${{ steps.prepare.outputs.pre_final_id }}"
+          verify_pre_final_artifacts(LocalPreFinalStore(root).load(pre_final_id))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sealed-pre-final-${{ github.run_id }}
+          path: sealed-output/
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 6
+
+  authorize-final:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      receipt_id: ${{ steps.authorize.outputs.receipt_id }}
+    env:
+      GEMINI_TRADING_MODE: research
+      OUTPUT_ROOT: ${{ github.workspace }}/sealed-output
+    steps:
+      - name: Reject workflow reruns
+        run: test "${GITHUB_RUN_ATTEMPT}" = "1"
+      - uses: actions/checkout@v6.0.2
+        with:
+          ref: ${{ inputs.source_commit }}
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.11.25"
+          enable-cache: true
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - uses: actions/download-artifact@v4
+        with:
+          name: sealed-pre-final-${{ github.run_id }}
+          path: sealed-output
+      - name: Persist final-test access receipt
+        id: authorize
+        run: |
+          uv run gemini-trading research strategy-authorize-final \
+            --pre-final-id "${{ needs.prepare.outputs.pre_final_id }}" \
+            --workflow-run-id "${GITHUB_RUN_ID}" \
+            --workflow-run-attempt "${GITHUB_RUN_ATTEMPT}" \
+            --project-root "${GITHUB_WORKSPACE}" \
+            --output-root "${OUTPUT_ROOT}" | tee authorize.json
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          payload = json.loads(Path("authorize.json").read_text())
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
+              output.write(f"receipt_id={payload['receipt_id']}\n")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sealed-final-access-${{ github.run_id }}
+          path: sealed-output/
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 6
+          overwrite: false
+
+  finalize:
+    needs: [prepare, authorize-final]
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    env:
+      GEMINI_TRADING_MODE: research
+      OUTPUT_ROOT: ${{ github.workspace }}/sealed-output
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          ref: ${{ inputs.source_commit }}
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.11.25"
+          enable-cache: true
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - uses: actions/download-artifact@v4
+        with:
+          name: sealed-final-access-${{ github.run_id }}
+          path: sealed-output
+      - name: Require receipt run and attempt identity
+        env:
+          RECEIPT_ID: ${{ needs.authorize-final.outputs.receipt_id }}
+        run: |
+          uv run python - <<'PY'
+          import os
+          from pathlib import Path
+          from gemini_trading.strategy.final_access import FinalAccessStore
+
+          root = Path(os.environ["OUTPUT_ROOT"])
+          receipt = FinalAccessStore(root).load(os.environ["RECEIPT_ID"])
+          if receipt.identity.workflow_run_id != int(os.environ["GITHUB_RUN_ID"]):
+              raise SystemExit("receipt workflow run mismatch")
+          if receipt.identity.workflow_run_attempt != int(os.environ["GITHUB_RUN_ATTEMPT"]):
+              raise SystemExit("receipt workflow attempt mismatch")
+          PY
+      - name: Complete sealed final evaluation
+        id: finalize
+        run: |
+          uv run gemini-trading research strategy-finalize \
+            --pre-final-id "${{ needs.prepare.outputs.pre_final_id }}" \
+            --receipt-id "${{ needs.authorize-final.outputs.receipt_id }}" \
+            --project-root "${GITHUB_WORKSPACE}" \
+            --output-root "${OUTPUT_ROOT}" | tee finalize.json
+      - name: Replay and independently verify completed study
+        if: steps.finalize.outcome == 'success'
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          payload = json.loads(Path("finalize.json").read_text())
+          with Path(os.environ["GITHUB_ENV"]).open("a") as environment:
+              environment.write(f"STUDY_ID={payload['study_id']}\n")
+          PY
+          uv run gemini-trading research strategy-replay \
+            --study-id "${STUDY_ID}" \
+            --project-root "${GITHUB_WORKSPACE}" \
+            --output-root "${OUTPUT_ROOT}" | tee replay.json
+          uv run gemini-trading research strategy-verify \
+            --study-id "${STUDY_ID}" \
+            --project-root "${GITHUB_WORKSPACE}" \
+            --output-root "${OUTPUT_ROOT}" | tee verify.json
+      - name: Record inconclusive interrupted completion
+        if: failure()
+        env:
+          RECEIPT_ID: ${{ needs.authorize-final.outputs.receipt_id }}
+        run: |
+          mkdir -p "${OUTPUT_ROOT}/data/historical-validation"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path(os.environ["OUTPUT_ROOT"]) / "data" / "historical-validation" / "inconclusive.json"
+          path.write_text(json.dumps({
+              "classification": "INCONCLUSIVE",
+              "receipt_id": os.environ["RECEIPT_ID"],
+              "reason": "final access occurred but complete verified study evidence is unavailable",
+              "schema_version": "sealed-interruption-v1",
+          }, separators=(",", ":"), sort_keys=True) + "\n")
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sealed-candidate-study-${{ github.run_id }}
+          path: |
+            sealed-output/
+            finalize.json
+            replay.json
+            verify.json
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 6

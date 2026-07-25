@@ -113,6 +113,47 @@ def test_locked_config_rejects_arbitrary_override(tmp_path: Path) -> None:
         resolve_locked_candidate_config(arguments, project_root)
 
 
+def test_resume_rejects_receipt_not_bound_to_study(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class ReceiptStore:
+        def __init__(self, root: Path) -> None:
+            assert root == tmp_path
+
+        def load(self, receipt_id: str) -> argparse.Namespace:
+            return argparse.Namespace(receipt_id=receipt_id)
+
+    class StudyStore:
+        def __init__(self, root: Path) -> None:
+            assert root == tmp_path
+
+        def read_artifact(self, study_id: str, name: str) -> bytes:
+            assert study_id == "b" * 64
+            assert name == "study-manifest.json"
+            return b"manifest"
+
+    monkeypatch.setattr(historical_validation, "load_runtime_policy", lambda: None)
+    monkeypatch.setattr(historical_validation, "FinalAccessStore", ReceiptStore)
+    monkeypatch.setattr(historical_validation, "LocalStrategyStudyStore", StudyStore)
+    monkeypatch.setattr(
+        historical_validation,
+        "parse_study_manifest",
+        lambda raw: argparse.Namespace(durable_final_access_receipt_id="c" * 64),
+    )
+
+    with pytest.raises(CliUsageError, match="receipt does not match strategy study"):
+        run_historical_validation(
+            argparse.Namespace(
+                research_command="strategy-resume",
+                study_id="b" * 64,
+                receipt_id="a" * 64,
+                project_root=str(tmp_path),
+                output_root=str(tmp_path),
+            )
+        )
+
+
 def test_malformed_ids_and_attempts_fail_safely(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],

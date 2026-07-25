@@ -17,12 +17,14 @@ from gemini_trading.data.datasets.canonical_writer import (
     serialize_dataset_manifest,
 )
 from gemini_trading.data.storage.local_immutable import LocalImmutableStore, write_immutable
+from gemini_trading.domain.candle import Candle
 from gemini_trading.research.artifacts import LocalResearchStore
 from gemini_trading.research.dataset_reader import VerifiedDataset, load_verified_dataset
 from gemini_trading.strategy import sealed_evaluator
 from gemini_trading.strategy.artifacts import REQUIRED_STUDY_ARTIFACT_NAMES
+from gemini_trading.strategy.baselines import BaselineSchedule
 from gemini_trading.strategy.evaluator import reconstruct_study_strategy
-from gemini_trading.strategy.features import FeatureRegistry
+from gemini_trading.strategy.features import FeatureMatrix, FeatureRegistry
 from gemini_trading.strategy.final_access import FinalAccessStore
 from gemini_trading.strategy.handoff import (
     DatasetHandoffManifest,
@@ -30,7 +32,7 @@ from gemini_trading.strategy.handoff import (
     inventory_root_sha256,
     serialize_dataset_handoff,
 )
-from gemini_trading.strategy.labels import LabelPolicy
+from gemini_trading.strategy.labels import LabelPolicy, LabelVector
 from gemini_trading.strategy.sealed_evaluator import (
     build_candidate_preparation,
     complete_candidate_strategy_study,
@@ -119,30 +121,32 @@ def test_prepare_does_not_materialize_final_phase(
 
     def guarded_feature_compute(
         registry: FeatureRegistry,
-        candles: tuple[object, ...],
-    ):
+        candles: tuple[Candle, ...],
+    ) -> FeatureMatrix:
         observed_counts.append(len(candles))
         assert len(candles) < full_count
-        return original_feature_compute(registry, cast(object, candles))
+        return original_feature_compute(registry, candles)
 
     def guarded_label_build(
         policy: LabelPolicy,
-        candles: tuple[object, ...],
+        candles: tuple[Candle, ...],
         *,
         eligible_indices: tuple[int, ...],
-    ):
+    ) -> LabelVector:
         observed_counts.append(len(candles))
         assert len(candles) < full_count
         return original_label_build(
             policy,
-            cast(object, candles),
+            candles,
             eligible_indices=eligible_indices,
         )
 
-    def guarded_baseline_build(candles: tuple[object, ...]):
+    def guarded_baseline_build(
+        candles: tuple[Candle, ...],
+    ) -> dict[str, BaselineSchedule]:
         observed_counts.append(len(candles))
         assert len(candles) < full_count
-        return original_baseline_build(cast(object, candles))
+        return original_baseline_build(candles)
 
     monkeypatch.setattr(FeatureRegistry, "compute", guarded_feature_compute)
     monkeypatch.setattr(LabelPolicy, "build", guarded_label_build)

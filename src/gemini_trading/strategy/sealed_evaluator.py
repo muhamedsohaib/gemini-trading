@@ -104,18 +104,37 @@ def build_candidate_preparation(
     policy = CandidatePolicy.locked_v0_1()
     _validate_dataset(dataset, policy)
     registry = FeatureRegistry.locked_v0_1()
-    matrix = registry.compute(dataset.candles)
     label_policy = LabelPolicy.locked_v0_1(simulation)
-    labels = label_policy.build(
+    structural_eligible = tuple(
+        range(
+            registry.maximum_lookback_candles,
+            len(dataset.candles) - label_policy.horizon_candles - 1,
+        )
+    )
+    split_plan, history_requirement_met = build_split_plan(
         dataset.candles,
+        structural_eligible,
+        policy,
+    )
+    preparation_candles = (
+        dataset.candles
+        if include_final
+        else dataset.candles[: split_plan.final_test_boundary_index]
+    )
+    preparation_dataset = VerifiedDataset(
+        manifest=dataset.manifest,
+        candles=preparation_candles,
+        canonical_bytes=dataset.canonical_bytes,
+    )
+    matrix = registry.compute(preparation_candles)
+    labels = label_policy.build(
+        preparation_candles,
         eligible_indices=tuple(row.candle_index for row in matrix.rows),
     )
-    eligible = tuple(item.decision_candle_index for item in labels.observations)
-    split_plan, history_requirement_met = build_split_plan(dataset.candles, eligible, policy)
 
     bundles: dict[tuple[StudyPhase, int | None], PredictionBundle] = {}
     plans: dict[tuple[StudyPhase, int | None, str], CasePlan] = {}
-    baseline_schedules = build_baseline_schedules(dataset.candles)
+    baseline_schedules = build_baseline_schedules(preparation_candles)
     for fold in split_plan.folds:
         key = (StudyPhase.DEVELOPMENT, fold.fold_number)
         bundle = fit_prediction_bundle(
@@ -134,7 +153,7 @@ def build_candidate_preparation(
             fold_number=fold.fold_number,
             indices=fold.development_test_indices,
             bundle=bundle,
-            dataset=dataset,
+            dataset=preparation_dataset,
             simulation=simulation,
             policy=policy,
             label_policy=label_policy,
@@ -164,7 +183,7 @@ def build_candidate_preparation(
             fold_number=None,
             indices=split_plan.final_test_indices,
             bundle=final_bundle,
-            dataset=dataset,
+            dataset=preparation_dataset,
             simulation=simulation,
             policy=policy,
             label_policy=label_policy,

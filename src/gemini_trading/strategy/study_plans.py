@@ -274,12 +274,8 @@ def prepare_phase(
                     label_policy=label_policy,
                     policy=replace(policy, cooldown_candles=3),
                 ),
-                "control.shuffled_labels.seed_1799": event_by_case[
-                    "control.shuffled_labels.v1"
-                ],
-                "control.delayed_features.final": event_by_case[
-                    "control.delayed_features.v1"
-                ],
+                "control.shuffled_labels.seed_1799": event_by_case["control.shuffled_labels.v1"],
+                "control.delayed_features.final": event_by_case["control.delayed_features.v1"],
                 "bootstrap.seed_1788": base_events,
             }
         )

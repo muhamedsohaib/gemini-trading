@@ -72,12 +72,18 @@ class StudyExecutor:
         case_id: str,
         decision_indices: tuple[int, ...],
     ) -> StudyCaseEvidence:
-        del decision_indices
+        if not decision_indices:
+            raise StudyArtifactError("study case requires decision indices")
+        if decision_indices != tuple(sorted(set(decision_indices))):
+            raise StudyArtifactError("study decision indices must be unique and ordered")
         key = (phase, fold_number, case_id)
         try:
             plan = self.plans[key]
         except KeyError:
             raise StudyArtifactError(f"missing prepared study case: {case_id}") from None
+        boundary = plan.strategy.evaluation_end_exclusive
+        if boundary is None or decision_indices[-1] >= boundary:
+            raise StudyArtifactError("study case evaluation boundary is invalid")
         seed_payload = f"{phase.value}:{fold_number}:{case_id}"
         seed = int(hashlib.sha256(seed_payload.encode()).hexdigest()[:8], 16)
         manifest = build_experiment_manifest(

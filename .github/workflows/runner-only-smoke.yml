@@ -1,0 +1,14 @@
+name: Runner Only Smoke
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  runner-only:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Confirm GitHub-hosted runner allocation
+        run: echo "runner-started"

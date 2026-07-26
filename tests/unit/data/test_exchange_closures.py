@@ -14,11 +14,15 @@ from gemini_trading.data.exchange_closures import (
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
+_FIXED_RELATIVE_PATH = Path(
+    "config/market-data/sealed-btcusdt-4h-exchange-closures.json"
+)
 
 
 def _fixed_mapping() -> dict[str, object]:
-    path = PROJECT_ROOT / "config/market-data/sealed-btcusdt-4h-exchange-closures.json"
-    loaded: object = json.loads(path.read_text(encoding="utf-8"))
+    loaded: object = json.loads(
+        (PROJECT_ROOT / _FIXED_RELATIVE_PATH).read_text(encoding="utf-8")
+    )
     assert isinstance(loaded, dict)
     return cast(dict[str, object], loaded)
 
@@ -32,7 +36,15 @@ def _closures(mapping: dict[str, object]) -> list[dict[str, object]]:
 
 
 def _canonical(mapping: dict[str, object]) -> bytes:
-    return (json.dumps(mapping, ensure_ascii=False, separators=(",", ":")) + "\n").encode()
+    return (
+        json.dumps(mapping, ensure_ascii=False, separators=(",", ":")) + "\n"
+    ).encode()
+
+
+def _write_fixed_candidate(root: Path, mapping: dict[str, object]) -> None:
+    path = root / _FIXED_RELATIVE_PATH
+    path.parent.mkdir(parents=True)
+    path.write_bytes(_canonical(mapping))
 
 
 def test_fixed_manifest_is_canonical_and_exact() -> None:
@@ -146,14 +158,18 @@ def test_manifest_rejects_wrong_missing_count() -> None:
         load_exchange_closure_manifest(_canonical(mapping))
 
 
-def test_manifest_rejects_wrong_market_identity() -> None:
+def test_fixed_loader_rejects_wrong_market_identity(
+    tmp_path: Path,
+) -> None:
     mapping = _fixed_mapping()
     instrument = mapping["instrument"]
     assert isinstance(instrument, dict)
     instrument["symbol"] = "ETHUSDT"
     instrument["base_asset"] = "ETH"
-    with pytest.raises(CandleValidationError, match="market"):
-        load_exchange_closure_manifest(_canonical(mapping))
+    _write_fixed_candidate(tmp_path, mapping)
+
+    with pytest.raises(CandleValidationError, match="identity"):
+        load_fixed_btcusdt_closure_manifest(tmp_path)
 
 
 def test_manifest_rejects_closure_outside_request_window() -> None:

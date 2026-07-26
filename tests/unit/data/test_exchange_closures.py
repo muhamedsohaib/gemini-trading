@@ -161,7 +161,11 @@ def test_manifest_rejects_wrong_fully_missing_count() -> None:
 def test_manifest_rejects_partial_open_not_equal_to_gap_start() -> None:
     mapping = _fixed_mapping()
     partial = _partial(_closures(mapping)[0])
-    partial["open_time"] = "2018-02-08T04:00:00Z"
+    partial.update(
+        open_time="2018-02-08T04:00:00Z",
+        actual_close_time="2018-02-08T04:28:14.788Z",
+        expected_close_time="2018-02-08T07:59:59.999Z",
+    )
     with pytest.raises(CandleValidationError, match="gap start"):
         load_exchange_closure_manifest(_canonical(mapping))
 

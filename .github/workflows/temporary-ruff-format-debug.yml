@@ -1,0 +1,35 @@
+name: Temporary Ruff Format Debug
+
+on:
+  push:
+    branches:
+      - design/verified-exchange-closure-gap-manifest
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.11.25"
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - run: |
+          uv run ruff format \
+            src/gemini_trading/data/exchange_closures.py \
+            tests/unit/data/test_exchange_closures.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: temporary-ruff-formatted-${{ github.sha }}
+          path: |
+            src/gemini_trading/data/exchange_closures.py
+            tests/unit/data/test_exchange_closures.py
+          if-no-files-found: error
+          retention-days: 1

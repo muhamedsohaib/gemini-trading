@@ -18,6 +18,7 @@ from gemini_trading.data.datasets.canonical_writer import (
 from gemini_trading.data.exchange_closures import (
     ExchangeClosure,
     ExchangeClosureManifest,
+    PartialCandleDeclaration,
     serialize_exchange_closure_manifest,
 )
 from gemini_trading.data.segments import (
@@ -67,8 +68,12 @@ def _verified_dataset(root: Path) -> VerifiedDataset:
     )
     canonical_bytes = serialize_candles(candles)
     boundary = 1
+    synthetic_gap_start = candles[0].open_time + candles[0].timeframe.duration
+    synthetic_expected_close = (
+        synthetic_gap_start + candles[0].timeframe.duration - timedelta(milliseconds=1)
+    )
     closure_manifest = ExchangeClosureManifest(
-        schema_version="exchange-closure-manifest-v1",
+        schema_version="exchange-closure-manifest-v2",
         provider="binance_spot",
         instrument=candles[0].instrument,
         timeframe=candles[0].timeframe,
@@ -77,11 +82,20 @@ def _verified_dataset(root: Path) -> VerifiedDataset:
         closures=(
             ExchangeClosure(
                 closure_id=_CLOSURE_ID,
-                missing_start=candles[0].open_time + candles[0].timeframe.duration,
+                canonical_gap_start=synthetic_gap_start,
                 resumed_open=candles[boundary].open_time,
-                missing_candle_count=7,
+                unavailable_candle_count=7,
+                fully_missing_start=synthetic_gap_start + candles[0].timeframe.duration,
+                fully_missing_candle_count=6,
                 reason_code="exchange_system_upgrade",
                 governance_reference="synthetic-sealed-test",
+                partial_candle=PartialCandleDeclaration(
+                    open_time=synthetic_gap_start,
+                    actual_close_time=synthetic_gap_start + timedelta(minutes=28),
+                    expected_close_time=synthetic_expected_close,
+                    provider_row_sha256="0" * 64,
+                    exclusion_reason="synthetic_exchange_closed_mid_candle",
+                ),
             ),
         ),
     )

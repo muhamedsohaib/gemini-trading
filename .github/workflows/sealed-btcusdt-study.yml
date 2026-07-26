@@ -100,6 +100,12 @@ jobs:
               expected_dataset_id=dataset_id,
               expected_run_id=int(os.environ["EXPECTED_RUN_ID"]),
           )
+          if handoff.dataset_schema_version != "candle-dataset-v2":
+              raise SystemExit("Stage 2 requires candle-dataset-v2")
+          if handoff.closure_count != 1 or handoff.segment_count != 2:
+              raise SystemExit("Stage 2 closure and segment count mismatch")
+          if handoff.closure_ids != ("binance-spot-system-upgrade-2018-02-08",):
+              raise SystemExit("Stage 2 closure identity mismatch")
           PY
       - uses: actions/upload-artifact@v4
         with:

@@ -1,0 +1,26 @@
+name: Dispatch Stage 1 Once
+
+on:
+  push:
+    branches:
+      - design/verified-partial-closure-candle-exclusion
+    paths:
+      - .github/workflows/dispatch-stage1-once.yml
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Dispatch merged-main Stage 1
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run sealed-btcusdt-dataset.yml \
+            --repo "${GITHUB_REPOSITORY}" \
+            --ref main
+          echo "Dispatched Sealed BTCUSDT Dataset from main."

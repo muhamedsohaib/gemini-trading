@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import cast
 
@@ -52,7 +52,11 @@ def _mapping(value: object, description: str) -> dict[str, object]:
     return cast(dict[str, object], raw)
 
 
-def _exact_fields(mapping: dict[str, object], expected: set[str], description: str) -> None:
+def _exact_fields(
+    mapping: dict[str, object],
+    expected: set[str],
+    description: str,
+) -> None:
     if set(mapping) != expected:
         _fail(f"exchange closure {description} fields are invalid")
 
@@ -89,7 +93,7 @@ def _format_datetime(value: datetime) -> str:
 
 def _aligned(value: datetime, timeframe: Timeframe) -> bool:
     epoch = datetime(1970, 1, 1, tzinfo=UTC)
-    return (value - epoch) % timeframe.duration == timeframe.duration * 0
+    return (value - epoch) % timeframe.duration == timedelta(0)
 
 
 @dataclass(frozen=True, slots=True)
@@ -156,9 +160,16 @@ class ExchangeClosureManifest:
                 closure.resumed_open, self.timeframe
             ):
                 _fail("exchange closure boundaries must be timeframe aligned")
-            if not self.start_time <= closure.missing_start < closure.resumed_open <= self.end_time:
+            if not (
+                self.start_time
+                <= closure.missing_start
+                < closure.resumed_open
+                <= self.end_time
+            ):
                 _fail("exchange closure is outside the request window")
-            expected_count = (closure.resumed_open - closure.missing_start) // self.timeframe.duration
+            expected_count = (
+                closure.resumed_open - closure.missing_start
+            ) // self.timeframe.duration
             if expected_count != closure.missing_candle_count:
                 _fail("exchange closure missing-candle count mismatch")
             if previous is not None and closure.missing_start <= previous.resumed_open:
@@ -197,7 +208,8 @@ def serialize_exchange_closure_manifest(manifest: ExchangeClosureManifest) -> by
         "end_time": _format_datetime(manifest.end_time),
         "closures": [_closure_payload(item) for item in manifest.closures],
     }
-    return (json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n").encode()
+    serialized = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    return f"{serialized}\n".encode()
 
 
 def load_exchange_closure_manifest(raw: bytes) -> ExchangeClosureManifest:
@@ -223,11 +235,23 @@ def load_exchange_closure_manifest(raw: bytes) -> ExchangeClosureManifest:
         closures.append(
             ExchangeClosure(
                 closure_id=_string(closure_mapping, "closure_id"),
-                missing_start=_utc(_string(closure_mapping, "missing_start"), "missing_start"),
-                resumed_open=_utc(_string(closure_mapping, "resumed_open"), "resumed_open"),
-                missing_candle_count=_integer(closure_mapping, "missing_candle_count"),
+                missing_start=_utc(
+                    _string(closure_mapping, "missing_start"),
+                    "missing_start",
+                ),
+                resumed_open=_utc(
+                    _string(closure_mapping, "resumed_open"),
+                    "resumed_open",
+                ),
+                missing_candle_count=_integer(
+                    closure_mapping,
+                    "missing_candle_count",
+                ),
                 reason_code=_string(closure_mapping, "reason_code"),
-                governance_reference=_string(closure_mapping, "governance_reference"),
+                governance_reference=_string(
+                    closure_mapping,
+                    "governance_reference",
+                ),
             )
         )
 
@@ -246,7 +270,9 @@ def load_exchange_closure_manifest(raw: bytes) -> ExchangeClosureManifest:
             closures=tuple(closures),
         )
     except ValueError as error:
-        raise CandleValidationError("exchange closure manifest values are invalid") from error
+        raise CandleValidationError(
+            "exchange closure manifest values are invalid"
+        ) from error
 
     if serialize_exchange_closure_manifest(manifest) != raw:
         _fail("exchange closure manifest encoding is not canonical")

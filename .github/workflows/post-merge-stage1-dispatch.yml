@@ -8,6 +8,7 @@ on:
 permissions:
   actions: write
   contents: read
+  issues: write
 
 jobs:
   dispatch:
@@ -15,8 +16,10 @@ jobs:
     timeout-minutes: 40
     env:
       MAIN_SHA: cf8389f6b8964b5aee0563083f8bf362be33b1ab
+      MERGED_AT: 2026-07-26T20:44:39Z
+      PR_NUMBER: "33"
     steps:
-      - name: Verify main CI and dispatch official Stage 1
+      - name: Verify main CI and identify official Stage 1
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -41,22 +44,41 @@ jobs:
           test -n "${ci_run_id}"
           test "${ci_conclusion}" = "success"
 
-          dispatched_after="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          gh api \
-            --method POST \
-            "repos/${repo}/actions/workflows/sealed-btcusdt-dataset.yml/dispatches" \
-            -f ref=main
-
-          stage1_run_id=""
-          for _ in $(seq 1 80); do
-            response="$(gh api "repos/${repo}/actions/workflows/sealed-btcusdt-dataset.yml/runs?head_sha=${MAIN_SHA}&event=workflow_dispatch&per_page=20")"
-            stage1_run_id="$(jq -r --arg after "${dispatched_after}" '.workflow_runs | map(select(.created_at >= $after)) | .[0].id // empty' <<<"${response}")"
-            if [[ -n "${stage1_run_id}" ]]; then
-              break
-            fi
-            sleep 5
-          done
+          response="$(gh api "repos/${repo}/actions/workflows/sealed-btcusdt-dataset.yml/runs?head_sha=${MAIN_SHA}&event=workflow_dispatch&per_page=20")"
+          stage1_run_id="$(jq -r --arg after "${MERGED_AT}" '.workflow_runs | map(select(.created_at >= $after)) | .[0].id // empty' <<<"${response}")"
+          dispatched="false"
+          if [[ -z "${stage1_run_id}" ]]; then
+            dispatched_after="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            gh api \
+              --method POST \
+              "repos/${repo}/actions/workflows/sealed-btcusdt-dataset.yml/dispatches" \
+              -f ref=main
+            dispatched="true"
+            for _ in $(seq 1 80); do
+              response="$(gh api "repos/${repo}/actions/workflows/sealed-btcusdt-dataset.yml/runs?head_sha=${MAIN_SHA}&event=workflow_dispatch&per_page=20")"
+              stage1_run_id="$(jq -r --arg after "${dispatched_after}" '.workflow_runs | map(select(.created_at >= $after)) | .[0].id // empty' <<<"${response}")"
+              if [[ -n "${stage1_run_id}" ]]; then
+                break
+              fi
+              sleep 5
+            done
+          fi
           test -n "${stage1_run_id}"
+
+          marker="<!-- post-merge-stage1-dispatch:${MAIN_SHA} -->"
+          body="${marker}
+
+          Post-merge verification and Stage 1 dispatch evidence.
+
+          - Main commit: \`${MAIN_SHA}\`
+          - Main CI run: \`${ci_run_id}\`
+          - Main CI conclusion: \`${ci_conclusion}\`
+          - Stage 1 run: \`${stage1_run_id}\`
+          - Newly dispatched by this helper: \`${dispatched}\`
+          - Boundary: \`RESEARCH_ONLY\`
+
+          Stage 2 remains prohibited pending independent artifact review and explicit Issue #22 approval."
+          gh api --method POST "repos/${repo}/issues/${PR_NUMBER}/comments" -f body="${body}" > /dev/null
 
           mkdir -p /tmp/post-merge-stage1
           jq -n \
@@ -64,8 +86,8 @@ jobs:
             --argjson main_ci_run_id "${ci_run_id}" \
             --arg main_ci_conclusion "${ci_conclusion}" \
             --argjson stage1_run_id "${stage1_run_id}" \
-            --arg dispatched_after "${dispatched_after}" \
-            '{main_sha:$main_sha,main_ci_run_id:$main_ci_run_id,main_ci_conclusion:$main_ci_conclusion,stage1_run_id:$stage1_run_id,dispatched_after:$dispatched_after}' \
+            --arg dispatched "${dispatched}" \
+            '{main_sha:$main_sha,main_ci_run_id:$main_ci_run_id,main_ci_conclusion:$main_ci_conclusion,stage1_run_id:$stage1_run_id,dispatched:($dispatched=="true")}' \
             > /tmp/post-merge-stage1/report.json
           cat /tmp/post-merge-stage1/report.json
       - uses: actions/upload-artifact@v4

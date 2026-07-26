@@ -8,78 +8,28 @@ permissions:
   contents: read
 
 jobs:
-  diagnose:
+  export:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6.0.2
         with:
           ref: ${{ github.head_ref }}
-      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
-      - uses: actions/setup-python@v6.2.0
-        with:
-          python-version: "3.12"
-      - run: uv sync --all-groups --frozen
-      - name: Diagnose consolidated implementation
+      - name: Export exact branch source
         shell: bash
         run: |
-          set +e
-          exec > >(tee /tmp/partial-closure-apply-diagnostic.txt) 2>&1
-          echo "HEAD=$(git rev-parse HEAD)"
-          echo "CHUNKS"
-          wc -c .tmp/partial-closure-patch-{00..06}.b64
-          cat .tmp/partial-closure-patch-{00..06}.b64 > /tmp/partial-closure-patch.b64
-          echo "BASE64_SHA=$(sha256sum /tmp/partial-closure-patch.b64 | cut -d' ' -f1)"
-          base64 -d /tmp/partial-closure-patch.b64 > /tmp/partial-closure-patch.xz
-          echo "BASE64_DECODE_STATUS=$?"
-          xz -dc /tmp/partial-closure-patch.xz > /tmp/partial-closure.patch
-          echo "XZ_DECODE_STATUS=$?"
-          echo "PATCH_SIZE=$(wc -c < /tmp/partial-closure.patch)"
-          echo "PATCH_SHA=$(sha256sum /tmp/partial-closure.patch | cut -d' ' -f1)"
-          git apply --check /tmp/partial-closure.patch
-          echo "APPLY_CHECK_STATUS=$?"
-          git apply /tmp/partial-closure.patch
-          echo "APPLY_STATUS=$?"
-          git status --short
-          uv run ruff format --check .
-          echo "RUFF_FORMAT_STATUS=$?"
-          uv run ruff check .
-          echo "RUFF_CHECK_STATUS=$?"
-          uv run pyright \
-            src/gemini_trading/data/exclusions.py \
-            src/gemini_trading/data/exchange_closures.py \
-            src/gemini_trading/data/segments.py \
-            src/gemini_trading/data/datasets/canonical_writer.py \
-            src/gemini_trading/data/ingestion/service.py \
-            src/gemini_trading/data/ingestion/replay.py \
-            src/gemini_trading/data/verification/service.py \
-            src/gemini_trading/research/dataset_reader.py \
-            src/gemini_trading/strategy/handoff.py \
-            src/gemini_trading/strategy/pre_final.py \
-            src/gemini_trading/strategy/replay.py \
-            src/gemini_trading/strategy/sealed_evaluator.py \
-            src/gemini_trading/strategy/sealed_verification.py
-          echo "PYRIGHT_STATUS=$?"
-          uv run pytest -q \
-            tests/unit/data/test_exchange_closures.py \
-            tests/unit/data/test_candle_exclusions.py \
-            tests/unit/data/test_candle_segments.py \
-            tests/unit/data/datasets/test_canonical_writer.py \
-            tests/unit/data/ingestion/test_service.py \
-            tests/unit/data/storage/test_local_immutable.py \
-            tests/integration/test_market_data_exchange_closure_v2.py \
-            tests/integration/test_research_dataset_reader.py \
-            tests/unit/strategy/test_handoff.py \
-            tests/unit/strategy/test_pre_final.py \
-            tests/unit/strategy/test_sealed_manifest_identity.py \
-            tests/acceptance/test_sealed_historical_validation_workflows.py \
-            tests/acceptance/test_sealed_historical_validation_documentation.py
-          echo "PYTEST_STATUS=$?"
-          git diff --stat
-          exit 0
+          tar -czf /tmp/partial-closure-exact-source.tgz \
+            --exclude='./.git' \
+            --exclude='./.venv' \
+            --exclude='./dist' \
+            --exclude='./build' \
+            .
+          git rev-parse HEAD > /tmp/partial-closure-exact-head.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: partial-closure-apply-diagnostic-${{ github.sha }}
-          path: /tmp/partial-closure-apply-diagnostic.txt
+          name: partial-closure-exact-source-${{ github.sha }}
+          path: |
+            /tmp/partial-closure-exact-source.tgz
+            /tmp/partial-closure-exact-head.txt
           if-no-files-found: error
           retention-days: 1

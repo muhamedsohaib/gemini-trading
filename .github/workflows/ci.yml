@@ -23,15 +23,24 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync --all-groups --frozen
-      - run: >-
+      - name: Format Task 1-2 files exactly
+        run: >-
           uv run ruff format
           src/gemini_trading/data/exchange_closures.py
+          src/gemini_trading/data/segments.py
+          src/gemini_trading/data/validation/candles.py
+          tests/fixtures/market_data/gapped_btcusdt_4h.py
+          tests/unit/data/test_candle_segments.py
           tests/unit/data/test_exchange_closures.py
       - uses: actions/upload-artifact@v4
         with:
-          name: task1-ruff-formatted-${{ github.sha }}
+          name: task1-2-ruff-formatted-${{ github.sha }}
           path: |
             src/gemini_trading/data/exchange_closures.py
+            src/gemini_trading/data/segments.py
+            src/gemini_trading/data/validation/candles.py
+            tests/fixtures/market_data/gapped_btcusdt_4h.py
+            tests/unit/data/test_candle_segments.py
             tests/unit/data/test_exchange_closures.py
           if-no-files-found: error
           retention-days: 1

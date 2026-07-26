@@ -1,0 +1,111 @@
+name: Partial Closure Workflow Finalize
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.11.25"
+          enable-cache: true
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - name: Upgrade sealed workflow identity barriers
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          dataset = Path(".github/workflows/sealed-btcusdt-dataset.yml")
+          text = dataset.read_text()
+          needle = '''      - name: Build verified dataset handoff
+                run: |
+                  uv run gemini-trading research strategy-handoff \\
+                    --run-id "${{ steps.ingest.outputs.run_id }}" \\
+                    --dataset-id "${{ steps.ingest.outputs.dataset_id }}" \\
+                    --source-commit "${GITHUB_SHA}" \\
+                    --workflow-run-id "${GITHUB_RUN_ID}" \\
+                    --workflow-run-attempt "${GITHUB_RUN_ATTEMPT}" \\
+                    --output-root "${OUTPUT_ROOT}" | tee "${RUNNER_TEMP}/handoff.json"
+          '''
+          addition = '''      - name: Assert exact v3 handoff identity
+                run: |
+                  uv run python - <<'PY'
+                  import json
+                  import os
+                  from pathlib import Path
+                  from gemini_trading.strategy.handoff import load_dataset_handoff
+
+                  root = Path(os.environ["OUTPUT_ROOT"])
+                  payload = json.loads((Path(os.environ["RUNNER_TEMP"]) / "handoff.json").read_text())
+                  handoff = load_dataset_handoff((root / payload["handoff_path"]).read_bytes())
+                  if handoff.dataset_schema_version != "candle-dataset-v3":
+                      raise SystemExit("Stage 1 requires candle-dataset-v3")
+                  if (handoff.closure_count, handoff.exclusion_count, handoff.segment_count) != (1, 1, 2):
+                      raise SystemExit("Stage 1 closure, exclusion, and segment count mismatch")
+                  if handoff.closure_ids != ("binance-spot-system-upgrade-2018-02-08",):
+                      raise SystemExit("Stage 1 closure identity mismatch")
+                  if handoff.excluded_provider_row_sha256 != "6d0ed02c75960a3acf11073a2b7276e0bdc04f217fc99a488b15a5ff68e70775":
+                      raise SystemExit("Stage 1 excluded provider row mismatch")
+                  if handoff.segment_boundary_indices != (228,):
+                      raise SystemExit("Stage 1 segment boundary mismatch")
+                  if handoff.candle_count != 18617:
+                      raise SystemExit("Stage 1 candle count mismatch")
+                  PY
+          '''
+          if needle not in text:
+              raise SystemExit("dataset workflow handoff block not found")
+          dataset.write_text(text.replace(needle, needle + addition, 1))
+
+          study = Path(".github/workflows/sealed-btcusdt-study.yml")
+          text = study.read_text()
+          old = '''          if handoff.dataset_schema_version != "candle-dataset-v2":
+                      raise SystemExit("Stage 2 requires candle-dataset-v2")
+                  if handoff.closure_count != 1 or handoff.segment_count != 2:
+                      raise SystemExit("Stage 2 closure and segment count mismatch")
+                  if handoff.closure_ids != ("binance-spot-system-upgrade-2018-02-08",):
+                      raise SystemExit("Stage 2 closure identity mismatch")
+          '''
+          new = '''          if handoff.dataset_schema_version != "candle-dataset-v3":
+                      raise SystemExit("Stage 2 requires candle-dataset-v3")
+                  if (handoff.closure_count, handoff.exclusion_count, handoff.segment_count) != (1, 1, 2):
+                      raise SystemExit("Stage 2 closure, exclusion, and segment count mismatch")
+                  if handoff.closure_ids != ("binance-spot-system-upgrade-2018-02-08",):
+                      raise SystemExit("Stage 2 closure identity mismatch")
+                  if handoff.excluded_provider_row_sha256 != "6d0ed02c75960a3acf11073a2b7276e0bdc04f217fc99a488b15a5ff68e70775":
+                      raise SystemExit("Stage 2 excluded provider row mismatch")
+                  if handoff.segment_boundary_indices != (228,):
+                      raise SystemExit("Stage 2 segment boundary mismatch")
+                  if handoff.candle_count != 18617:
+                      raise SystemExit("Stage 2 candle count mismatch")
+          '''
+          if old not in text:
+              raise SystemExit("study workflow v2 identity block not found")
+          study.write_text(text.replace(old, new, 1))
+          PY
+
+          uv run pytest -q tests/acceptance/test_sealed_historical_validation_workflows.py
+          git diff --check
+          git rm .github/workflows/partial-closure-workflow-finalize.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            .github/workflows/sealed-btcusdt-dataset.yml \
+            .github/workflows/sealed-btcusdt-study.yml
+          git commit -m "ci: enforce sealed dataset v3 identity"
+          git push origin "HEAD:${{ github.head_ref }}"

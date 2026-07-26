@@ -31,7 +31,7 @@ jobs:
     timeout-minutes: 30
     env:
       GEMINI_TRADING_MODE: research
-      OUTPUT_ROOT: ${{ runner.temp }}/sealed-output
+      OUTPUT_ROOT: /tmp/sealed-output
     steps:
       - uses: actions/checkout@v6.0.2
         with:
@@ -75,7 +75,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: ${{ inputs.dataset_artifact_name }}
-          path: ${{ runner.temp }}/sealed-output
+          path: /tmp/sealed-output
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: ${{ inputs.dataset_run_id }}
       - name: Verify exact dataset handoff
@@ -104,7 +104,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: sealed-validated-dataset-${{ github.run_id }}
-          path: ${{ runner.temp }}/sealed-output/
+          path: /tmp/sealed-output/
           if-no-files-found: error
           retention-days: 90
           compression-level: 6
@@ -117,7 +117,7 @@ jobs:
       pre_final_id: ${{ steps.prepare.outputs.pre_final_id }}
     env:
       GEMINI_TRADING_MODE: research
-      OUTPUT_ROOT: ${{ runner.temp }}/sealed-output
+      OUTPUT_ROOT: /tmp/sealed-output
     steps:
       - uses: actions/checkout@v6.0.2
         with:
@@ -134,7 +134,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: sealed-validated-dataset-${{ github.run_id }}
-          path: ${{ runner.temp }}/sealed-output
+          path: /tmp/sealed-output
       - name: Prepare development-only evidence
         id: prepare
         run: |
@@ -166,7 +166,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: sealed-pre-final-${{ github.run_id }}
-          path: ${{ runner.temp }}/sealed-output/
+          path: /tmp/sealed-output/
           if-no-files-found: error
           retention-days: 90
           compression-level: 6
@@ -180,7 +180,7 @@ jobs:
       repository_seal_comment_id: ${{ steps.repository-seal.outputs.comment_id }}
     env:
       GEMINI_TRADING_MODE: research
-      OUTPUT_ROOT: ${{ runner.temp }}/sealed-output
+      OUTPUT_ROOT: /tmp/sealed-output
     steps:
       - name: Reject workflow reruns
         run: test "${GITHUB_RUN_ATTEMPT}" = "1"
@@ -199,7 +199,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: sealed-pre-final-${{ github.run_id }}
-          path: ${{ runner.temp }}/sealed-output
+          path: /tmp/sealed-output
       - name: Acquire one-time Issue 22 repository seal
         id: repository-seal
         env:
@@ -342,7 +342,7 @@ jobs:
         if: always()
         with:
           name: sealed-final-access-${{ github.run_id }}
-          path: ${{ runner.temp }}/sealed-output/
+          path: /tmp/sealed-output/
           if-no-files-found: error
           retention-days: 90
           compression-level: 6
@@ -354,7 +354,7 @@ jobs:
     timeout-minutes: 240
     env:
       GEMINI_TRADING_MODE: research
-      OUTPUT_ROOT: ${{ runner.temp }}/sealed-output
+      OUTPUT_ROOT: /tmp/sealed-output
     steps:
       - uses: actions/checkout@v6.0.2
         with:
@@ -371,7 +371,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: sealed-final-access-${{ github.run_id }}
-          path: ${{ runner.temp }}/sealed-output
+          path: /tmp/sealed-output
       - name: Require receipt run and attempt identity
         env:
           RECEIPT_ID: ${{ needs.authorize-final.outputs.receipt_id }}
@@ -432,7 +432,7 @@ jobs:
         with:
           name: sealed-candidate-study-${{ github.run_id }}
           path: |
-            ${{ runner.temp }}/sealed-output/
+            /tmp/sealed-output/
             ${{ runner.temp }}/finalize.json
             ${{ runner.temp }}/replay.json
             ${{ runner.temp }}/verify.json

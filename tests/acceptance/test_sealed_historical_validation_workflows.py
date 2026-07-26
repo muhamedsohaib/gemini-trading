@@ -29,7 +29,7 @@ def test_dataset_workflow_is_manual_fixed_scope_and_least_privilege() -> None:
     assert "fetch-depth: 0" in text
     assert 'python-version: "3.12"' in text
     assert 'version: "0.11.25"' in text
-    assert "OUTPUT_ROOT: ${{ runner.temp }}/sealed-output" in text
+    assert "OUTPUT_ROOT: /tmp/sealed-output" in text
     assert 'test "${GITHUB_REF_NAME}" = "main"' in text
     assert "--symbol BTCUSDT" in text
     assert "--base-asset BTC" in text
@@ -41,7 +41,7 @@ def test_dataset_workflow_is_manual_fixed_scope_and_least_privilege() -> None:
     assert text.index("market-data replay") < text.index("market-data verify")
     assert text.index("market-data verify") < text.index("strategy-handoff")
     assert "sealed-btcusdt-dataset-${{ github.sha }}-${{ github.run_id }}" in text
-    assert "path: ${{ runner.temp }}/sealed-output/" in text
+    assert "path: /tmp/sealed-output/" in text
     assert "retention-days: 90" in text
     assert "secrets." not in text
     assert "workflow_dispatch:\n    inputs:" not in text
@@ -103,7 +103,7 @@ def test_study_workflow_has_exact_narrow_inputs_and_cross_run_barriers() -> None
     assert "overwrite: false" in text
     assert "retention-days: 90" in text
     assert "secrets.GITHUB_TOKEN" in text
-    assert text.count("OUTPUT_ROOT: ${{ runner.temp }}/sealed-output") == 4
+    assert text.count("OUTPUT_ROOT: /tmp/sealed-output") == 4
     assert "api.binance.com" not in text
     assert "GITHUB_ENV" not in text
     assert (

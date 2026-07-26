@@ -1,0 +1,36 @@
+name: Partial Closure Format Diagnostic
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - run: |
+          uv run ruff format \
+            src/gemini_trading/data/exchange_closures.py \
+            tests/unit/data/test_exchange_closures.py
+          mkdir -p /tmp/partial-closure-format/src/gemini_trading/data
+          mkdir -p /tmp/partial-closure-format/tests/unit/data
+          cp src/gemini_trading/data/exchange_closures.py \
+            /tmp/partial-closure-format/src/gemini_trading/data/exchange_closures.py
+          cp tests/unit/data/test_exchange_closures.py \
+            /tmp/partial-closure-format/tests/unit/data/test_exchange_closures.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: partial-closure-ruff-format-${{ github.sha }}
+          path: /tmp/partial-closure-format
+          if-no-files-found: error
+          retention-days: 1

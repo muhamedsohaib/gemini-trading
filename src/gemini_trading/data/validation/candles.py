@@ -38,9 +38,7 @@ def completed_candles(candles: Sequence[Candle], server_time: datetime) -> tuple
     """Return only candles strictly closed before the shared server-time snapshot."""
 
     return tuple(
-        replace(candle, completed=True)
-        for candle in candles
-        if candle.close_time < server_time
+        replace(candle, completed=True) for candle in candles if candle.close_time < server_time
     )
 
 

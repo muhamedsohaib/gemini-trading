@@ -15,7 +15,7 @@ from gemini_trading.domain.timeframe import Timeframe
 
 _SCHEMA_VERSION = "exchange-closure-manifest-v1"
 _FIXED_PATH = Path("config/market-data/sealed-btcusdt-4h-exchange-closures.json")
-_FIXED_SHA256 = "ea1dcb5ec5c8bb6cdb16baa51a6a4f38af2bc9d5d5a9657f746d6411eb3975c1"
+_FIXED_SHA256 = "ea1dcb5ec5c8bb6cdb16baa51a6a4f38af2bc9d5d5a9657f746d6411eb3975c1"  # pragma: allowlist secret
 _MANIFEST_FIELDS = {
     "schema_version",
     "provider",

@@ -84,7 +84,7 @@ class BinanceSpotProvider:
 
     def __init__(
         self,
-        base_url: str = "https://api.binance.com",
+        base_url: str = "https://data-api.binance.vision",
         timeout_seconds: float = 10.0,
         transport: HttpTransport | None = None,
         clock: Callable[[], datetime] = _utc_now,

@@ -1,4 +1,4 @@
-name: Diagnose Stage 1 PR
+name: Diagnose Stage 1 Raw Evidence
 
 on:
   pull_request:
@@ -6,33 +6,52 @@ on:
       - main
 
 permissions:
-  actions: read
   contents: read
 
 jobs:
   diagnose:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 30
+    env:
+      GEMINI_TRADING_MODE: research
+      OUTPUT_ROOT: /tmp/sealed-output
     steps:
-      - name: Capture failed Stage 1 diagnostics
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - uses: actions/checkout@v6.0.2
+        with:
+          ref: cf8389f6b8964b5aee0563083f8bf362be33b1ab
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.11.25"
+          enable-cache: true
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - name: Reproduce ingestion failure and preserve raw evidence
+        shell: bash
         run: |
-          gh run view 30220725616 \
-            --repo "${GITHUB_REPOSITORY}" \
-            --json databaseId,headSha,status,conclusion,createdAt,url,jobs \
-            > /tmp/stage1-run.json
-          gh run view 30220725616 \
-            --repo "${GITHUB_REPOSITORY}" \
-            --log-failed \
-            > /tmp/stage1-failed.log
-          cat /tmp/stage1-run.json
-          tail -n 200 /tmp/stage1-failed.log
+          set +e
+          uv run gemini-trading research dataset-ingest \
+            --project-root "${GITHUB_WORKSPACE}" \
+            --output-root "${OUTPUT_ROOT}" \
+            > /tmp/stage1-ingest.stdout 2> /tmp/stage1-ingest.stderr
+          status=$?
+          printf '%s\n' "$status" > /tmp/stage1-ingest.status
+          cat /tmp/stage1-ingest.stdout
+          cat /tmp/stage1-ingest.stderr
+          find "${OUTPUT_ROOT}" -type f -maxdepth 8 -print 2>/dev/null | sort \
+            > /tmp/stage1-output-files.txt
+          cat /tmp/stage1-output-files.txt
+          exit 0
       - uses: actions/upload-artifact@v4
         with:
-          name: stage1-failure-diagnostic-${{ github.sha }}
+          name: stage1-raw-evidence-${{ github.sha }}
           path: |
-            /tmp/stage1-run.json
-            /tmp/stage1-failed.log
-          if-no-files-found: error
+            /tmp/sealed-output/
+            /tmp/stage1-ingest.stdout
+            /tmp/stage1-ingest.stderr
+            /tmp/stage1-ingest.status
+            /tmp/stage1-output-files.txt
+          if-no-files-found: warn
           retention-days: 1

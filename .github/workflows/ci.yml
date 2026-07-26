@@ -34,25 +34,22 @@ jobs:
           tests/unit/data/test_exchange_closures.py
       - run: uv run ruff check .
       - run: uv run pyright
-      - name: Capture focused Task 1-2 pytest diagnostics
-        id: focused_pytest
+      - name: Capture first full-suite regression
+        id: full_pytest
         continue-on-error: true
         shell: bash
         run: |
           set -o pipefail
-          uv run pytest \
-            tests/unit/data/test_exchange_closures.py \
-            tests/unit/data/test_candle_segments.py \
-            -vv 2>&1 | tee /tmp/task1-2-pytest.log
+          uv run pytest -x -vv 2>&1 | tee /tmp/full-pytest-first-failure.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: task1-2-pytest-${{ github.sha }}
-          path: /tmp/task1-2-pytest.log
+          name: full-pytest-first-failure-${{ github.sha }}
+          path: /tmp/full-pytest-first-failure.log
           if-no-files-found: error
           retention-days: 1
-      - name: Enforce focused pytest result
-        if: steps.focused_pytest.outcome == 'failure'
+      - name: Enforce full pytest result
+        if: steps.full_pytest.outcome == 'failure'
         run: exit 1
 
   gitleaks:

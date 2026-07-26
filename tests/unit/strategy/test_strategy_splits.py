@@ -65,3 +65,57 @@ def test_fold_windows_are_ordered_disjoint_and_expanding() -> None:
         assert fold.calibration.end_exclusive <= fold.development_test.start_inclusive
         assert fold.development_test.end_exclusive <= plan.final_test_boundary_index
         prior_training_end = fold.training.end_exclusive
+
+
+def _segments(candles: tuple[Candle, ...], split: int):
+    from gemini_trading.data.segments import CandleSegment, CandleSegmentManifest
+
+    return CandleSegmentManifest(
+        schema_version="candle-segment-manifest-v1",
+        segments=(
+            CandleSegment(
+                1, 0, split, candles[0].open_time, candles[split - 1].open_time, split, None
+            ),
+            CandleSegment(
+                2,
+                split,
+                len(candles),
+                candles[split].open_time,
+                candles[-1].open_time,
+                len(candles) - split,
+                "test-closure",
+            ),
+        ),
+    )
+
+
+def test_segment_boundaries_are_protected_and_identity_bound() -> None:
+    from gemini_trading.strategy.study import split_plan_payload
+
+    candles = _eight_year_candles()
+    split = 500
+    plan = ChronologicalSplitPlan.build(
+        candles,
+        tuple(range(42, len(candles) - 4)),
+        CandidatePolicy.locked_v0_1(),
+        _segments(candles, split),
+    )
+
+    assert plan.segment_boundary_indices == (split,)
+    assert split in plan.boundary_indices
+    assert split_plan_payload(plan)["segment_boundary_indices"] == [split]
+    assert all(not (index < split <= index + 4) for index in plan.used_label_indices)
+
+
+def test_segment_boundary_inside_final_test_requires_new_design_gate() -> None:
+    from gemini_trading.strategy.errors import FinalTestSealError
+
+    candles = _eight_year_candles()
+    split = len(candles) - 100
+    with __import__("pytest").raises(FinalTestSealError, match="intersects"):
+        ChronologicalSplitPlan.build(
+            candles,
+            tuple(range(42, len(candles) - 4)),
+            CandidatePolicy.locked_v0_1(),
+            _segments(candles, split),
+        )

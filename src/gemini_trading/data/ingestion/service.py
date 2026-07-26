@@ -23,9 +23,17 @@ from gemini_trading.data.errors import (
     ProviderRateLimitError,
     ProviderResponseError,
 )
+from gemini_trading.data.exchange_closures import (
+    ExchangeClosureManifest,
+    serialize_exchange_closure_manifest,
+)
 from gemini_trading.data.ingestion.retry import RetryPolicy
 from gemini_trading.data.normalization.binance_klines import normalize_binance_klines
 from gemini_trading.data.providers.base import MarketDataProvider
+from gemini_trading.data.segments import (
+    serialize_candle_segment_manifest,
+    validate_and_segment_candle_sequence,
+)
 from gemini_trading.data.storage.base import CanonicalStore, RawStore
 from gemini_trading.data.validation.candles import completed_candles, validate_candle_sequence
 from gemini_trading.domain.candle import Candle
@@ -39,7 +47,9 @@ from gemini_trading.domain.instrument import Instrument
 from gemini_trading.domain.timeframe import Timeframe
 
 _RETRIEVAL_SCHEMA_VERSION = "retrieval-manifest-v1"
+_RETRIEVAL_SCHEMA_VERSION_V2 = "retrieval-manifest-v2"
 _DATASET_SCHEMA_VERSION = "candle-dataset-v1"
+_DATASET_SCHEMA_VERSION_V2 = "candle-dataset-v2"
 _PROVENANCE_SCHEMA_VERSION = "dataset-provenance-v1"
 _PROVIDER = "binance_spot"
 
@@ -93,9 +103,19 @@ class IngestionService:
         run_id_factory: Callable[[], str] = _new_run_id,
         normalizer: _Normalizer = normalize_binance_klines,
         page_limit: int = 1000,
+        closure_manifest: ExchangeClosureManifest | None = None,
+        closure_manifest_bytes: bytes | None = None,
     ) -> None:
         if page_limit < 1:
             raise ValueError("page_limit must be positive")
+        if (closure_manifest is None) != (closure_manifest_bytes is None):
+            raise ValueError("closure manifest and bytes must be provided together")
+        if (
+            closure_manifest is not None
+            and closure_manifest_bytes is not None
+            and serialize_exchange_closure_manifest(closure_manifest) != closure_manifest_bytes
+        ):
+            raise ValueError("closure manifest bytes are not canonical")
         self._provider = provider
         self._raw_store = raw_store
         self._canonical_store = canonical_store
@@ -105,6 +125,8 @@ class IngestionService:
         self._run_id_factory = run_id_factory
         self._normalizer = normalizer
         self._page_limit = page_limit
+        self._closure_manifest = closure_manifest
+        self._closure_manifest_bytes = closure_manifest_bytes
 
     def _call_with_retry(
         self,
@@ -138,7 +160,11 @@ class IngestionService:
         failure: Exception | None,
     ) -> RetrievalManifest:
         return RetrievalManifest(
-            schema_version=_RETRIEVAL_SCHEMA_VERSION,
+            schema_version=(
+                _RETRIEVAL_SCHEMA_VERSION_V2
+                if self._closure_manifest is not None
+                else _RETRIEVAL_SCHEMA_VERSION
+            ),
             run_id=run_id,
             provider=_PROVIDER,
             instrument=request.instrument,
@@ -151,6 +177,11 @@ class IngestionService:
             status=status,
             failure_type=None if failure is None else type(failure).__name__,
             failure_message=None if failure is None else _safe_failure_message(failure),
+            closure_manifest_sha256=(
+                None
+                if self._closure_manifest_bytes is None
+                else hashlib.sha256(self._closure_manifest_bytes).hexdigest()
+            ),
         )
 
     def ingest(self, request: RetrievalRequest) -> IngestionResult:
@@ -219,11 +250,32 @@ class IngestionService:
             canonical_candles = completed_candles(candidates, server_time)
             if not canonical_candles:
                 raise IncompleteWindowError("retrieval produced zero completed candles")
-            validate_candle_sequence(canonical_candles, request)
+            segment_manifest_bytes: bytes | None = None
+            segment_count = 1
+            if self._closure_manifest is None:
+                validate_candle_sequence(canonical_candles, request)
+            else:
+                segment_manifest = validate_and_segment_candle_sequence(
+                    canonical_candles,
+                    request,
+                    self._closure_manifest,
+                )
+                segment_manifest_bytes = serialize_candle_segment_manifest(segment_manifest)
+                segment_count = len(segment_manifest.segments)
+                assert self._closure_manifest_bytes is not None
+                run_closure_path = self._raw_store.write_run_closure_manifest(
+                    run_id,
+                    self._closure_manifest_bytes,
+                )
+                paths.append(("run_closure_manifest", run_closure_path))
 
             canonical_bytes = serialize_candles(canonical_candles)
             dataset_manifest = build_dataset_manifest(
-                schema_version=_DATASET_SCHEMA_VERSION,
+                schema_version=(
+                    _DATASET_SCHEMA_VERSION_V2
+                    if self._closure_manifest is not None
+                    else _DATASET_SCHEMA_VERSION
+                ),
                 provider=_PROVIDER,
                 instrument=request.instrument,
                 timeframe=request.timeframe,
@@ -231,6 +283,12 @@ class IngestionService:
                 end_time=request.end_time,
                 candles=canonical_candles,
                 canonical_bytes=canonical_bytes,
+                closure_manifest_bytes=self._closure_manifest_bytes,
+                segment_manifest_bytes=segment_manifest_bytes,
+                closure_count=(
+                    0 if self._closure_manifest is None else len(self._closure_manifest.closures)
+                ),
+                segment_count=segment_count,
             )
             dataset_manifest_bytes = serialize_dataset_manifest(dataset_manifest)
 
@@ -261,6 +319,20 @@ class IngestionService:
                     ("dataset_manifest", dataset_manifest_path),
                 )
             )
+            if self._closure_manifest_bytes is not None and segment_manifest_bytes is not None:
+                closure_path, segment_path = (
+                    self._canonical_store.write_dataset_supporting_manifests(
+                        dataset_manifest.dataset_id,
+                        self._closure_manifest_bytes,
+                        segment_manifest_bytes,
+                    )
+                )
+                paths.extend(
+                    (
+                        ("canonical_closure_manifest", closure_path),
+                        ("segment_manifest", segment_path),
+                    )
+                )
 
             provenance = build_provenance(
                 schema_version=_PROVENANCE_SCHEMA_VERSION,

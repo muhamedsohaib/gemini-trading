@@ -62,6 +62,7 @@ class BacktestEvidence:
     account_series: tuple[AccountSnapshot, ...]
     rejection_records: tuple[dict[str, object], ...]
     terminal_account: AccountSnapshot
+    segment_boundary_records: tuple[dict[str, object], ...] = ()
 
 
 class BacktestEngine:
@@ -88,6 +89,12 @@ class BacktestEngine:
         self._ledger: list[LedgerEntry] = []
         self._account_series: list[AccountSnapshot] = []
         self._rejections: list[dict[str, object]] = []
+        self._segment_boundaries: set[int] = (
+            set(dataset.segment_manifest.boundary_indices)
+            if dataset.segment_manifest is not None
+            else set()
+        )
+        self._segment_boundary_records: list[dict[str, object]] = []
         self._last_candle_index = -1
         self._last_candle: Candle | None = None
         self._finalized = False
@@ -132,6 +139,9 @@ class BacktestEngine:
             account_series=tuple(self._account_series),
             rejection_records=tuple(dict(record) for record in self._rejections),
             terminal_account=self._account,
+            segment_boundary_records=tuple(
+                dict(record) for record in self._segment_boundary_records
+            ),
         )
 
     def _active_orders(self) -> tuple[SimulatedOrder, ...]:
@@ -315,6 +325,25 @@ class BacktestEngine:
             raise ChronologyViolationError("candle instrument identity mismatch")
         if candle.timeframe is not self._dataset.manifest.timeframe:
             raise ChronologyViolationError("candle timeframe identity mismatch")
+        if candle_index in self._segment_boundaries:
+            if (
+                self._active_orders()
+                or self._account.position_quantity != _ZERO
+                or self._account.reserved_cash != _ZERO
+            ):
+                raise ChronologyViolationError(
+                    "noncash state cannot cross a candle segment boundary"
+                )
+            segment_number = 1 + sum(
+                boundary <= candle_index for boundary in self._segment_boundaries
+            )
+            self._segment_boundary_records.append(
+                {
+                    "candle_index": candle_index,
+                    "segment_number": segment_number,
+                    "status": "cash_only_reset",
+                }
+            )
 
         consumed_volume = self._evaluate_orders(
             tuple(order.order_id for order in self._active_orders()),

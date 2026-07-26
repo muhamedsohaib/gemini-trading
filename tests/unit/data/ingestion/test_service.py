@@ -96,6 +96,13 @@ class RecordingStore:
     def read_run(self, run_id: str) -> tuple[RetrievalManifest, tuple[RawPage, ...]]:
         return self.local.read_run(run_id)
 
+    def write_run_closure_manifest(self, run_id: str, raw: bytes) -> Path:
+        self.events.append("write_run_closure_manifest")
+        return self.local.write_run_closure_manifest(run_id, raw)
+
+    def read_run_closure_manifest_bytes(self, run_id: str) -> bytes:
+        return self.local.read_run_closure_manifest_bytes(run_id)
+
     def write_dataset(
         self,
         dataset_id: str,
@@ -105,6 +112,22 @@ class RecordingStore:
         self.events.append("write_dataset")
         self.dataset_write_count += 1
         return self.local.write_dataset(dataset_id, jsonl_bytes, manifest_bytes)
+
+    def write_dataset_supporting_manifests(
+        self,
+        dataset_id: str,
+        closure_raw: bytes,
+        segment_raw: bytes,
+    ) -> tuple[Path, Path]:
+        self.events.append("write_dataset_supporting_manifests")
+        return self.local.write_dataset_supporting_manifests(
+            dataset_id,
+            closure_raw,
+            segment_raw,
+        )
+
+    def read_dataset_supporting_manifests(self, dataset_id: str) -> tuple[bytes, bytes]:
+        return self.local.read_dataset_supporting_manifests(dataset_id)
 
     def write_provenance(
         self,

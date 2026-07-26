@@ -73,7 +73,7 @@ def _instrument_payload(instrument: Instrument) -> dict[str, object]:
 
 
 def _manifest_payload(manifest: RetrievalManifest) -> dict[str, object]:
-    return {
+    payload: dict[str, object] = {
         "schema_version": manifest.schema_version,
         "run_id": manifest.run_id,
         "provider": manifest.provider,
@@ -92,6 +92,9 @@ def _manifest_payload(manifest: RetrievalManifest) -> dict[str, object]:
         "failure_type": manifest.failure_type,
         "failure_message": manifest.failure_message,
     }
+    if manifest.schema_version == "retrieval-manifest-v2":
+        payload["closure_manifest_sha256"] = manifest.closure_manifest_sha256
+    return payload
 
 
 def serialize_retrieval_manifest(manifest: RetrievalManifest) -> bytes:
@@ -212,6 +215,11 @@ def _deserialize_manifest(raw: bytes) -> RetrievalManifest:
         status=RetrievalStatus(_required_str(mapping, "status")),
         failure_type=_optional_str(mapping, "failure_type"),
         failure_message=_optional_str(mapping, "failure_message"),
+        closure_manifest_sha256=(
+            _required_str(mapping, "closure_manifest_sha256")
+            if mapping.get("schema_version") == "retrieval-manifest-v2"
+            else None
+        ),
     )
 
 
@@ -253,6 +261,18 @@ class LocalImmutableStore:
 
     def read_retrieval_manifest_bytes(self, run_id: str) -> bytes:
         path = self._raw_run_directory(run_id) / "retrieval-manifest.json"
+        return path.read_bytes()
+
+    def write_run_closure_manifest(self, run_id: str, raw: bytes) -> Path:
+        """Persist exact source-controlled closure bytes beneath one raw run."""
+
+        path = self._raw_run_directory(run_id) / "exchange-closures.json"
+        return write_immutable(path, raw)
+
+    def read_run_closure_manifest_bytes(self, run_id: str) -> bytes:
+        """Read the closure evidence bound to one raw retrieval run."""
+
+        path = self._raw_run_directory(run_id) / "exchange-closures.json"
         return path.read_bytes()
 
     def read_run(self, run_id: str) -> tuple[RetrievalManifest, tuple[RawPage, ...]]:
@@ -301,6 +321,34 @@ class LocalImmutableStore:
             manifest_bytes,
         )
         return candle_path, manifest_path
+
+    def write_dataset_supporting_manifests(
+        self,
+        dataset_id: str,
+        closure_raw: bytes,
+        segment_raw: bytes,
+    ) -> tuple[Path, Path]:
+        """Persist exact closure and segment evidence beside one canonical dataset."""
+
+        dataset_directory = self._dataset_directory(dataset_id)
+        closure_path = write_immutable(
+            dataset_directory / "exchange-closures.json",
+            closure_raw,
+        )
+        segment_path = write_immutable(
+            dataset_directory / "candle-segments.json",
+            segment_raw,
+        )
+        return closure_path, segment_path
+
+    def read_dataset_supporting_manifests(self, dataset_id: str) -> tuple[bytes, bytes]:
+        """Read exact closure and segment evidence for one canonical dataset."""
+
+        dataset_directory = self._dataset_directory(dataset_id)
+        return (
+            (dataset_directory / "exchange-closures.json").read_bytes(),
+            (dataset_directory / "candle-segments.json").read_bytes(),
+        )
 
     def write_provenance(
         self,

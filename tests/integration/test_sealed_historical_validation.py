@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from datetime import timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -14,9 +15,19 @@ from gemini_trading.data.datasets.canonical_writer import (
     serialize_candles,
     serialize_dataset_manifest,
 )
+from gemini_trading.data.exchange_closures import (
+    ExchangeClosure,
+    ExchangeClosureManifest,
+    serialize_exchange_closure_manifest,
+)
+from gemini_trading.data.segments import (
+    CandleSegment,
+    CandleSegmentManifest,
+    serialize_candle_segment_manifest,
+)
 from gemini_trading.data.storage.local_immutable import LocalImmutableStore, write_immutable
 from gemini_trading.research.artifacts import LocalResearchStore
-from gemini_trading.research.dataset_reader import VerifiedDataset, load_verified_dataset
+from gemini_trading.research.dataset_reader import VerifiedDataset
 from gemini_trading.strategy.artifacts import REQUIRED_STUDY_ARTIFACT_NAMES
 from gemini_trading.strategy.evaluator import reconstruct_study_strategy
 from gemini_trading.strategy.final_access import FinalAccessStore
@@ -36,13 +47,71 @@ from gemini_trading.strategy.verification import StrategyStudyVerificationServic
 from strategy_fixture_support import base_simulation
 
 _CODE_COMMIT = "a" * 40
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+_CLOSURE_ID = "binance-spot-system-upgrade-2018-02-08"
 
 
 def _verified_dataset(root: Path) -> VerifiedDataset:
-    candles = synthetic_candidate_candles()
+    source_candles = synthetic_candidate_candles()
+    closure_duration = timedelta(hours=28)
+    candles = (
+        source_candles[0],
+        *(
+            replace(
+                candle,
+                open_time=candle.open_time + closure_duration,
+                close_time=candle.close_time + closure_duration,
+            )
+            for candle in source_candles[1:]
+        ),
+    )
     canonical_bytes = serialize_candles(candles)
+    boundary = 1
+    closure_manifest = ExchangeClosureManifest(
+        schema_version="exchange-closure-manifest-v1",
+        provider="binance_spot",
+        instrument=candles[0].instrument,
+        timeframe=candles[0].timeframe,
+        start_time=candles[0].open_time,
+        end_time=candles[-1].close_time + timedelta(milliseconds=1),
+        closures=(
+            ExchangeClosure(
+                closure_id=_CLOSURE_ID,
+                missing_start=candles[0].open_time + candles[0].timeframe.duration,
+                resumed_open=candles[boundary].open_time,
+                missing_candle_count=7,
+                reason_code="exchange_system_upgrade",
+                governance_reference="synthetic-sealed-test",
+            ),
+        ),
+    )
+    closure_bytes = serialize_exchange_closure_manifest(closure_manifest)
+    segment_manifest = CandleSegmentManifest(
+        schema_version="candle-segment-manifest-v1",
+        segments=(
+            CandleSegment(
+                segment_number=1,
+                start_index=0,
+                end_exclusive=boundary,
+                first_open_time=candles[0].open_time,
+                last_open_time=candles[boundary - 1].open_time,
+                candle_count=boundary,
+                preceding_closure_id=None,
+            ),
+            CandleSegment(
+                segment_number=2,
+                start_index=boundary,
+                end_exclusive=len(candles),
+                first_open_time=candles[boundary].open_time,
+                last_open_time=candles[-1].open_time,
+                candle_count=len(candles) - boundary,
+                preceding_closure_id=_CLOSURE_ID,
+            ),
+        ),
+    )
+    segment_bytes = serialize_candle_segment_manifest(segment_manifest)
     manifest = build_dataset_manifest(
-        schema_version="candle-dataset-v1",
+        schema_version="candle-dataset-v2",
         provider="binance_spot",
         instrument=candles[0].instrument,
         timeframe=candles[0].timeframe,
@@ -50,16 +119,35 @@ def _verified_dataset(root: Path) -> VerifiedDataset:
         end_time=candles[-1].close_time + timedelta(milliseconds=1),
         candles=candles,
         canonical_bytes=canonical_bytes,
+        closure_manifest_bytes=closure_bytes,
+        segment_manifest_bytes=segment_bytes,
+        closure_count=1,
+        segment_count=2,
     )
-    LocalImmutableStore(root).write_dataset(
+    store = LocalImmutableStore(root)
+    store.write_dataset(
         manifest.dataset_id,
         canonical_bytes,
         serialize_dataset_manifest(manifest),
     )
-    return load_verified_dataset(LocalImmutableStore(root), manifest.dataset_id)
+    store.write_dataset_supporting_manifests(
+        manifest.dataset_id,
+        closure_bytes,
+        segment_bytes,
+    )
+    return VerifiedDataset(
+        manifest=manifest,
+        candles=candles,
+        canonical_bytes=canonical_bytes,
+        closure_manifest=closure_manifest,
+        segment_manifest=segment_manifest,
+        closure_manifest_bytes=closure_bytes,
+        segment_manifest_bytes=segment_bytes,
+    )
 
 
-def _handoff(root: Path, dataset_id: str) -> DatasetHandoffManifest:
+def _handoff(root: Path, dataset: VerifiedDataset) -> DatasetHandoffManifest:
+    dataset_id = dataset.manifest.dataset_id
     canonical_root = root / "data" / "canonical" / dataset_id
     paths = tuple(
         sorted(
@@ -69,8 +157,10 @@ def _handoff(root: Path, dataset_id: str) -> DatasetHandoffManifest:
         )
     )
     files = build_artifact_inventory(root, paths)
+    closure_path = (canonical_root / "exchange-closures.json").relative_to(root).as_posix()
+    segment_path = (canonical_root / "candle-segments.json").relative_to(root).as_posix()
     handoff = DatasetHandoffManifest(
-        schema_version="sealed-dataset-handoff-v1",
+        schema_version="sealed-dataset-handoff-v2",
         repository="muhamedsohaib/gemini-trading",
         source_commit=_CODE_COMMIT,
         workflow_name="sealed-btcusdt-dataset",
@@ -86,6 +176,16 @@ def _handoff(root: Path, dataset_id: str) -> DatasetHandoffManifest:
         end_exclusive="2026-07-01T00:00:00Z",
         run_id="diagnostic-run",
         dataset_id=dataset_id,
+        dataset_schema_version="candle-dataset-v2",
+        closure_manifest_path=closure_path,
+        closure_manifest_sha256=dataset.manifest.closure_manifest_sha256 or "",
+        segment_manifest_path=segment_path,
+        segment_manifest_sha256=dataset.manifest.segment_manifest_sha256 or "",
+        closure_count=dataset.manifest.closure_count,
+        segment_count=dataset.manifest.segment_count,
+        closure_ids=tuple(item.closure_id for item in dataset.closure_manifest.closures)
+        if dataset.closure_manifest is not None
+        else (),
         candle_count=18_618,
         first_open_time="2018-01-01T00:00:00Z",
         last_open_time="2026-06-30T20:00:00Z",
@@ -101,7 +201,7 @@ def _handoff(root: Path, dataset_id: str) -> DatasetHandoffManifest:
 
 def test_prepare_does_not_materialize_final_phase(tmp_path: Path) -> None:
     dataset = _verified_dataset(tmp_path)
-    handoff = _handoff(tmp_path, dataset.manifest.dataset_id)
+    handoff = _handoff(tmp_path, dataset)
     simulation = base_simulation()
     full_count = len(dataset.candles)
 
@@ -141,7 +241,7 @@ def test_prepare_does_not_materialize_final_phase(tmp_path: Path) -> None:
 def test_complete_requires_matching_durable_receipt(tmp_path: Path) -> None:
     dataset = _verified_dataset(tmp_path)
     simulation = base_simulation()
-    handoff = _handoff(tmp_path, dataset.manifest.dataset_id)
+    handoff = _handoff(tmp_path, dataset)
     pre_final = prepare_candidate_strategy_study(
         dataset=dataset,
         simulation=simulation,

@@ -5,6 +5,7 @@ from calendar import monthrange
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
+from gemini_trading.data.segments import CandleSegmentManifest
 from gemini_trading.domain.candle import Candle
 from gemini_trading.strategy.contracts import IndexWindow
 from gemini_trading.strategy.errors import (
@@ -71,6 +72,7 @@ class ChronologicalSplitPlan:
     final_test_indices: tuple[int, ...]
     folds: tuple[WalkForwardFold, ...]
     boundary_indices: tuple[int, ...]
+    segment_boundary_indices: tuple[int, ...]
     used_label_indices: tuple[int, ...]
     purge_candles: int
     embargo_candles: int
@@ -85,6 +87,10 @@ class ChronologicalSplitPlan:
             raise FinalTestSealError("final_test_boundary_index must be non-negative")
         if self.boundary_indices != tuple(sorted(set(self.boundary_indices))):
             raise SplitBoundaryError("boundary_indices must be unique and ordered")
+        if self.segment_boundary_indices != tuple(sorted(set(self.segment_boundary_indices))):
+            raise SplitBoundaryError("segment_boundary_indices must be unique and ordered")
+        if not set(self.segment_boundary_indices) <= set(self.boundary_indices):
+            raise SplitBoundaryError("segment boundaries must be protected boundaries")
         if self.used_label_indices != tuple(sorted(set(self.used_label_indices))):
             raise SplitBoundaryError("used_label_indices must be unique and ordered")
         if self.final_test_indices != tuple(sorted(set(self.final_test_indices))):
@@ -114,10 +120,11 @@ class ChronologicalSplitPlan:
         candles: tuple[Candle, ...],
         eligible_indices: tuple[int, ...],
         policy: CandidatePolicy,
+        segment_manifest: CandleSegmentManifest | None = None,
     ) -> "ChronologicalSplitPlan":
         """Build the locked expanding-window and untouched-final-test plan."""
 
-        dataset_start, dataset_end = _validate_candles(candles)
+        dataset_start, dataset_end = _validate_candles(candles, segment_manifest)
         if _add_years(dataset_start, policy.minimum_history_years) > dataset_end:
             raise InsufficientHistoryError(
                 f"candidate study requires {policy.minimum_history_years} years of history"
@@ -130,6 +137,11 @@ class ChronologicalSplitPlan:
         final_boundary = bisect_left(open_times, final_test_start)
         if final_boundary <= eligible[0] or final_boundary >= len(candles):
             raise FinalTestSealError("final-test boundary is outside eligible history")
+        segment_boundaries = (
+            segment_manifest.boundary_indices if segment_manifest is not None else ()
+        )
+        if any(boundary >= final_boundary for boundary in segment_boundaries):
+            raise FinalTestSealError("exchange closure intersects the sealed final test")
 
         raw_fold_boundaries: list[tuple[int, int, int]] = []
         step = 0
@@ -162,6 +174,7 @@ class ChronologicalSplitPlan:
             sorted(
                 {
                     final_boundary,
+                    *segment_boundaries,
                     *(
                         boundary
                         for fold_boundaries in raw_fold_boundaries
@@ -257,6 +270,7 @@ class ChronologicalSplitPlan:
             final_test_indices=final_indices,
             folds=tuple(folds),
             boundary_indices=boundaries,
+            segment_boundary_indices=segment_boundaries,
             used_label_indices=tuple(sorted(all_used)),
             purge_candles=policy.purge_candles,
             embargo_candles=policy.embargo_candles,
@@ -264,23 +278,29 @@ class ChronologicalSplitPlan:
         )
 
 
-def _validate_candles(candles: tuple[Candle, ...]) -> tuple[datetime, datetime]:
+def _validate_candles(
+    candles: tuple[Candle, ...],
+    segment_manifest: CandleSegmentManifest | None,
+) -> tuple[datetime, datetime]:
     if not candles:
         raise InsufficientHistoryError("chronological split plan requires candles")
     first = candles[0]
     prior = None
-    interval = None
-    for candle in candles:
+    interval = first.timeframe.duration
+    boundaries: set[int] = (
+        set(segment_manifest.boundary_indices) if segment_manifest is not None else set()
+    )
+    if segment_manifest is not None and segment_manifest.segments[-1].end_exclusive != len(candles):
+        raise SplitBoundaryError("split segment evidence does not cover candles")
+    for index, candle in enumerate(candles):
         if not candle.completed:
             raise SplitBoundaryError("split plan requires completed candles")
         if candle.instrument != first.instrument or candle.timeframe != first.timeframe:
             raise SplitBoundaryError("split candles must share instrument and timeframe")
-        if prior is not None:
+        if prior is not None and index not in boundaries:
             current_interval = candle.open_time - prior.open_time
-            if interval is None:
-                interval = current_interval
             if current_interval != interval:
-                raise SplitBoundaryError("split candles must be exactly continuous")
+                raise SplitBoundaryError("split candles must be continuous inside segments")
             if candle.open_time != prior.close_time + timedelta(milliseconds=1):
                 raise SplitBoundaryError("split candle boundaries must be contiguous")
         prior = candle

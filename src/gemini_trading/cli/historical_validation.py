@@ -10,8 +10,13 @@ from typing import cast
 
 from gemini_trading.cli.market_data import CliUsageError
 from gemini_trading.cli.strategy import load_candidate_strategy_config
+from gemini_trading.data.exchange_closures import load_fixed_btcusdt_closure_manifest
+from gemini_trading.data.ingestion.replay import ReplayService
+from gemini_trading.data.ingestion.service import IngestionResult, IngestionService
+from gemini_trading.data.providers.binance_spot import BinanceSpotProvider
 from gemini_trading.data.storage.local_immutable import LocalImmutableStore, write_immutable
 from gemini_trading.data.verification.service import VerificationService
+from gemini_trading.domain.dataset import RetrievalRequest
 from gemini_trading.research.dataset_reader import load_verified_dataset
 from gemini_trading.research.replay import resolve_clean_git_commit
 from gemini_trading.safety.execution_mode import load_runtime_policy
@@ -143,6 +148,61 @@ def _pre_final_identity(
     return artifacts, manifest
 
 
+def _dataset_payload(result: IngestionResult, output_root: Path) -> dict[str, object]:
+    return {
+        "status": "completed",
+        "run_id": result.run_id,
+        "dataset_id": result.dataset_id,
+        "raw_page_count": result.raw_page_count,
+        "candle_count": result.candle_count,
+        "paths": {name: _safe_relative(path, output_root) for name, path in result.paths},
+    }
+
+
+def _dataset_ingest(arguments: argparse.Namespace) -> dict[str, object]:
+    project_root = _root(arguments, "project_root")
+    output_root = _root(arguments, "output_root")
+    closure_manifest, closure_bytes = load_fixed_btcusdt_closure_manifest(project_root)
+    request = RetrievalRequest(
+        instrument=closure_manifest.instrument,
+        timeframe=closure_manifest.timeframe,
+        start_time=closure_manifest.start_time,
+        end_time=closure_manifest.end_time,
+    )
+    store = LocalImmutableStore(output_root)
+    result = IngestionService(
+        provider=BinanceSpotProvider(),
+        raw_store=store,
+        canonical_store=store,
+        closure_manifest=closure_manifest,
+        closure_manifest_bytes=closure_bytes,
+    ).ingest(request)
+    return _dataset_payload(result, output_root)
+
+
+def _dataset_replay(arguments: argparse.Namespace) -> dict[str, object]:
+    run_id = _run_id_argument(arguments)
+    output_root = _root(arguments, "output_root")
+    store = LocalImmutableStore(output_root)
+    result = ReplayService(raw_store=store, canonical_store=store).replay(run_id)
+    return _dataset_payload(result, output_root)
+
+
+def _dataset_verify(arguments: argparse.Namespace) -> dict[str, object]:
+    dataset_id = _sha256_argument(arguments, "dataset_id")
+    run_id = _run_id_argument(arguments)
+    output_root = _root(arguments, "output_root")
+    store = LocalImmutableStore(output_root)
+    result = VerificationService(raw_store=store, canonical_store=store).verify(dataset_id, run_id)
+    return {
+        "status": "verified",
+        "dataset_id": result.dataset_id,
+        "run_id": result.run_id,
+        "candle_count": result.candle_count,
+        "checks": list(result.checks),
+    }
+
+
 def _strategy_handoff(arguments: argparse.Namespace) -> dict[str, object]:
     run_id = _run_id_argument(arguments)
     dataset_id = _sha256_argument(arguments, "dataset_id")
@@ -155,7 +215,7 @@ def _strategy_handoff(arguments: argparse.Namespace) -> dict[str, object]:
         dataset_id,
         run_id,
     )
-    dataset = load_verified_dataset(store, dataset_id)
+    dataset = load_verified_dataset(store, dataset_id, require_v2=True)
     raw_root = output_root / "data" / "raw" / "binance_spot" / run_id
     canonical_root = output_root / "data" / "canonical" / dataset_id
     relative_paths = tuple(
@@ -167,8 +227,14 @@ def _strategy_handoff(arguments: argparse.Namespace) -> dict[str, object]:
         )
     )
     files = build_artifact_inventory(output_root, relative_paths)
+    if (
+        dataset.manifest.closure_manifest_sha256 is None
+        or dataset.manifest.segment_manifest_sha256 is None
+        or dataset.closure_manifest is None
+    ):
+        raise CliUsageError("verified v2 dataset is missing supporting identity")
     manifest = DatasetHandoffManifest(
-        schema_version="sealed-dataset-handoff-v1",
+        schema_version="sealed-dataset-handoff-v2",
         repository="muhamedsohaib/gemini-trading",
         source_commit=source_commit,
         workflow_name="sealed-btcusdt-dataset",
@@ -184,6 +250,16 @@ def _strategy_handoff(arguments: argparse.Namespace) -> dict[str, object]:
         end_exclusive=dataset.manifest.end_time.isoformat().replace("+00:00", "Z"),
         run_id=run_id,
         dataset_id=dataset_id,
+        dataset_schema_version=dataset.manifest.schema_version,
+        closure_manifest_path=_safe_relative(
+            canonical_root / "exchange-closures.json", output_root
+        ),
+        closure_manifest_sha256=dataset.manifest.closure_manifest_sha256,
+        segment_manifest_path=_safe_relative(canonical_root / "candle-segments.json", output_root),
+        segment_manifest_sha256=dataset.manifest.segment_manifest_sha256,
+        closure_count=dataset.manifest.closure_count,
+        segment_count=dataset.manifest.segment_count,
+        closure_ids=tuple(item.closure_id for item in dataset.closure_manifest.closures),
         candle_count=verification.candle_count,
         first_open_time=dataset.manifest.first_open_time.isoformat().replace("+00:00", "Z"),
         last_open_time=dataset.manifest.last_open_time.isoformat().replace("+00:00", "Z"),
@@ -220,7 +296,9 @@ def _strategy_prepare(arguments: argparse.Namespace) -> dict[str, object]:
     code_commit = resolve_clean_git_commit(project_root)
     if code_commit != handoff.source_commit:
         raise CliUsageError("code commit does not match dataset handoff")
-    dataset = load_verified_dataset(LocalImmutableStore(output_root), handoff.dataset_id)
+    dataset = load_verified_dataset(
+        LocalImmutableStore(output_root), handoff.dataset_id, require_v2=True
+    )
     artifacts = prepare_candidate_strategy_study(
         dataset=dataset,
         simulation=config.simulation,
@@ -270,7 +348,7 @@ def _strategy_finalize(arguments: argparse.Namespace) -> dict[str, object]:
     code_commit = resolve_clean_git_commit(project_root)
     receipt = FinalAccessStore(output_root).load(receipt_id)
     config = load_candidate_strategy_config(project_root / _FIXED_CONFIG)
-    dataset = load_verified_dataset(LocalImmutableStore(output_root), dataset_id)
+    dataset = load_verified_dataset(LocalImmutableStore(output_root), dataset_id, require_v2=True)
     artifacts = complete_candidate_strategy_study(
         pre_final=pre_final,
         receipt=receipt,
@@ -319,6 +397,12 @@ def run_historical_validation(arguments: argparse.Namespace) -> dict[str, object
 
     load_runtime_policy()
     command = _argument(arguments, "research_command")
+    if command == "dataset-ingest":
+        return _dataset_ingest(arguments)
+    if command == "dataset-replay":
+        return _dataset_replay(arguments)
+    if command == "dataset-verify":
+        return _dataset_verify(arguments)
     if command == "strategy-handoff":
         return _strategy_handoff(arguments)
     if command == "strategy-prepare":

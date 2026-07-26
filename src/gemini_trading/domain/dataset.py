@@ -90,6 +90,7 @@ class RetrievalManifest:
     status: RetrievalStatus
     failure_type: str | None
     failure_message: str | None
+    closure_manifest_sha256: str | None = None
 
     def __post_init__(self) -> None:
         _require_non_empty(self.schema_version, "schema_version")
@@ -102,6 +103,12 @@ class RetrievalManifest:
             _require_sha256(page_hash, "page_hash")
         if self.retry_count < 0:
             raise ValueError("retry_count must be non-negative")
+        if self.schema_version == "retrieval-manifest-v2":
+            if self.closure_manifest_sha256 is None:
+                raise ValueError("closure_manifest_sha256 is required for retrieval-manifest-v2")
+            _require_sha256(self.closure_manifest_sha256, "closure_manifest_sha256")
+        elif self.closure_manifest_sha256 is not None:
+            raise ValueError("closure_manifest_sha256 is only valid for retrieval-manifest-v2")
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,6 +126,10 @@ class DatasetManifest:
     last_open_time: datetime
     candle_count: int
     canonical_sha256: str
+    closure_manifest_sha256: str | None = None
+    segment_manifest_sha256: str | None = None
+    closure_count: int = 0
+    segment_count: int = 1
 
     def __post_init__(self) -> None:
         _require_non_empty(self.schema_version, "schema_version")
@@ -132,6 +143,24 @@ class DatasetManifest:
         if self.candle_count < 1:
             raise ValueError("candle_count must be positive")
         _require_sha256(self.canonical_sha256, "canonical_sha256")
+        if self.schema_version == "candle-dataset-v2":
+            if self.closure_manifest_sha256 is None:
+                raise ValueError("closure_manifest_sha256 is required for candle-dataset-v2")
+            if self.segment_manifest_sha256 is None:
+                raise ValueError("segment_manifest_sha256 is required for candle-dataset-v2")
+            _require_sha256(self.closure_manifest_sha256, "closure_manifest_sha256")
+            _require_sha256(self.segment_manifest_sha256, "segment_manifest_sha256")
+            if self.closure_count < 1:
+                raise ValueError("closure_count must be positive for candle-dataset-v2")
+            if self.segment_count != self.closure_count + 1:
+                raise ValueError("segment_count must equal closure_count plus one")
+        else:
+            if self.closure_manifest_sha256 is not None:
+                raise ValueError("closure_manifest_sha256 is only valid for candle-dataset-v2")
+            if self.segment_manifest_sha256 is not None:
+                raise ValueError("segment_manifest_sha256 is only valid for candle-dataset-v2")
+            if self.closure_count != 0 or self.segment_count != 1:
+                raise ValueError("legacy dataset manifests must use zero closures and one segment")
 
 
 @dataclass(frozen=True, slots=True)

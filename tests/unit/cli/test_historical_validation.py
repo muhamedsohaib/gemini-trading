@@ -54,6 +54,41 @@ def test_parser_accepts_only_fixed_historical_validation_shapes() -> None:
     assert finalize.research_command == "strategy-finalize"
 
 
+def test_parser_accepts_fixed_dataset_commands() -> None:
+    parser = build_parser()
+    ingest = parser.parse_args(
+        [
+            "research",
+            "dataset-ingest",
+            "--project-root",
+            ".",
+            "--output-root",
+            ".",
+        ]
+    )
+    assert ingest.research_command == "dataset-ingest"
+    replay = parser.parse_args(
+        ["research", "dataset-replay", "--run-id", "run-1", "--output-root", "."]
+    )
+    assert replay.research_command == "dataset-replay"
+
+
+def test_sealed_dataset_ingest_rejects_arbitrary_closure_path() -> None:
+    with pytest.raises(CliUsageError):
+        build_parser().parse_args(
+            [
+                "research",
+                "dataset-ingest",
+                "--project-root",
+                ".",
+                "--output-root",
+                ".",
+                "--closure-manifest",
+                "other.json",
+            ]
+        )
+
+
 @pytest.mark.parametrize(
     "extra",
     (

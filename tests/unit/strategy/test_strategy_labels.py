@@ -114,3 +114,34 @@ def test_candles_after_the_exit_cannot_change_a_prior_label() -> None:
     )
 
     assert policy.build(changed, eligible_indices=(42,)).for_index(42) == original
+
+
+def test_labels_omit_outcomes_crossing_segment_boundary() -> None:
+    from gemini_trading.data.segments import CandleSegment, CandleSegmentManifest
+
+    candles = rising_candles(100)
+    split = 50
+    segments = CandleSegmentManifest(
+        schema_version="candle-segment-manifest-v1",
+        segments=(
+            CandleSegment(
+                1, 0, split, candles[0].open_time, candles[split - 1].open_time, split, None
+            ),
+            CandleSegment(
+                2,
+                split,
+                len(candles),
+                candles[split].open_time,
+                candles[-1].open_time,
+                len(candles) - split,
+                "test-closure",
+            ),
+        ),
+    )
+    labels = LabelPolicy.locked_v0_1(base_simulation()).build(
+        candles,
+        eligible_indices=(45, 46, 47, 48, 49, 50),
+        segments=segments,
+    )
+
+    assert tuple(item.decision_candle_index for item in labels.observations) == (45, 50)

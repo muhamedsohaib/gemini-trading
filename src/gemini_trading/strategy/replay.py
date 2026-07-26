@@ -48,6 +48,13 @@ _SEALED_STUDY_MANIFEST_KEYS = {
     "pre_final_id",
     "dataset_handoff_inventory_root",
     "durable_final_access_receipt_id",
+    "dataset_schema_version",
+    "closure_manifest_sha256",
+    "segment_manifest_sha256",
+    "closure_count",
+    "segment_count",
+    "closure_ids",
+    "segment_boundary_indices",
 }
 _CASE_KEYS = {
     "case_id",
@@ -127,6 +134,32 @@ def _sha256(value: str, description: str) -> str:
     return value
 
 
+def _required_string_tuple(
+    mapping: Mapping[str, object], key: str, description: str
+) -> tuple[str, ...]:
+    value = mapping.get(key)
+    if not isinstance(value, list):
+        raise StudyReplayMismatchError(f"invalid {description} field: {key}")
+    values = cast(list[object], value)
+    if not all(isinstance(item, str) for item in values):
+        raise StudyReplayMismatchError(f"invalid {description} field: {key}")
+    return tuple(cast(list[str], values))
+
+
+def _required_positive_int_tuple(
+    mapping: Mapping[str, object], key: str, description: str
+) -> tuple[int, ...]:
+    value = mapping.get(key)
+    if not isinstance(value, list):
+        raise StudyReplayMismatchError(f"invalid {description} field: {key}")
+    values = cast(list[object], value)
+    if not all(
+        isinstance(item, int) and not isinstance(item, bool) and item > 0 for item in values
+    ):
+        raise StudyReplayMismatchError(f"invalid {description} field: {key}")
+    return tuple(cast(list[int], values))
+
+
 @dataclass(frozen=True, slots=True)
 class StoredStrategyStudyManifest:
     """Strict canonical study-level trust-boundary manifest."""
@@ -141,6 +174,13 @@ class StoredStrategyStudyManifest:
     pre_final_id: str | None = None
     dataset_handoff_inventory_root: str | None = None
     durable_final_access_receipt_id: str | None = None
+    dataset_schema_version: str | None = None
+    closure_manifest_sha256: str | None = None
+    segment_manifest_sha256: str | None = None
+    closure_count: int | None = None
+    segment_count: int | None = None
+    closure_ids: tuple[str, ...] = ()
+    segment_boundary_indices: tuple[int, ...] = ()
 
 
 def parse_study_manifest(raw: bytes) -> StoredStrategyStudyManifest:
@@ -216,11 +256,61 @@ def parse_study_manifest(raw: bytes) -> StoredStrategyStudyManifest:
             if sealed
             else None
         ),
+        dataset_schema_version=(
+            _required_str(mapping, "dataset_schema_version", "strategy study manifest")
+            if sealed
+            else None
+        ),
+        closure_manifest_sha256=(
+            _sha256(
+                _required_str(mapping, "closure_manifest_sha256", "strategy study manifest"),
+                "closure manifest identity",
+            )
+            if sealed
+            else None
+        ),
+        segment_manifest_sha256=(
+            _sha256(
+                _required_str(mapping, "segment_manifest_sha256", "strategy study manifest"),
+                "segment manifest identity",
+            )
+            if sealed
+            else None
+        ),
+        closure_count=(
+            _required_int(mapping, "closure_count", "strategy study manifest") if sealed else None
+        ),
+        segment_count=(
+            _required_int(mapping, "segment_count", "strategy study manifest") if sealed else None
+        ),
+        closure_ids=(
+            _required_string_tuple(mapping, "closure_ids", "strategy study manifest")
+            if sealed
+            else ()
+        ),
+        segment_boundary_indices=(
+            _required_positive_int_tuple(
+                mapping, "segment_boundary_indices", "strategy study manifest"
+            )
+            if sealed
+            else ()
+        ),
     )
     if _GIT_COMMIT_PATTERN.fullmatch(manifest.code_commit) is None:
         raise StudyReplayMismatchError("invalid strategy study code commit")
     if manifest.final_evaluation_count != 1:
         raise StudyReplayMismatchError("final-test receipt must record exactly one evaluation")
+    if sealed:
+        if manifest.dataset_schema_version != "candle-dataset-v2":
+            raise StudyReplayMismatchError("sealed study requires candle-dataset-v2")
+        if manifest.closure_count is None or manifest.closure_count < 1:
+            raise StudyReplayMismatchError("invalid sealed study closure count")
+        if manifest.segment_count != manifest.closure_count + 1:
+            raise StudyReplayMismatchError("invalid sealed study segment count")
+        if len(manifest.closure_ids) != manifest.closure_count:
+            raise StudyReplayMismatchError("invalid sealed study closure IDs")
+        if len(manifest.segment_boundary_indices) != manifest.closure_count:
+            raise StudyReplayMismatchError("invalid sealed study segment boundaries")
     if canonical_json_bytes(mapping) != raw:
         raise StudyReplayMismatchError("strategy study manifest canonical bytes do not match")
     return manifest

@@ -75,14 +75,17 @@ def evaluate_candidate_strategy_study(
         raise StudyArtifactError("candidate dataset timeframe does not match locked policy")
 
     registry = FeatureRegistry.locked_v0_1()
-    matrix = registry.compute(dataset.candles)
+    matrix = registry.compute(dataset.candles, segments=dataset.segment_manifest)
     label_policy = LabelPolicy.locked_v0_1(simulation)
     labels = label_policy.build(
         dataset.candles,
         eligible_indices=tuple(row.candle_index for row in matrix.rows),
+        segments=dataset.segment_manifest,
     )
     eligible = tuple(item.decision_candle_index for item in labels.observations)
-    split_plan, history_requirement_met = build_split_plan(dataset.candles, eligible, policy)
+    split_plan, history_requirement_met = build_split_plan(
+        dataset.candles, eligible, policy, dataset.segment_manifest
+    )
 
     bundles: dict[tuple[StudyPhase, int | None], PredictionBundle] = {}
     for fold in split_plan.folds:

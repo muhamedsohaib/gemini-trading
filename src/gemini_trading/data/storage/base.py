@@ -13,6 +13,10 @@ class RawStore(Protocol):
 
     def write_retrieval_manifest(self, manifest: RetrievalManifest) -> Path: ...
 
+    def write_run_closure_manifest(self, run_id: str, raw: bytes) -> Path: ...
+
+    def read_run_closure_manifest_bytes(self, run_id: str) -> bytes: ...
+
     def read_run(self, run_id: str) -> tuple[RetrievalManifest, tuple[RawPage, ...]]: ...
 
 
@@ -25,6 +29,15 @@ class CanonicalStore(Protocol):
         jsonl_bytes: bytes,
         manifest_bytes: bytes,
     ) -> tuple[Path, Path]: ...
+
+    def write_dataset_supporting_manifests(
+        self,
+        dataset_id: str,
+        closure_raw: bytes,
+        segment_raw: bytes,
+    ) -> tuple[Path, Path]: ...
+
+    def read_dataset_supporting_manifests(self, dataset_id: str) -> tuple[bytes, bytes]: ...
 
     def write_provenance(
         self,

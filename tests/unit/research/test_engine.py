@@ -196,3 +196,45 @@ def test_same_close_diagnostic_fills_at_decision_candle_and_is_non_promotable() 
     assert config.promotable is False
     assert evidence.fills[0].candle_index == 0
     assert evidence.fills[0].reference_price == Decimal("105")
+
+
+def _segmented_dataset() -> VerifiedDataset:
+    from gemini_trading.data.segments import CandleSegment, CandleSegmentManifest
+
+    dataset = _dataset(candle_count=4)
+    candles = dataset.candles
+    segments = CandleSegmentManifest(
+        schema_version="candle-segment-manifest-v1",
+        segments=(
+            CandleSegment(1, 0, 2, candles[0].open_time, candles[1].open_time, 2, None),
+            CandleSegment(2, 2, 4, candles[2].open_time, candles[3].open_time, 2, "test-closure"),
+        ),
+    )
+    return VerifiedDataset(
+        manifest=dataset.manifest,
+        candles=candles,
+        canonical_bytes=dataset.canonical_bytes,
+        segment_manifest=segments,
+    )
+
+
+def test_cash_only_segment_boundary_is_recorded() -> None:
+    evidence = _run((), dataset=_segmented_dataset())
+
+    assert evidence.segment_boundary_records == (
+        {"candle_index": 2, "segment_number": 2, "status": "cash_only_reset"},
+    )
+
+
+def test_open_position_cannot_cross_segment_boundary() -> None:
+    from gemini_trading.research.errors import ChronologyViolationError
+
+    with __import__("pytest").raises(ChronologyViolationError, match="noncash state"):
+        _run(((0, (_market(OrderSide.BUY, "1"),)),), dataset=_segmented_dataset())
+
+
+def test_active_order_cannot_cross_segment_boundary() -> None:
+    from gemini_trading.research.errors import ChronologyViolationError
+
+    with __import__("pytest").raises(ChronologyViolationError, match="noncash state"):
+        _run(((0, (_limit("80"),)),), dataset=_segmented_dataset())

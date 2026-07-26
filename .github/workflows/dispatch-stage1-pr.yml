@@ -1,4 +1,4 @@
-name: Monitor Stage 1 PR
+name: Diagnose Stage 1 PR
 
 on:
   pull_request:
@@ -10,37 +10,29 @@ permissions:
   contents: read
 
 jobs:
-  monitor:
+  diagnose:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - name: Capture exact merged-main Stage 1 run
+      - name: Capture failed Stage 1 diagnostics
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh run list \
+          gh run view 30220725616 \
             --repo "${GITHUB_REPOSITORY}" \
-            --workflow sealed-btcusdt-dataset.yml \
-            --branch main \
-            --limit 10 \
-            --json databaseId,headSha,status,conclusion,createdAt,url \
-            > /tmp/stage1-runs.json
-          cat /tmp/stage1-runs.json
-          python - <<'PY'
-          import json
-          from pathlib import Path
-
-          expected = "cf8389f6b8964b5aee0563083f8bf362be33b1ab"
-          runs = json.loads(Path("/tmp/stage1-runs.json").read_text())
-          matches = [run for run in runs if run["headSha"] == expected]
-          if not matches:
-              raise SystemExit("No Stage 1 run found for exact merged-main SHA")
-          Path("/tmp/stage1-run.json").write_text(json.dumps(matches[0], sort_keys=True))
-          print(json.dumps(matches[0], sort_keys=True))
-          PY
+            --json databaseId,headSha,status,conclusion,createdAt,url,jobs \
+            > /tmp/stage1-run.json
+          gh run view 30220725616 \
+            --repo "${GITHUB_REPOSITORY}" \
+            --log-failed \
+            > /tmp/stage1-failed.log
+          cat /tmp/stage1-run.json
+          tail -n 200 /tmp/stage1-failed.log
       - uses: actions/upload-artifact@v4
         with:
-          name: exact-stage1-run-${{ github.sha }}
-          path: /tmp/stage1-run.json
+          name: stage1-failure-diagnostic-${{ github.sha }}
+          path: |
+            /tmp/stage1-run.json
+            /tmp/stage1-failed.log
           if-no-files-found: error
           retention-days: 1

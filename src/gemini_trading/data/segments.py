@@ -208,9 +208,7 @@ def load_candle_segment_manifest(raw: bytes) -> CandleSegmentManifest:
                 first_open_time=_utc(
                     _string(segment_mapping, "first_open_time"), "first_open_time"
                 ),
-                last_open_time=_utc(
-                    _string(segment_mapping, "last_open_time"), "last_open_time"
-                ),
+                last_open_time=_utc(_string(segment_mapping, "last_open_time"), "last_open_time"),
                 candle_count=_integer(segment_mapping, "candle_count"),
                 preceding_closure_id=preceding_closure_id,
             )
@@ -259,9 +257,7 @@ def _validate_manifest_scope(
 
 def _validate_candle_boundaries(candles: tuple[Candle, ...], timeframe: Timeframe) -> None:
     expected_close_delta = timeframe.duration - timedelta(milliseconds=1)
-    if any(
-        candle.close_time - candle.open_time != expected_close_delta for candle in candles
-    ):
+    if any(candle.close_time - candle.open_time != expected_close_delta for candle in candles):
         _fail("candle boundaries do not match timeframe")
 
 
@@ -317,9 +313,7 @@ def validate_and_segment_candle_sequence(
 
     unused_ids = tuple(sorted(declared_ids - used_ids))
     if unused_ids:
-        _fail(
-            "exchange closure manifest contains unused declarations: " + ",".join(unused_ids)
-        )
+        _fail("exchange closure manifest contains unused declarations: " + ",".join(unused_ids))
     segments.append(
         _build_segment(
             candle_values,

@@ -14,15 +14,11 @@ from gemini_trading.data.exchange_closures import (
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
-_FIXED_RELATIVE_PATH = Path(
-    "config/market-data/sealed-btcusdt-4h-exchange-closures.json"
-)
+_FIXED_RELATIVE_PATH = Path("config/market-data/sealed-btcusdt-4h-exchange-closures.json")
 
 
 def _fixed_mapping() -> dict[str, object]:
-    loaded: object = json.loads(
-        (PROJECT_ROOT / _FIXED_RELATIVE_PATH).read_text(encoding="utf-8")
-    )
+    loaded: object = json.loads((PROJECT_ROOT / _FIXED_RELATIVE_PATH).read_text(encoding="utf-8"))
     assert isinstance(loaded, dict)
     return cast(dict[str, object], loaded)
 
@@ -36,9 +32,7 @@ def _closures(mapping: dict[str, object]) -> list[dict[str, object]]:
 
 
 def _canonical(mapping: dict[str, object]) -> bytes:
-    return (
-        json.dumps(mapping, ensure_ascii=False, separators=(",", ":")) + "\n"
-    ).encode()
+    return (json.dumps(mapping, ensure_ascii=False, separators=(",", ":")) + "\n").encode()
 
 
 def _write_fixed_candidate(root: Path, mapping: dict[str, object]) -> None:

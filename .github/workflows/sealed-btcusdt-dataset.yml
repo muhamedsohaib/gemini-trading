@@ -33,13 +33,8 @@ jobs:
       - name: Ingest fixed BTCUSDT history
         id: ingest
         run: |
-          uv run gemini-trading market-data ingest \
-            --symbol BTCUSDT \
-            --base-asset BTC \
-            --quote-asset USDT \
-            --interval 4h \
-            --start 2018-01-01T00:00:00Z \
-            --end 2026-07-01T00:00:00Z \
+          uv run gemini-trading research dataset-ingest \
+            --project-root "${GITHUB_WORKSPACE}" \
             --output-root "${OUTPUT_ROOT}" | tee "${RUNNER_TEMP}/ingest.json"
           python - <<'PY'
           import json
@@ -53,12 +48,12 @@ jobs:
           PY
       - name: Replay stored dataset evidence
         run: |
-          uv run gemini-trading market-data replay \
+          uv run gemini-trading research dataset-replay \
             --run-id "${{ steps.ingest.outputs.run_id }}" \
             --output-root "${OUTPUT_ROOT}" | tee "${RUNNER_TEMP}/replay.json"
       - name: Independently verify dataset
         run: |
-          uv run gemini-trading market-data verify \
+          uv run gemini-trading research dataset-verify \
             --dataset-id "${{ steps.ingest.outputs.dataset_id }}" \
             --run-id "${{ steps.ingest.outputs.run_id }}" \
             --output-root "${OUTPUT_ROOT}" | tee "${RUNNER_TEMP}/verify.json"

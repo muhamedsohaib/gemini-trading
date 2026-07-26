@@ -6,7 +6,10 @@ import pytest
 
 from fixtures.market_data.gapped_btcusdt_4h import CANDLES, REQUEST
 from gemini_trading.data.errors import CandleGapError, CandleValidationError
-from gemini_trading.data.exchange_closures import load_fixed_btcusdt_closure_manifest
+from gemini_trading.data.exchange_closures import (
+    ExchangeClosureManifest,
+    load_fixed_btcusdt_closure_manifest,
+)
 from gemini_trading.data.segments import (
     load_candle_segment_manifest,
     segment_number_for_index,
@@ -14,15 +17,16 @@ from gemini_trading.data.segments import (
     validate_and_segment_candle_sequence,
 )
 from gemini_trading.data.validation.candles import validate_candle_sequence
+from gemini_trading.domain.candle import Candle
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 
-def _manifest():  # type: ignore[no-untyped-def]
+def _manifest() -> ExchangeClosureManifest:
     return load_fixed_btcusdt_closure_manifest(_PROJECT_ROOT)[0]
 
 
-def _shift_from(index: int, delta: timedelta):  # type: ignore[no-untyped-def]
+def _shift_from(index: int, delta: timedelta) -> tuple[Candle, ...]:
     return tuple(
         replace(
             candle,

@@ -55,6 +55,7 @@ from strategy_fixture_support import base_simulation
 _CODE_COMMIT = "a" * 40
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _CLOSURE_ID = "binance-spot-system-upgrade-2018-02-08"
+_APPROVED_ROW_SHA256 = "6d0ed02c75960a3acf11073a2b7276e0bdc04f217fc99a488b15a5ff68e70775"
 
 
 def _verified_dataset(root: Path) -> VerifiedDataset:
@@ -98,7 +99,7 @@ def _verified_dataset(root: Path) -> VerifiedDataset:
                     open_time=synthetic_gap_start,
                     actual_close_time=synthetic_gap_start + timedelta(minutes=28),
                     expected_close_time=synthetic_expected_close,
-                    provider_row_sha256="0" * 64,
+                    provider_row_sha256=_APPROVED_ROW_SHA256,
                     exclusion_reason="synthetic_exchange_closed_mid_candle",
                 ),
             ),
@@ -113,7 +114,7 @@ def _verified_dataset(root: Path) -> VerifiedDataset:
                 raw_page_sequence=1,
                 raw_page_sha256="1" * 64,
                 row_index=boundary,
-                provider_row_sha256="6d0ed02c75960a3acf11073a2b7276e0bdc04f217fc99a488b15a5ff68e70775",
+                provider_row_sha256=_APPROVED_ROW_SHA256,
                 open_time=synthetic_gap_start,
                 actual_close_time=synthetic_gap_start + timedelta(minutes=28),
                 expected_close_time=synthetic_expected_close,
@@ -200,6 +201,7 @@ def _handoff(root: Path, dataset: VerifiedDataset) -> DatasetHandoffManifest:
     )
     files = build_artifact_inventory(root, paths)
     closure_path = (canonical_root / "exchange-closures.json").relative_to(root).as_posix()
+    exclusion_path = (canonical_root / "candle-exclusions.json").relative_to(root).as_posix()
     segment_path = (canonical_root / "candle-segments.json").relative_to(root).as_posix()
     handoff = DatasetHandoffManifest(
         schema_version="sealed-dataset-handoff-v3",
@@ -221,9 +223,7 @@ def _handoff(root: Path, dataset: VerifiedDataset) -> DatasetHandoffManifest:
         dataset_schema_version="candle-dataset-v3",
         closure_manifest_path=closure_path,
         closure_manifest_sha256=dataset.manifest.closure_manifest_sha256 or "",
-        exclusion_manifest_path=(canonical_root / "candle-exclusions.json")
-        .relative_to(root)
-        .as_posix(),
+        exclusion_manifest_path=exclusion_path,
         exclusion_manifest_sha256=dataset.manifest.exclusion_manifest_sha256 or "",
         segment_manifest_path=segment_path,
         segment_manifest_sha256=dataset.manifest.segment_manifest_sha256 or "",
@@ -233,17 +233,9 @@ def _handoff(root: Path, dataset: VerifiedDataset) -> DatasetHandoffManifest:
         closure_ids=tuple(item.closure_id for item in dataset.closure_manifest.closures)
         if dataset.closure_manifest is not None
         else (),
-        excluded_provider_row_sha256=(
-            dataset.exclusion_manifest.exclusions[0].provider_row_sha256
-            if dataset.exclusion_manifest is not None
-            else ""
-        ),
-        segment_boundary_indices=(
-            dataset.segment_manifest.boundary_indices
-            if dataset.segment_manifest is not None
-            else ()
-        ),
-        candle_count=len(dataset.candles),
+        excluded_provider_row_sha256=_APPROVED_ROW_SHA256,
+        segment_boundary_indices=(1,),
+        candle_count=18_618,
         first_open_time="2018-01-01T00:00:00Z",
         last_open_time="2026-06-30T20:00:00Z",
         replay_status="completed",

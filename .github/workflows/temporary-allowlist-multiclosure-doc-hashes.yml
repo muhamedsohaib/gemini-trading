@@ -1,0 +1,52 @@
+name: Temporary allowlist multi-closure document hashes
+
+on:
+  push:
+    branches:
+      - design/verified-multi-closure-partial-candle-manifest
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-remove:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          ref: design/verified-multi-closure-partial-candle-manifest
+          fetch-depth: 0
+      - name: Add line-level detect-secrets allowlists
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          paths = (
+              Path("docs/superpowers/specs/2026-07-27-verified-multi-closure-partial-candle-manifest-design.md"),
+              Path("docs/superpowers/plans/2026-07-27-verified-multi-closure-partial-candle-manifest.md"),
+          )
+          digest = re.compile(r"(?<![0-9a-f])(?:[0-9a-f]{64}|[0-9a-f]{40})(?![0-9a-f])")
+          for path in paths:
+              output: list[str] = []
+              for raw_line in path.read_text(encoding="utf-8").splitlines(keepends=True):
+                  line = raw_line.rstrip("\r\n")
+                  newline = raw_line[len(line):] or "\n"
+                  if digest.search(line) and "pragma: allowlist secret" not in line:
+                      if path.name.endswith("manifest.md") and line.lstrip().startswith("("):
+                          line += "  # pragma: allowlist secret"
+                      else:
+                          line += " <!-- pragma: allowlist secret -->"
+                  output.append(line + newline)
+              path.write_text("".join(output), encoding="utf-8")
+          PY
+      - name: Remove temporary workflow and commit
+        run: |
+          git rm .github/workflows/temporary-allowlist-multiclosure-doc-hashes.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/superpowers/specs/2026-07-27-verified-multi-closure-partial-candle-manifest-design.md
+          git add docs/superpowers/plans/2026-07-27-verified-multi-closure-partial-candle-manifest.md
+          git commit -m "docs: allowlist verified hash evidence"
+          git push origin HEAD:design/verified-multi-closure-partial-candle-manifest

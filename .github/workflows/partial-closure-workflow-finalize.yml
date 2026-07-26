@@ -33,70 +33,61 @@ jobs:
 
           dataset = Path(".github/workflows/sealed-btcusdt-dataset.yml")
           text = dataset.read_text()
-          needle = '''      - name: Build verified dataset handoff
-                run: |
-                  uv run gemini-trading research strategy-handoff \\
-                    --run-id "${{ steps.ingest.outputs.run_id }}" \\
-                    --dataset-id "${{ steps.ingest.outputs.dataset_id }}" \\
-                    --source-commit "${GITHUB_SHA}" \\
-                    --workflow-run-id "${GITHUB_RUN_ID}" \\
-                    --workflow-run-attempt "${GITHUB_RUN_ATTEMPT}" \\
-                    --output-root "${OUTPUT_ROOT}" | tee "${RUNNER_TEMP}/handoff.json"
-          '''
-          addition = '''      - name: Assert exact v3 handoff identity
-                run: |
-                  uv run python - <<'PY'
-                  import json
-                  import os
-                  from pathlib import Path
-                  from gemini_trading.strategy.handoff import load_dataset_handoff
-
-                  root = Path(os.environ["OUTPUT_ROOT"])
-                  payload = json.loads((Path(os.environ["RUNNER_TEMP"]) / "handoff.json").read_text())
-                  handoff = load_dataset_handoff((root / payload["handoff_path"]).read_bytes())
-                  if handoff.dataset_schema_version != "candle-dataset-v3":
-                      raise SystemExit("Stage 1 requires candle-dataset-v3")
-                  if (handoff.closure_count, handoff.exclusion_count, handoff.segment_count) != (1, 1, 2):
-                      raise SystemExit("Stage 1 closure, exclusion, and segment count mismatch")
-                  if handoff.closure_ids != ("binance-spot-system-upgrade-2018-02-08",):
-                      raise SystemExit("Stage 1 closure identity mismatch")
-                  if handoff.excluded_provider_row_sha256 != "6d0ed02c75960a3acf11073a2b7276e0bdc04f217fc99a488b15a5ff68e70775":
-                      raise SystemExit("Stage 1 excluded provider row mismatch")
-                  if handoff.segment_boundary_indices != (228,):
-                      raise SystemExit("Stage 1 segment boundary mismatch")
-                  if handoff.candle_count != 18617:
-                      raise SystemExit("Stage 1 candle count mismatch")
-                  PY
-          '''
-          if needle not in text:
-              raise SystemExit("dataset workflow handoff block not found")
-          dataset.write_text(text.replace(needle, needle + addition, 1))
+          marker = "      - name: Assert worktree stayed clean\n"
+          addition = "\n".join(
+              (
+                  "      - name: Assert exact v3 handoff identity",
+                  "        run: |",
+                  "          uv run python - <<'PY'",
+                  "          import json",
+                  "          import os",
+                  "          from pathlib import Path",
+                  "          from gemini_trading.strategy.handoff import load_dataset_handoff",
+                  "",
+                  "          root = Path(os.environ[\"OUTPUT_ROOT\"])",
+                  "          payload = json.loads((Path(os.environ[\"RUNNER_TEMP\"]) / \"handoff.json\").read_text())",
+                  "          handoff = load_dataset_handoff((root / payload[\"handoff_path\"]).read_bytes())",
+                  "          if handoff.dataset_schema_version != \"candle-dataset-v3\":",
+                  "              raise SystemExit(\"Stage 1 requires candle-dataset-v3\")",
+                  "          if (handoff.closure_count, handoff.exclusion_count, handoff.segment_count) != (1, 1, 2):",
+                  "              raise SystemExit(\"Stage 1 closure, exclusion, and segment count mismatch\")",
+                  "          if handoff.closure_ids != (\"binance-spot-system-upgrade-2018-02-08\",):",
+                  "              raise SystemExit(\"Stage 1 closure identity mismatch\")",
+                  "          if handoff.excluded_provider_row_sha256 != \"6d0ed02c75960a3acf11073a2b7276e0bdc04f217fc99a488b15a5ff68e70775\":",
+                  "              raise SystemExit(\"Stage 1 excluded provider row mismatch\")",
+                  "          if handoff.segment_boundary_indices != (228,):",
+                  "              raise SystemExit(\"Stage 1 segment boundary mismatch\")",
+                  "          if handoff.candle_count != 18617:",
+                  "              raise SystemExit(\"Stage 1 candle count mismatch\")",
+                  "          PY",
+              )
+          ) + "\n"
+          if marker not in text:
+              raise SystemExit("dataset workflow insertion marker not found")
+          dataset.write_text(text.replace(marker, addition + marker, 1))
 
           study = Path(".github/workflows/sealed-btcusdt-study.yml")
           text = study.read_text()
-          old = '''          if handoff.dataset_schema_version != "candle-dataset-v2":
-                      raise SystemExit("Stage 2 requires candle-dataset-v2")
-                  if handoff.closure_count != 1 or handoff.segment_count != 2:
-                      raise SystemExit("Stage 2 closure and segment count mismatch")
-                  if handoff.closure_ids != ("binance-spot-system-upgrade-2018-02-08",):
-                      raise SystemExit("Stage 2 closure identity mismatch")
-          '''
-          new = '''          if handoff.dataset_schema_version != "candle-dataset-v3":
-                      raise SystemExit("Stage 2 requires candle-dataset-v3")
-                  if (handoff.closure_count, handoff.exclusion_count, handoff.segment_count) != (1, 1, 2):
-                      raise SystemExit("Stage 2 closure, exclusion, and segment count mismatch")
-                  if handoff.closure_ids != ("binance-spot-system-upgrade-2018-02-08",):
-                      raise SystemExit("Stage 2 closure identity mismatch")
-                  if handoff.excluded_provider_row_sha256 != "6d0ed02c75960a3acf11073a2b7276e0bdc04f217fc99a488b15a5ff68e70775":
-                      raise SystemExit("Stage 2 excluded provider row mismatch")
-                  if handoff.segment_boundary_indices != (228,):
-                      raise SystemExit("Stage 2 segment boundary mismatch")
-                  if handoff.candle_count != 18617:
-                      raise SystemExit("Stage 2 candle count mismatch")
-          '''
-          if old not in text:
-              raise SystemExit("study workflow v2 identity block not found")
-          study.write_text(text.replace(old, new, 1))
+          start_marker = '          if handoff.dataset_schema_version != "candle-dataset-v2":\n'
+          start = text.index(start_marker)
+          end = text.index("          PY\n", start)
+          replacement = "\n".join(
+              (
+                  '          if handoff.dataset_schema_version != "candle-dataset-v3":',
+                  '              raise SystemExit("Stage 2 requires candle-dataset-v3")',
+                  "          if (handoff.closure_count, handoff.exclusion_count, handoff.segment_count) != (1, 1, 2):",
+                  '              raise SystemExit("Stage 2 closure, exclusion, and segment count mismatch")',
+                  '          if handoff.closure_ids != ("binance-spot-system-upgrade-2018-02-08",):',
+                  '              raise SystemExit("Stage 2 closure identity mismatch")',
+                  '          if handoff.excluded_provider_row_sha256 != "6d0ed02c75960a3acf11073a2b7276e0bdc04f217fc99a488b15a5ff68e70775":',
+                  '              raise SystemExit("Stage 2 excluded provider row mismatch")',
+                  "          if handoff.segment_boundary_indices != (228,):",
+                  '              raise SystemExit("Stage 2 segment boundary mismatch")',
+                  "          if handoff.candle_count != 18617:",
+                  '              raise SystemExit("Stage 2 candle count mismatch")',
+              )
+          ) + "\n"
+          study.write_text(text[:start] + replacement + text[end:])
           PY
 
           uv run pytest -q tests/acceptance/test_sealed_historical_validation_workflows.py

@@ -49,10 +49,7 @@ def test_declared_exchange_closure_produces_two_segments() -> None:
         (3, 6),
     ]
     assert segments.segments[0].preceding_closure_id is None
-    assert (
-        segments.segments[1].preceding_closure_id
-        == "binance-spot-system-upgrade-2018-02-08"
-    )
+    assert segments.segments[1].preceding_closure_id == "binance-spot-system-upgrade-2018-02-08"
     assert segment_number_for_index(segments, 0) == 1
     assert segment_number_for_index(segments, 5) == 2
 

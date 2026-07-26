@@ -231,12 +231,8 @@ def load_exchange_closure_manifest(raw: bytes) -> ExchangeClosureManifest:
         closures.append(
             ExchangeClosure(
                 closure_id=_string(closure_mapping, "closure_id"),
-                missing_start=_utc(
-                    _string(closure_mapping, "missing_start"), "missing_start"
-                ),
-                resumed_open=_utc(
-                    _string(closure_mapping, "resumed_open"), "resumed_open"
-                ),
+                missing_start=_utc(_string(closure_mapping, "missing_start"), "missing_start"),
+                resumed_open=_utc(_string(closure_mapping, "resumed_open"), "resumed_open"),
                 missing_candle_count=_integer(closure_mapping, "missing_candle_count"),
                 reason_code=_string(closure_mapping, "reason_code"),
                 governance_reference=_string(closure_mapping, "governance_reference"),

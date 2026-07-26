@@ -24,14 +24,23 @@ from gemini_trading.strategy.study import (
     StudyCaseEvidence,
     StudyPhase,
 )
+from sealed_dataset_support import write_fixed_supporting_evidence
 
 
 def _handoff(tmp_path: Path) -> DatasetHandoffManifest:
     evidence = tmp_path / "dataset-evidence.txt"
     evidence.write_bytes(b"dataset\n")
-    entries = build_artifact_inventory(tmp_path, ("dataset-evidence.txt",))
+    support = write_fixed_supporting_evidence(tmp_path)
+    entries = build_artifact_inventory(
+        tmp_path,
+        (
+            "dataset-evidence.txt",
+            support.closure_manifest_path,
+            support.segment_manifest_path,
+        ),
+    )
     return DatasetHandoffManifest(
-        schema_version="sealed-dataset-handoff-v1",
+        schema_version="sealed-dataset-handoff-v2",
         repository="muhamedsohaib/gemini-trading",
         source_commit="a" * 40,
         workflow_name="sealed-btcusdt-dataset",
@@ -47,6 +56,14 @@ def _handoff(tmp_path: Path) -> DatasetHandoffManifest:
         end_exclusive="2026-07-01T00:00:00Z",
         run_id="run-123",
         dataset_id="b" * 64,
+        dataset_schema_version=support.dataset_schema_version,
+        closure_manifest_path=support.closure_manifest_path,
+        closure_manifest_sha256=support.closure_manifest_sha256,
+        segment_manifest_path=support.segment_manifest_path,
+        segment_manifest_sha256=support.segment_manifest_sha256,
+        closure_count=support.closure_count,
+        segment_count=support.segment_count,
+        closure_ids=support.closure_ids,
         candle_count=18_618,
         first_open_time="2018-01-01T00:00:00Z",
         last_open_time="2026-06-30T20:00:00Z",
@@ -86,6 +103,7 @@ def _artifacts(tmp_path: Path) -> PreFinalArtifacts:
         configuration_bytes=canonical_json_bytes({"configuration": "locked"}),
         split_plan_bytes=split_plan_bytes,
         split_plan_sha256=hashlib.sha256(split_plan_bytes).hexdigest(),
+        segment_boundary_indices=(229,),
         development_records=_records(),
     )
 
@@ -97,9 +115,19 @@ def test_pre_final_contract_is_exact_and_deterministic(tmp_path: Path) -> None:
     assert first.names == REQUIRED_PRE_FINAL_NAMES
     assert first == second
     assert len(first.pre_final_id) == 64
+    handoff = _handoff(tmp_path)
+    manifest = __import__("json").loads(first.artifact_bytes("pre-final-manifest.json"))
+    assert manifest["dataset_schema_version"] == "candle-dataset-v2"
+    assert manifest["closure_manifest_sha256"] == handoff.closure_manifest_sha256
+    assert manifest["segment_manifest_sha256"] == handoff.segment_manifest_sha256
+    assert manifest["closure_count"] == 1
+    assert manifest["segment_count"] == 2
+    assert manifest["closure_ids"] == list(handoff.closure_ids)
+    assert manifest["segment_boundary_indices"] == [229]
+
     assert verify_pre_final_artifacts(
         first,
-        expected_handoff=_handoff(tmp_path),
+        expected_handoff=handoff,
         expected_code_commit="a" * 40,
         expected_dataset_id="b" * 64,
     ) == (
@@ -153,6 +181,7 @@ def test_pre_final_rejects_final_phase_record(tmp_path: Path) -> None:
             configuration_bytes=canonical_json_bytes({"configuration": "locked"}),
             split_plan_bytes=split_plan_bytes,
             split_plan_sha256=hashlib.sha256(split_plan_bytes).hexdigest(),
+            segment_boundary_indices=(229,),
             development_records=(final_record,),
         )
 
@@ -169,6 +198,7 @@ def test_pre_final_rejects_incomplete_fold(tmp_path: Path) -> None:
             configuration_bytes=canonical_json_bytes({"configuration": "locked"}),
             split_plan_bytes=split_plan_bytes,
             split_plan_sha256=hashlib.sha256(split_plan_bytes).hexdigest(),
+            segment_boundary_indices=(229,),
             development_records=_records()[:1],
         )
 

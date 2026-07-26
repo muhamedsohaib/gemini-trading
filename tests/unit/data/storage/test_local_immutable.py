@@ -253,3 +253,90 @@ def test_canonical_reads_require_all_expected_files(tmp_path: Path) -> None:
         store.read_dataset(_DATASET_ID)
     with pytest.raises(FileNotFoundError, match=r"run-001\.json"):
         store.read_provenance(_DATASET_ID, "run-001")
+
+
+def test_run_closure_manifest_uses_fixed_path_and_exact_bytes(tmp_path: Path) -> None:
+    store = LocalImmutableStore(tmp_path)
+    closure_raw = b'{"schema_version":"exchange-closure-manifest-v1"}\n'
+
+    path = store.write_run_closure_manifest("run-001", closure_raw)
+
+    expected = tmp_path / "data" / "raw" / "binance_spot" / "run-001" / "exchange-closures.json"
+    assert path == expected
+    assert path.read_bytes() == closure_raw
+    assert store.read_run_closure_manifest_bytes("run-001") == closure_raw
+    assert store.write_run_closure_manifest("run-001", closure_raw) == path
+
+
+def test_run_closure_manifest_rejects_conflicting_overwrite(tmp_path: Path) -> None:
+    store = LocalImmutableStore(tmp_path)
+    store.write_run_closure_manifest("run-001", b"original\n")
+
+    with pytest.raises(RawStorageConflictError, match="immutable path conflicts"):
+        store.write_run_closure_manifest("run-001", b"different\n")
+
+    assert store.read_run_closure_manifest_bytes("run-001") == b"original\n"
+
+
+def test_run_closure_manifest_rejects_invalid_identity_and_missing_read(tmp_path: Path) -> None:
+    store = LocalImmutableStore(tmp_path)
+
+    with pytest.raises(ValueError, match="invalid storage identity"):
+        store.write_run_closure_manifest("../escape", b"{}\n")
+    with pytest.raises(FileNotFoundError, match=r"exchange-closures\.json"):
+        store.read_run_closure_manifest_bytes("run-001")
+
+
+def test_dataset_supporting_manifests_use_fixed_paths_and_exact_bytes(tmp_path: Path) -> None:
+    store = LocalImmutableStore(tmp_path)
+    closure_raw = b'{"schema_version":"exchange-closure-manifest-v1"}\n'
+    segment_raw = b'{"schema_version":"candle-segment-manifest-v1"}\n'
+
+    closure_path, segment_path = store.write_dataset_supporting_manifests(
+        _DATASET_ID,
+        closure_raw,
+        segment_raw,
+    )
+
+    dataset_root = tmp_path / "data" / "canonical" / _DATASET_ID
+    assert closure_path == dataset_root / "exchange-closures.json"
+    assert segment_path == dataset_root / "candle-segments.json"
+    assert store.read_dataset_supporting_manifests(_DATASET_ID) == (
+        closure_raw,
+        segment_raw,
+    )
+    assert store.write_dataset_supporting_manifests(
+        _DATASET_ID,
+        closure_raw,
+        segment_raw,
+    ) == (closure_path, segment_path)
+
+
+def test_dataset_supporting_manifests_reject_conflicts_and_invalid_identity(
+    tmp_path: Path,
+) -> None:
+    store = LocalImmutableStore(tmp_path)
+    store.write_dataset_supporting_manifests(_DATASET_ID, b"closure\n", b"segment\n")
+
+    with pytest.raises(RawStorageConflictError, match="immutable path conflicts"):
+        store.write_dataset_supporting_manifests(
+            _DATASET_ID,
+            b"changed\n",
+            b"segment\n",
+        )
+    with pytest.raises(ValueError, match="invalid storage identity"):
+        store.write_dataset_supporting_manifests("../escape", b"{}\n", b"{}\n")
+
+    assert store.read_dataset_supporting_manifests(_DATASET_ID) == (
+        b"closure\n",
+        b"segment\n",
+    )
+
+
+def test_dataset_supporting_manifest_reads_require_both_files(tmp_path: Path) -> None:
+    store = LocalImmutableStore(tmp_path)
+    dataset_root = tmp_path / "data" / "canonical" / _DATASET_ID
+    write_immutable(dataset_root / "exchange-closures.json", b"closure\n")
+
+    with pytest.raises(FileNotFoundError, match=r"candle-segments\.json"):
+        store.read_dataset_supporting_manifests(_DATASET_ID)

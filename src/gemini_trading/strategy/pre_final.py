@@ -63,13 +63,19 @@ def _case_payload(record: StudyCaseEvidence) -> dict[str, object]:
 
 def _handoff_reference(handoff: DatasetHandoffManifest) -> dict[str, object]:
     return {
-        "schema_version": "dataset-handoff-reference-v1",
+        "schema_version": "dataset-handoff-reference-v2",
         "dataset_id": handoff.dataset_id,
+        "dataset_schema_version": handoff.dataset_schema_version,
         "inventory_root_sha256": handoff.inventory_root_sha256,
         "source_commit": handoff.source_commit,
         "workflow_run_id": handoff.workflow_run_id,
         "workflow_run_attempt": handoff.workflow_run_attempt,
         "retrieval_run_id": handoff.run_id,
+        "closure_manifest_sha256": handoff.closure_manifest_sha256,
+        "segment_manifest_sha256": handoff.segment_manifest_sha256,
+        "closure_count": handoff.closure_count,
+        "segment_count": handoff.segment_count,
+        "closure_ids": list(handoff.closure_ids),
     }
 
 
@@ -81,6 +87,13 @@ def _identity_payload(
     policy_sha256: str,
     configuration_sha256: str,
     split_plan_sha256: str,
+    dataset_schema_version: str,
+    closure_manifest_sha256: str,
+    segment_manifest_sha256: str,
+    closure_count: int,
+    segment_count: int,
+    closure_ids: tuple[str, ...],
+    segment_boundary_indices: tuple[int, ...],
     development_records: tuple[StudyCaseEvidence, ...],
 ) -> dict[str, object]:
     return {
@@ -91,6 +104,13 @@ def _identity_payload(
         "policy_sha256": policy_sha256,
         "configuration_sha256": configuration_sha256,
         "split_plan_sha256": split_plan_sha256,
+        "dataset_schema_version": dataset_schema_version,
+        "closure_manifest_sha256": closure_manifest_sha256,
+        "segment_manifest_sha256": segment_manifest_sha256,
+        "closure_count": closure_count,
+        "segment_count": segment_count,
+        "closure_ids": list(closure_ids),
+        "segment_boundary_indices": list(segment_boundary_indices),
         "required_development_case_ids": list(REQUIRED_DEVELOPMENT_CASE_IDS),
         "development_experiments": [_case_payload(item) for item in development_records],
     }
@@ -144,6 +164,7 @@ def build_pre_final_artifacts(
     configuration_bytes: bytes,
     split_plan_bytes: bytes,
     split_plan_sha256: str,
+    segment_boundary_indices: tuple[int, ...],
     development_records: tuple[StudyCaseEvidence, ...],
 ) -> PreFinalArtifacts:
     """Build the exact immutable development-only evidence contract."""
@@ -166,6 +187,13 @@ def build_pre_final_artifacts(
         policy_sha256=policy_sha256,
         configuration_sha256=configuration_sha256,
         split_plan_sha256=split_plan_sha256,
+        dataset_schema_version=handoff.dataset_schema_version,
+        closure_manifest_sha256=handoff.closure_manifest_sha256,
+        segment_manifest_sha256=handoff.segment_manifest_sha256,
+        closure_count=handoff.closure_count,
+        segment_count=handoff.segment_count,
+        closure_ids=handoff.closure_ids,
+        segment_boundary_indices=segment_boundary_indices,
         development_records=development_records,
     )
     pre_final_id = _sha256_bytes(canonical_json_bytes(identity))
@@ -339,6 +367,13 @@ def verify_pre_final_artifacts(
         "policy_sha256",
         "configuration_sha256",
         "split_plan_sha256",
+        "dataset_schema_version",
+        "closure_manifest_sha256",
+        "segment_manifest_sha256",
+        "closure_count",
+        "segment_count",
+        "closure_ids",
+        "segment_boundary_indices",
         "required_development_case_ids",
         "development_experiments",
         "pre_final_id",
@@ -362,6 +397,35 @@ def verify_pre_final_artifacts(
         raise PreFinalArtifactError("pre-final configuration hash mismatch")
     if _sha256_bytes(file_map["split-plan.json"]) != _required_str(manifest, "split_plan_sha256"):
         raise PreFinalArtifactError("pre-final split-plan hash mismatch")
+    closure_ids_raw = manifest.get("closure_ids")
+    segment_boundaries_raw = manifest.get("segment_boundary_indices")
+    if not isinstance(closure_ids_raw, list):
+        raise PreFinalArtifactError("invalid pre-final closure IDs")
+    closure_id_values = cast(list[object], closure_ids_raw)
+    if not all(isinstance(item, str) for item in closure_id_values):
+        raise PreFinalArtifactError("invalid pre-final closure IDs")
+    if not isinstance(segment_boundaries_raw, list):
+        raise PreFinalArtifactError("invalid pre-final segment boundary indices")
+    segment_boundary_values = cast(list[object], segment_boundaries_raw)
+    if not all(
+        isinstance(item, int) and not isinstance(item, bool) and item > 0
+        for item in segment_boundary_values
+    ):
+        raise PreFinalArtifactError("invalid pre-final segment boundary indices")
+    closure_ids = tuple(cast(list[str], closure_id_values))
+    segment_boundaries = tuple(cast(list[int], segment_boundary_values))
+    if expected_handoff is not None:
+        expected_fields: dict[str, object] = {
+            "dataset_schema_version": expected_handoff.dataset_schema_version,
+            "closure_manifest_sha256": expected_handoff.closure_manifest_sha256,
+            "segment_manifest_sha256": expected_handoff.segment_manifest_sha256,
+            "closure_count": expected_handoff.closure_count,
+            "segment_count": expected_handoff.segment_count,
+            "closure_ids": list(expected_handoff.closure_ids),
+        }
+        for key, expected in expected_fields.items():
+            if manifest.get(key) != expected:
+                raise PreFinalArtifactError(f"pre-final {key.replace('_', ' ')} mismatch")
 
     records = _records_from_bytes(file_map["development-experiments.jsonl"])
     _validate_development_records(records)
@@ -387,6 +451,13 @@ def verify_pre_final_artifacts(
         policy_sha256=_required_str(manifest, "policy_sha256"),
         configuration_sha256=_required_str(manifest, "configuration_sha256"),
         split_plan_sha256=_required_str(manifest, "split_plan_sha256"),
+        dataset_schema_version=_required_str(manifest, "dataset_schema_version"),
+        closure_manifest_sha256=_required_str(manifest, "closure_manifest_sha256"),
+        segment_manifest_sha256=_required_str(manifest, "segment_manifest_sha256"),
+        closure_count=_required_int(manifest, "closure_count"),
+        segment_count=_required_int(manifest, "segment_count"),
+        closure_ids=closure_ids,
+        segment_boundary_indices=segment_boundaries,
         development_records=records,
     )
     rebuilt_id = _sha256_bytes(canonical_json_bytes(identity))

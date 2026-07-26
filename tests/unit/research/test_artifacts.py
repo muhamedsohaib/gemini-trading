@@ -15,6 +15,7 @@ _REQUIRED_ARTIFACTS = {
     "decisions.jsonl",
     "orders.jsonl",
     "rejections.jsonl",
+    "segment-boundaries.jsonl",
     "fills.jsonl",
     "cash-ledger.jsonl",
     "account-series.jsonl",

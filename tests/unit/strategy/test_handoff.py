@@ -7,7 +7,6 @@ import pytest
 
 from gemini_trading.strategy.errors import DatasetHandoffError, HistoricalValidationError
 from gemini_trading.strategy.handoff import (
-    ArtifactInventoryEntry,
     DatasetHandoffManifest,
     build_artifact_inventory,
     inventory_root_sha256,
@@ -15,11 +14,17 @@ from gemini_trading.strategy.handoff import (
     serialize_dataset_handoff,
     verify_dataset_handoff,
 )
+from sealed_dataset_support import write_fixed_supporting_evidence
 
 
-def _manifest(entries: tuple[ArtifactInventoryEntry, ...]) -> DatasetHandoffManifest:
+def _manifest(root: Path, relative_paths: tuple[str, ...]) -> DatasetHandoffManifest:
+    support = write_fixed_supporting_evidence(root)
+    entries = build_artifact_inventory(
+        root,
+        (*relative_paths, support.closure_manifest_path, support.segment_manifest_path),
+    )
     return DatasetHandoffManifest(
-        schema_version="sealed-dataset-handoff-v1",
+        schema_version="sealed-dataset-handoff-v2",
         repository="muhamedsohaib/gemini-trading",
         source_commit="a" * 40,
         workflow_name="sealed-btcusdt-dataset",
@@ -35,6 +40,14 @@ def _manifest(entries: tuple[ArtifactInventoryEntry, ...]) -> DatasetHandoffMani
         end_exclusive="2026-07-01T00:00:00Z",
         run_id="run-123",
         dataset_id="b" * 64,
+        dataset_schema_version=support.dataset_schema_version,
+        closure_manifest_path=support.closure_manifest_path,
+        closure_manifest_sha256=support.closure_manifest_sha256,
+        segment_manifest_path=support.segment_manifest_path,
+        segment_manifest_sha256=support.segment_manifest_sha256,
+        closure_count=support.closure_count,
+        segment_count=support.segment_count,
+        closure_ids=support.closure_ids,
         candle_count=18_618,
         first_open_time="2018-01-01T00:00:00Z",
         last_open_time="2026-06-30T20:00:00Z",
@@ -76,8 +89,7 @@ def test_inventory_rejects_missing_file(tmp_path: Path) -> None:
 
 def test_handoff_round_trip_is_byte_stable(tmp_path: Path) -> None:
     (tmp_path / "data.txt").write_bytes(b"evidence\n")
-    entries = build_artifact_inventory(tmp_path, ("data.txt",))
-    manifest = _manifest(entries)
+    manifest = _manifest(tmp_path, ("data.txt",))
 
     raw = serialize_dataset_handoff(manifest)
 
@@ -87,7 +99,7 @@ def test_handoff_round_trip_is_byte_stable(tmp_path: Path) -> None:
 
 def test_handoff_rejects_wrong_dataset_id(tmp_path: Path) -> None:
     (tmp_path / "data.txt").write_bytes(b"evidence\n")
-    manifest = _manifest(build_artifact_inventory(tmp_path, ("data.txt",)))
+    manifest = _manifest(tmp_path, ("data.txt",))
 
     with pytest.raises(DatasetHandoffError, match="dataset identity"):
         verify_dataset_handoff(manifest, tmp_path, expected_dataset_id="c" * 64)
@@ -95,7 +107,7 @@ def test_handoff_rejects_wrong_dataset_id(tmp_path: Path) -> None:
 
 def test_handoff_rejects_wrong_commit_and_workflow_run(tmp_path: Path) -> None:
     (tmp_path / "data.txt").write_bytes(b"evidence\n")
-    manifest = _manifest(build_artifact_inventory(tmp_path, ("data.txt",)))
+    manifest = _manifest(tmp_path, ("data.txt",))
 
     with pytest.raises(DatasetHandoffError, match="source commit"):
         verify_dataset_handoff(manifest, tmp_path, expected_commit="c" * 40)
@@ -106,7 +118,7 @@ def test_handoff_rejects_wrong_commit_and_workflow_run(tmp_path: Path) -> None:
 def test_handoff_rejects_tampered_file(tmp_path: Path) -> None:
     path = tmp_path / "data.txt"
     path.write_bytes(b"evidence\n")
-    manifest = _manifest(build_artifact_inventory(tmp_path, ("data.txt",)))
+    manifest = _manifest(tmp_path, ("data.txt",))
     path.write_bytes(b"tampered\n")
 
     with pytest.raises(DatasetHandoffError, match="inventory mismatch"):
@@ -115,7 +127,7 @@ def test_handoff_rejects_tampered_file(tmp_path: Path) -> None:
 
 def test_handoff_rejects_extra_field(tmp_path: Path) -> None:
     (tmp_path / "data.txt").write_bytes(b"evidence\n")
-    raw = serialize_dataset_handoff(_manifest(build_artifact_inventory(tmp_path, ("data.txt",))))
+    raw = serialize_dataset_handoff(_manifest(tmp_path, ("data.txt",)))
     altered = raw[:-2] + b',"extra":true}\n'
 
     with pytest.raises(DatasetHandoffError, match="fields"):
@@ -124,7 +136,7 @@ def test_handoff_rejects_extra_field(tmp_path: Path) -> None:
 
 def test_handoff_rejects_noncanonical_encoding(tmp_path: Path) -> None:
     (tmp_path / "data.txt").write_bytes(b"evidence\n")
-    raw = serialize_dataset_handoff(_manifest(build_artifact_inventory(tmp_path, ("data.txt",))))
+    raw = serialize_dataset_handoff(_manifest(tmp_path, ("data.txt",)))
 
     with pytest.raises(DatasetHandoffError, match="canonical"):
         load_dataset_handoff(raw.replace(b'"repository":', b'"repository": '))
@@ -132,7 +144,5 @@ def test_handoff_rejects_noncanonical_encoding(tmp_path: Path) -> None:
 
 def test_handoff_rejects_changed_scope(tmp_path: Path) -> None:
     (tmp_path / "data.txt").write_bytes(b"evidence\n")
-    entries = build_artifact_inventory(tmp_path, ("data.txt",))
-
     with pytest.raises(DatasetHandoffError, match="market scope"):
-        replace(_manifest(entries), symbol="ETHUSDT")
+        replace(_manifest(tmp_path, ("data.txt",)), symbol="ETHUSDT")

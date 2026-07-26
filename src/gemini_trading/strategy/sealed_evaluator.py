@@ -92,6 +92,14 @@ def _validate_dataset(dataset: VerifiedDataset, policy: CandidatePolicy) -> None
         raise StudyArtifactError("candidate dataset instrument does not match locked policy")
     if dataset.manifest.timeframe.value != policy.timeframe:
         raise StudyArtifactError("candidate dataset timeframe does not match locked policy")
+    if (
+        dataset.manifest.schema_version != "candle-dataset-v2"
+        or dataset.closure_manifest is None
+        or dataset.segment_manifest is None
+        or dataset.closure_manifest_bytes is None
+        or dataset.segment_manifest_bytes is None
+    ):
+        raise StudyArtifactError("sealed candidate evaluation requires dataset v2 evidence")
 
 
 def build_candidate_preparation(
@@ -105,16 +113,22 @@ def build_candidate_preparation(
     _validate_dataset(dataset, policy)
     registry = FeatureRegistry.locked_v0_1()
     label_policy = LabelPolicy.locked_v0_1(simulation)
+    segment_manifest = dataset.segment_manifest
+    if segment_manifest is None:
+        raise StudyArtifactError("sealed candidate evaluation requires segment evidence")
     structural_eligible = tuple(
-        range(
-            registry.maximum_lookback_candles,
-            len(dataset.candles) - label_policy.horizon_candles - 1,
+        index
+        for segment in segment_manifest.segments
+        for index in range(
+            segment.start_index + registry.maximum_lookback_candles,
+            segment.end_exclusive - label_policy.horizon_candles - 1,
         )
     )
     split_plan, history_requirement_met = build_split_plan(
         dataset.candles,
         structural_eligible,
         policy,
+        dataset.segment_manifest,
     )
     preparation_candles = (
         dataset.candles
@@ -125,11 +139,16 @@ def build_candidate_preparation(
         manifest=dataset.manifest,
         candles=preparation_candles,
         canonical_bytes=dataset.canonical_bytes,
+        closure_manifest=dataset.closure_manifest,
+        segment_manifest=dataset.segment_manifest,
+        closure_manifest_bytes=dataset.closure_manifest_bytes,
+        segment_manifest_bytes=dataset.segment_manifest_bytes,
     )
-    matrix = registry.compute(preparation_candles)
+    matrix = registry.compute(preparation_candles, segments=dataset.segment_manifest)
     labels = label_policy.build(
         preparation_candles,
         eligible_indices=tuple(row.candle_index for row in matrix.rows),
+        segments=dataset.segment_manifest,
     )
 
     bundles: dict[tuple[StudyPhase, int | None], PredictionBundle] = {}
@@ -192,6 +211,9 @@ def build_candidate_preparation(
             plans=plans,
         )
 
+    closure_manifest = dataset.closure_manifest
+    if closure_manifest is None:
+        raise StudyArtifactError("sealed candidate evaluation requires segment evidence")
     policy_bytes = serialize_candidate_policy(policy)
     configuration_bytes = canonical_json_bytes(
         {
@@ -202,6 +224,13 @@ def build_candidate_preparation(
             ).hexdigest(),
             "policy_version": policy.policy_version,
             "history_requirement_met": history_requirement_met,
+            "dataset_schema_version": dataset.manifest.schema_version,
+            "closure_manifest_sha256": dataset.manifest.closure_manifest_sha256,
+            "segment_manifest_sha256": dataset.manifest.segment_manifest_sha256,
+            "closure_count": dataset.manifest.closure_count,
+            "segment_count": dataset.manifest.segment_count,
+            "closure_ids": [item.closure_id for item in closure_manifest.closures],
+            "segment_boundary_indices": list(split_plan.segment_boundary_indices),
         }
     )
     split_bytes = canonical_json_bytes(split_plan_payload(split_plan))
@@ -323,6 +352,7 @@ def prepare_candidate_strategy_study(
         configuration_bytes=preparation.configuration_bytes,
         split_plan_bytes=preparation.split_plan_bytes,
         split_plan_sha256=preparation.split_plan_sha256,
+        segment_boundary_indices=preparation.split_plan.segment_boundary_indices,
         development_records=records,
     )
     LocalPreFinalStore(Path(output_root)).write(artifacts)
@@ -467,6 +497,10 @@ def _payloads(
         "limitations.json": {
             "production_eligible": False,
             "history_requirement_met": preparation.history_requirement_met,
+            "closure_aware_dataset": True,
+            "segment_boundary_indices": list(preparation.split_plan.segment_boundary_indices),
+            "cross_segment_state_allowed": False,
+            "fabricated_candles": False,
             "real_seven_year_run_claimed": preparation.history_requirement_met,
             "synthetic_or_short_history_is_non_promotable": not preparation.history_requirement_met,
             "ohlcv_limitations": [
@@ -488,6 +522,7 @@ def _extend_manifest(
     pre_final: PreFinalArtifacts,
     handoff: DatasetHandoffManifest,
     receipt: DurableFinalAccessReceipt,
+    segment_boundary_indices: tuple[int, ...],
 ) -> StrategyStudyArtifacts:
     files = dict(artifacts.files)
     files["study-manifest.json"] = canonical_json_bytes(
@@ -503,6 +538,13 @@ def _extend_manifest(
             "pre_final_id": pre_final.pre_final_id,
             "dataset_handoff_inventory_root": handoff.inventory_root_sha256,
             "durable_final_access_receipt_id": receipt.receipt_id,
+            "dataset_schema_version": handoff.dataset_schema_version,
+            "closure_manifest_sha256": handoff.closure_manifest_sha256,
+            "segment_manifest_sha256": handoff.segment_manifest_sha256,
+            "closure_count": handoff.closure_count,
+            "segment_count": handoff.segment_count,
+            "closure_ids": list(handoff.closure_ids),
+            "segment_boundary_indices": list(segment_boundary_indices),
         }
     )
     core = tuple(
@@ -610,6 +652,7 @@ def complete_candidate_strategy_study(
         pre_final=pre_final,
         handoff=handoff,
         receipt=receipt,
+        segment_boundary_indices=preparation.split_plan.segment_boundary_indices,
     )
     LocalStrategyStudyStore(Path(output_root)).write(artifacts)
     return artifacts

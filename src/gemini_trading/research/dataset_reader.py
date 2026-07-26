@@ -9,10 +9,21 @@ from typing import cast
 
 from gemini_trading.data.datasets.canonical_writer import (
     dataset_id,
+    dataset_id_v2,
     serialize_candles,
     serialize_dataset_manifest,
 )
 from gemini_trading.data.errors import CandleValidationError
+from gemini_trading.data.exchange_closures import (
+    ExchangeClosureManifest,
+    load_exchange_closure_manifest,
+)
+from gemini_trading.data.segments import (
+    CandleSegmentManifest,
+    load_candle_segment_manifest,
+    serialize_candle_segment_manifest,
+    validate_and_segment_candle_sequence,
+)
 from gemini_trading.data.storage.local_immutable import LocalImmutableStore
 from gemini_trading.data.validation.candles import validate_candle_sequence
 from gemini_trading.domain.candle import Candle
@@ -22,7 +33,7 @@ from gemini_trading.domain.time import require_utc
 from gemini_trading.domain.timeframe import Timeframe
 from gemini_trading.research.errors import DatasetVerificationError
 
-_MANIFEST_FIELDS = {
+_MANIFEST_FIELDS_V1 = {
     "schema_version",
     "dataset_id",
     "provider",
@@ -34,6 +45,12 @@ _MANIFEST_FIELDS = {
     "last_open_time",
     "candle_count",
     "canonical_sha256",
+}
+_MANIFEST_FIELDS_V2 = _MANIFEST_FIELDS_V1 | {
+    "closure_manifest_sha256",
+    "segment_manifest_sha256",
+    "closure_count",
+    "segment_count",
 }
 _INSTRUMENT_FIELDS = {"symbol", "base_asset", "quote_asset"}
 _CANDLE_FIELDS = {
@@ -60,6 +77,10 @@ class VerifiedDataset:
     manifest: DatasetManifest
     candles: tuple[Candle, ...]
     canonical_bytes: bytes
+    closure_manifest: ExchangeClosureManifest | None = None
+    segment_manifest: CandleSegmentManifest | None = None
+    closure_manifest_bytes: bytes | None = None
+    segment_manifest_bytes: bytes | None = None
 
 
 def _mapping(value: object, description: str) -> dict[str, object]:
@@ -127,12 +148,16 @@ def _parse_manifest(manifest_bytes: bytes) -> DatasetManifest:
     except (UnicodeDecodeError, json.JSONDecodeError) as error:
         raise DatasetVerificationError("invalid dataset manifest JSON") from error
     mapping = _mapping(loaded, "dataset manifest")
-    _exact_fields(mapping, _MANIFEST_FIELDS, "manifest")
+    schema_version = _string(mapping, "schema_version", "manifest")
+    expected_fields = (
+        _MANIFEST_FIELDS_V2 if schema_version == "candle-dataset-v2" else _MANIFEST_FIELDS_V1
+    )
+    _exact_fields(mapping, expected_fields, "manifest")
     instrument_mapping = _mapping(mapping["instrument"], "manifest instrument")
     _exact_fields(instrument_mapping, _INSTRUMENT_FIELDS, "instrument")
     try:
         manifest = DatasetManifest(
-            schema_version=_string(mapping, "schema_version", "manifest"),
+            schema_version=schema_version,
             dataset_id=_string(mapping, "dataset_id", "manifest"),
             provider=_string(mapping, "provider", "manifest"),
             instrument=Instrument(
@@ -153,6 +178,26 @@ def _parse_manifest(manifest_bytes: bytes) -> DatasetManifest:
             ),
             candle_count=_integer(mapping, "candle_count", "manifest"),
             canonical_sha256=_string(mapping, "canonical_sha256", "manifest"),
+            closure_manifest_sha256=(
+                _string(mapping, "closure_manifest_sha256", "manifest")
+                if schema_version == "candle-dataset-v2"
+                else None
+            ),
+            segment_manifest_sha256=(
+                _string(mapping, "segment_manifest_sha256", "manifest")
+                if schema_version == "candle-dataset-v2"
+                else None
+            ),
+            closure_count=(
+                _integer(mapping, "closure_count", "manifest")
+                if schema_version == "candle-dataset-v2"
+                else 0
+            ),
+            segment_count=(
+                _integer(mapping, "segment_count", "manifest")
+                if schema_version == "candle-dataset-v2"
+                else 1
+            ),
         )
     except ValueError as error:
         raise DatasetVerificationError("invalid dataset manifest values") from error
@@ -165,12 +210,29 @@ def _verify_content_identity(
     dataset_id_value: str,
     manifest: DatasetManifest,
     canonical_bytes: bytes,
+    closure_manifest_bytes: bytes | None = None,
+    segment_manifest_bytes: bytes | None = None,
 ) -> None:
     if manifest.dataset_id != dataset_id_value:
         raise DatasetVerificationError("dataset identity mismatch")
     if hashlib.sha256(canonical_bytes).hexdigest() != manifest.canonical_sha256:
         raise DatasetVerificationError("canonical content hash mismatch")
-    if dataset_id(manifest.schema_version, canonical_bytes) != dataset_id_value:
+    if manifest.schema_version == "candle-dataset-v2":
+        if closure_manifest_bytes is None or segment_manifest_bytes is None:
+            raise DatasetVerificationError("v2 supporting evidence is missing")
+        expected_id = dataset_id_v2(
+            provider=manifest.provider,
+            instrument=manifest.instrument,
+            timeframe=manifest.timeframe,
+            start_time=manifest.start_time,
+            end_time=manifest.end_time,
+            canonical_bytes=canonical_bytes,
+            closure_manifest_bytes=closure_manifest_bytes,
+            segment_manifest_bytes=segment_manifest_bytes,
+        )
+    else:
+        expected_id = dataset_id(manifest.schema_version, canonical_bytes)
+    if expected_id != dataset_id_value:
         raise DatasetVerificationError("canonical dataset identity mismatch")
 
 
@@ -219,6 +281,9 @@ def _verify_candle_evidence(
     manifest: DatasetManifest,
     candles: tuple[Candle, ...],
     canonical_bytes: bytes,
+    closure_manifest: ExchangeClosureManifest | None = None,
+    segment_manifest: CandleSegmentManifest | None = None,
+    segment_manifest_bytes: bytes | None = None,
 ) -> None:
     if len(candles) != manifest.candle_count:
         raise DatasetVerificationError("canonical candle count mismatch")
@@ -236,7 +301,21 @@ def _verify_candle_evidence(
         end_time=manifest.end_time,
     )
     try:
-        validate_candle_sequence(candles, request)
+        if closure_manifest is None:
+            validate_candle_sequence(candles, request)
+        else:
+            expected_segments = validate_and_segment_candle_sequence(
+                candles,
+                request,
+                closure_manifest,
+            )
+            if segment_manifest != expected_segments:
+                raise DatasetVerificationError("canonical segment manifest mismatch")
+            if (
+                segment_manifest_bytes is None
+                or serialize_candle_segment_manifest(expected_segments) != segment_manifest_bytes
+            ):
+                raise DatasetVerificationError("canonical segment bytes mismatch")
     except CandleValidationError as error:
         raise DatasetVerificationError("canonical candle sequence validation failed") from error
 
@@ -244,17 +323,66 @@ def _verify_candle_evidence(
 def load_verified_dataset(
     store: LocalImmutableStore,
     dataset_id_value: str,
+    *,
+    require_v2: bool = False,
 ) -> VerifiedDataset:
     """Load and independently verify one immutable canonical dataset."""
 
     try:
         canonical_bytes, manifest_bytes = store.read_dataset(dataset_id_value)
         manifest = _parse_manifest(manifest_bytes)
-        _verify_content_identity(dataset_id_value, manifest, canonical_bytes)
+        if require_v2 and manifest.schema_version != "candle-dataset-v2":
+            raise DatasetVerificationError("sealed dataset loading requires candle-dataset-v2")
+        closure_manifest = None
+        segment_manifest = None
+        closure_manifest_bytes = None
+        segment_manifest_bytes = None
+        if manifest.schema_version == "candle-dataset-v2":
+            closure_manifest_bytes, segment_manifest_bytes = (
+                store.read_dataset_supporting_manifests(dataset_id_value)
+            )
+            closure_manifest = load_exchange_closure_manifest(closure_manifest_bytes)
+            segment_manifest = load_candle_segment_manifest(segment_manifest_bytes)
+            if (
+                hashlib.sha256(closure_manifest_bytes).hexdigest()
+                != manifest.closure_manifest_sha256
+            ):
+                raise DatasetVerificationError("closure manifest hash mismatch")
+            if (
+                hashlib.sha256(segment_manifest_bytes).hexdigest()
+                != manifest.segment_manifest_sha256
+            ):
+                raise DatasetVerificationError("segment manifest hash mismatch")
+            if len(closure_manifest.closures) != manifest.closure_count:
+                raise DatasetVerificationError("closure count mismatch")
+            if len(segment_manifest.segments) != manifest.segment_count:
+                raise DatasetVerificationError("segment count mismatch")
+        _verify_content_identity(
+            dataset_id_value,
+            manifest,
+            canonical_bytes,
+            closure_manifest_bytes,
+            segment_manifest_bytes,
+        )
         candles = _parse_candles(canonical_bytes, manifest)
-        _verify_candle_evidence(manifest, candles, canonical_bytes)
+        _verify_candle_evidence(
+            manifest,
+            candles,
+            canonical_bytes,
+            closure_manifest,
+            segment_manifest,
+            segment_manifest_bytes,
+        )
     except DatasetVerificationError:
         raise
     except (OSError, TypeError, ValueError) as error:
         raise DatasetVerificationError("canonical dataset could not be loaded safely") from error
-    return VerifiedDataset(manifest, candles, canonical_bytes)
+    return VerifiedDataset(
+        manifest,
+        candles,
+        canonical_bytes,
+        closure_manifest,
+        segment_manifest,
+        closure_manifest_bytes,
+        segment_manifest_bytes,
+    )

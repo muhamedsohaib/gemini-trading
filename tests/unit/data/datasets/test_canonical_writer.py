@@ -9,6 +9,7 @@ from gemini_trading.data.datasets.canonical_writer import (
     build_dataset_manifest,
     build_provenance,
     dataset_id,
+    dataset_id_v2,
     serialize_candles,
     serialize_dataset_manifest,
     serialize_provenance,
@@ -182,3 +183,124 @@ def test_provenance_contains_run_metadata_without_changing_canonical_identity() 
     assert serialize_provenance(first) == expected_first
     assert serialize_provenance(first) != serialize_provenance(second)
     assert dataset_id(_SCHEMA_VERSION, canonical) == identity
+
+
+def test_v2_dataset_identity_binds_candles_closures_segments_and_scope() -> None:
+    canonical = serialize_candles((_candle(),))
+    closure = b'{"closure":"exact"}\n'
+    segments = b'{"segments":[1,2]}\n'
+    identity = dataset_id_v2(
+        provider="binance_spot",
+        instrument=_INSTRUMENT,
+        timeframe=Timeframe.H4,
+        start_time=_START,
+        end_time=_END,
+        canonical_bytes=canonical,
+        closure_manifest_bytes=closure,
+        segment_manifest_bytes=segments,
+    )
+
+    assert (
+        dataset_id_v2(
+            provider="binance_spot",
+            instrument=_INSTRUMENT,
+            timeframe=Timeframe.H4,
+            start_time=_START,
+            end_time=_END,
+            canonical_bytes=canonical,
+            closure_manifest_bytes=closure,
+            segment_manifest_bytes=segments,
+        )
+        == identity
+    )
+    assert (
+        dataset_id_v2(
+            provider="binance_spot",
+            instrument=_INSTRUMENT,
+            timeframe=Timeframe.H4,
+            start_time=_START,
+            end_time=_END,
+            canonical_bytes=canonical + b"\n",
+            closure_manifest_bytes=closure,
+            segment_manifest_bytes=segments,
+        )
+        != identity
+    )
+    assert (
+        dataset_id_v2(
+            provider="binance_spot",
+            instrument=_INSTRUMENT,
+            timeframe=Timeframe.H4,
+            start_time=_START,
+            end_time=_END,
+            canonical_bytes=canonical,
+            closure_manifest_bytes=closure + b" ",
+            segment_manifest_bytes=segments,
+        )
+        != identity
+    )
+    assert (
+        dataset_id_v2(
+            provider="binance_spot",
+            instrument=_INSTRUMENT,
+            timeframe=Timeframe.H4,
+            start_time=_START,
+            end_time=_END,
+            canonical_bytes=canonical,
+            closure_manifest_bytes=closure,
+            segment_manifest_bytes=segments + b" ",
+        )
+        != identity
+    )
+
+
+def test_build_and_serialize_v2_manifest_binds_supporting_evidence() -> None:
+    candles = (_candle(),)
+    canonical = serialize_candles(candles)
+    closure = b'{"closure":"exact"}\n'
+    segments = b'{"segments":[1,2]}\n'
+    manifest = build_dataset_manifest(
+        schema_version="candle-dataset-v2",
+        provider="binance_spot",
+        instrument=_INSTRUMENT,
+        timeframe=Timeframe.H4,
+        start_time=_START,
+        end_time=_END,
+        candles=candles,
+        canonical_bytes=canonical,
+        closure_manifest_bytes=closure,
+        segment_manifest_bytes=segments,
+        closure_count=1,
+        segment_count=2,
+    )
+
+    assert manifest.dataset_id == dataset_id_v2(
+        provider="binance_spot",
+        instrument=_INSTRUMENT,
+        timeframe=Timeframe.H4,
+        start_time=_START,
+        end_time=_END,
+        canonical_bytes=canonical,
+        closure_manifest_bytes=closure,
+        segment_manifest_bytes=segments,
+    )
+    encoded = serialize_dataset_manifest(manifest)
+    assert b'"closure_manifest_sha256":"' in encoded
+    assert b'"segment_manifest_sha256":"' in encoded
+    assert b'"closure_count":1' in encoded
+    assert b'"segment_count":2' in encoded
+
+
+def test_v2_manifest_requires_supporting_evidence() -> None:
+    canonical = serialize_candles((_candle(),))
+    with pytest.raises(ValueError, match="supporting manifest"):
+        build_dataset_manifest(
+            schema_version="candle-dataset-v2",
+            provider="binance_spot",
+            instrument=_INSTRUMENT,
+            timeframe=Timeframe.H4,
+            start_time=_START,
+            end_time=_END,
+            candles=(_candle(),),
+            canonical_bytes=canonical,
+        )

@@ -36,6 +36,17 @@ def test_operator_guide_locks_scope_sequence_and_failure_policy() -> None:
         "INCONCLUSIVE",
         "RESEARCH_ONLY",
         "No classification authorizes execution or capital",
+        "candle-dataset-v2",
+        "binance-spot-system-upgrade-2018-02-08",
+        "[2018-02-08T04:00:00Z, 2018-02-09T08:00:00Z)",
+        "seven completed `4h` candle slots",
+        "resulting canonical segments: two",
+        "never inserts, forward-fills, interpolates, zero-fills",
+        "Feature warm-up restarts",
+        "noncash account or active order",
+        "dataset-ingest",
+        "dataset-replay",
+        "dataset-verify",
     )
     for phrase in required:
         assert phrase in text

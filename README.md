@@ -71,6 +71,9 @@ gemini-trading research strategy-verify
 Sealed historical-validation command surface:
 
 ```text
+gemini-trading research dataset-ingest
+gemini-trading research dataset-replay
+gemini-trading research dataset-verify
 gemini-trading research strategy-handoff
 gemini-trading research strategy-prepare
 gemini-trading research strategy-authorize-final
@@ -80,7 +83,7 @@ gemini-trading research strategy-resume
 
 The Candidate remains `RESEARCH_ONLY` and always reports `promotable:false` at the CLI boundary. Rejection and inconclusive evidence are valid outcomes. The concrete provider-free evaluator and deterministic synthetic end-to-end acceptance are implemented. The diagnostic acceptance result is `INCONCLUSIVE`; it verifies architecture and reproducibility only.
 
-The two-stage GitHub Actions implementation for the fixed BTCUSDT window `[2018-01-01T00:00:00Z, 2026-07-01T00:00:00Z)` is present, but there is no real historical Candidate result until the dataset and study workflows run against an approved exact merged-main SHA and the downloaded artifacts independently verify. No durable profitability, execution readiness, or capital authorization is claimed.
+The two-stage GitHub Actions implementation for the fixed BTCUSDT window `[2018-01-01T00:00:00Z, 2026-07-01T00:00:00Z)` uses `candle-dataset-v2`, one verified seven-candle Binance closure declaration, and two deterministic continuous segments. It fabricates no candles and resets all research dependencies at the segment boundary. There is no real historical Candidate result until the dataset and study workflows run against an approved exact merged-main SHA and the downloaded artifacts independently verify. No durable profitability, execution readiness, or capital authorization is claimed.
 
 See:
 

@@ -6,6 +6,7 @@ from datetime import datetime
 from decimal import ROUND_HALF_EVEN, Context, Decimal, localcontext
 from enum import StrEnum
 
+from gemini_trading.data.segments import CandleSegmentManifest
 from gemini_trading.domain.candle import Candle
 
 _CONTEXT = Context(prec=34, rounding=ROUND_HALF_EVEN)
@@ -367,25 +368,46 @@ class FeatureRegistry:
             maximum_lookback_candles=42,
         )
 
-    def compute(self, candles: tuple[Candle, ...]) -> FeatureMatrix:
-        """Compute eligible trailing feature rows without future information."""
+    def compute(
+        self,
+        candles: tuple[Candle, ...],
+        *,
+        segments: CandleSegmentManifest | None = None,
+    ) -> FeatureMatrix:
+        """Compute trailing rows independently inside each continuous segment."""
 
         _validate_candles(candles)
+        if segments is None:
+            windows = ((0, len(candles)),)
+        else:
+            if (
+                segments.segments[0].start_index != 0
+                or len(candles) > segments.segments[-1].end_exclusive
+            ):
+                raise ValueError("feature segment evidence does not cover candles")
+            windows = tuple(
+                (segment.start_index, min(segment.end_exclusive, len(candles)))
+                for segment in segments.segments
+                if segment.start_index < len(candles)
+            )
         rows: list[FeatureRow] = []
         with localcontext(_CONTEXT):
-            for candle_index in range(self.maximum_lookback_candles, len(candles)):
-                try:
-                    values_by_name = _compute_values(candles, candle_index)
-                    values = tuple(values_by_name[name] for name in self.feature_names)
-                except _IneligibleFeatureRow:
-                    continue
-                rows.append(
-                    FeatureRow(
-                        candle_index=candle_index,
-                        candle_open_time=candles[candle_index].open_time,
-                        values=values,
+            for start_index, end_exclusive in windows:
+                local_candles = candles[start_index:end_exclusive]
+                for local_index in range(self.maximum_lookback_candles, len(local_candles)):
+                    try:
+                        values_by_name = _compute_values(local_candles, local_index)
+                        values = tuple(values_by_name[name] for name in self.feature_names)
+                    except _IneligibleFeatureRow:
+                        continue
+                    candle_index = start_index + local_index
+                    rows.append(
+                        FeatureRow(
+                            candle_index=candle_index,
+                            candle_open_time=candles[candle_index].open_time,
+                            values=values,
+                        )
                     )
-                )
         return FeatureMatrix(
             schema_version="candidate-feature-matrix-v1",
             definitions=self.definitions,

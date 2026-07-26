@@ -31,15 +31,14 @@ def test_dataset_workflow_is_manual_fixed_scope_and_least_privilege() -> None:
     assert 'version: "0.11.25"' in text
     assert "OUTPUT_ROOT: /tmp/sealed-output" in text
     assert 'test "${GITHUB_REF_NAME}" = "main"' in text
-    assert "--symbol BTCUSDT" in text
-    assert "--base-asset BTC" in text
-    assert "--quote-asset USDT" in text
-    assert "--interval 4h" in text
-    assert "--start 2018-01-01T00:00:00Z" in text
-    assert "--end 2026-07-01T00:00:00Z" in text
-    assert text.index("market-data ingest") < text.index("market-data replay")
-    assert text.index("market-data replay") < text.index("market-data verify")
-    assert text.index("market-data verify") < text.index("strategy-handoff")
+    assert "research dataset-ingest" in text
+    assert '--project-root "${GITHUB_WORKSPACE}"' in text
+    assert text.index("research dataset-ingest") < text.index("research dataset-replay")
+    assert text.index("research dataset-replay") < text.index("research dataset-verify")
+    assert text.index("research dataset-verify") < text.index("strategy-handoff")
+    assert "closure-manifest" not in text
+    assert "CLOSURE_MANIFEST" not in text
+    assert "curl " not in text
     assert "sealed-btcusdt-dataset-${{ github.sha }}-${{ github.run_id }}" in text
     assert "path: /tmp/sealed-output/" in text
     assert "retention-days: 90" in text
@@ -103,6 +102,10 @@ def test_study_workflow_has_exact_narrow_inputs_and_cross_run_barriers() -> None
     assert "overwrite: false" in text
     assert "retention-days: 90" in text
     assert "secrets.GITHUB_TOKEN" in text
+    assert 'handoff.dataset_schema_version != "candle-dataset-v2"' in text
+    assert "handoff.closure_count != 1" in text
+    assert "handoff.segment_count != 2" in text
+    assert "binance-spot-system-upgrade-2018-02-08" in text
     assert text.count("OUTPUT_ROOT: /tmp/sealed-output") == 4
     assert "api.binance.com" not in text
     assert "GITHUB_ENV" not in text

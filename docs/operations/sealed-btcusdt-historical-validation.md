@@ -21,6 +21,32 @@ The workflow scope is immutable:
 
 Changing any scope, policy, configuration, split, cost, feature, label, model, control, threshold, or gate requires a new written design gate and newly sealed final test.
 
+
+## Verified exchange-closure evidence
+
+The fixed historical window contains one source-controlled Binance Spot closure declaration:
+
+- manifest: `config/market-data/sealed-btcusdt-4h-exchange-closures.json`;
+- schema: `exchange-closure-manifest-v1`;
+- closure ID: `binance-spot-system-upgrade-2018-02-08`;
+- missing interval: `[2018-02-08T04:00:00Z, 2018-02-09T08:00:00Z)`;
+- missing opens: seven completed `4h` candle slots;
+- resulting canonical segments: two.
+
+The dataset schema is `candle-dataset-v2`. Its identity binds the canonical candle bytes, exact closure-manifest bytes, and exact candle-segment-manifest bytes. The pipeline never inserts, forward-fills, interpolates, zero-fills, or otherwise fabricates a candle. Every undeclared, shifted, partial, expanded, contracted, overlapping, touching, or unused closure declaration fails closed.
+
+Features, labels, folds, strategy schedules, simulator orders, positions, returns, and final-test access cannot cross a segment boundary. Feature warm-up restarts after the closure. Label outcomes crossing the boundary are omitted. A noncash account or active order at a boundary is a terminal validation failure; no synthetic liquidation is allowed. The approved closure precedes the final 18-month test. Any closure intersecting that final partition requires a new written design gate.
+
+The fixed Stage 1 commands are:
+
+```text
+gemini-trading research dataset-ingest --project-root <repo> --output-root <artifact-root>
+gemini-trading research dataset-replay --run-id <retrieval-run-id> --output-root <artifact-root>
+gemini-trading research dataset-verify --dataset-id <dataset-id> --run-id <retrieval-run-id> --output-root <artifact-root>
+```
+
+There is no operator-provided closure-manifest path or environment override.
+
 ## Workflows
 
 The two manually dispatched workflows are:
@@ -66,7 +92,7 @@ The workflow must complete these steps in order:
 5. build the strict dataset handoff manifest;
 6. upload `sealed-btcusdt-dataset-<source-sha>-<run-id>`.
 
-After completion, inspect every job step. Download the artifact immediately and independently verify its inventory and hashes. GitHub Actions artifacts are retained for 90 days in these workflows and are not permanent archival storage.
+After completion, inspect every job step. Download the artifact immediately and independently verify its inventory and hashes, including `exchange-closures.json`, `candle-segments.json`, `dataset-manifest.json`, canonical candles, retrieval evidence, provenance, and `dataset-handoff.json`. GitHub Actions artifacts are retained for 90 days in these workflows and are not permanent archival storage.
 
 Record the following exact Stage 1 evidence on Issue #22:
 
@@ -74,7 +100,10 @@ Record the following exact Stage 1 evidence on Issue #22:
 - workflow run ID and attempt;
 - artifact name and artifact ID;
 - retrieval run ID;
-- dataset ID;
+- dataset ID and `candle-dataset-v2` schema;
+- closure-manifest path and SHA-256;
+- segment-manifest path and SHA-256;
+- closure count, segment count, closure IDs, and segment boundary indices;
 - candle count;
 - first and last open timestamps;
 - inventory root SHA-256;

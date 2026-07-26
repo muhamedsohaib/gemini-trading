@@ -10,6 +10,7 @@ from gemini_trading.domain.candle import Candle
 from gemini_trading.domain.dataset import DatasetManifest, DatasetProvenance
 from gemini_trading.domain.instrument import Instrument
 from gemini_trading.domain.timeframe import Timeframe
+from gemini_trading.research.serialization import canonical_json_bytes
 
 
 def _format_datetime(value: datetime) -> str:
@@ -68,6 +69,35 @@ def dataset_id(schema_version: str, canonical_bytes: bytes) -> str:
     return hashlib.sha256(identity_input).hexdigest()
 
 
+def dataset_id_v2(
+    *,
+    provider: str,
+    instrument: Instrument,
+    timeframe: Timeframe,
+    start_time: datetime,
+    end_time: datetime,
+    canonical_bytes: bytes,
+    closure_manifest_bytes: bytes,
+    segment_manifest_bytes: bytes,
+) -> str:
+    """Bind canonical candles and exact supporting manifests into v2 identity."""
+
+    if not provider.strip():
+        raise ValueError("provider must not be empty")
+    identity_payload: dict[str, object] = {
+        "schema_version": "candle-dataset-v2",
+        "provider": provider,
+        "instrument": _instrument_payload(instrument),
+        "timeframe": timeframe.value,
+        "start_time": _format_datetime(start_time),
+        "end_time": _format_datetime(end_time),
+        "canonical_sha256": hashlib.sha256(canonical_bytes).hexdigest(),
+        "closure_manifest_sha256": hashlib.sha256(closure_manifest_bytes).hexdigest(),
+        "segment_manifest_sha256": hashlib.sha256(segment_manifest_bytes).hexdigest(),
+    }
+    return hashlib.sha256(canonical_json_bytes(identity_payload)).hexdigest()
+
+
 def build_dataset_manifest(
     *,
     schema_version: str,
@@ -78,15 +108,41 @@ def build_dataset_manifest(
     end_time: datetime,
     candles: Sequence[Candle],
     canonical_bytes: bytes,
+    closure_manifest_bytes: bytes | None = None,
+    segment_manifest_bytes: bytes | None = None,
+    closure_count: int = 0,
+    segment_count: int = 1,
 ) -> DatasetManifest:
     """Build deterministic metadata derived only from canonical and stable inputs."""
 
     candle_values = tuple(candles)
     if not candle_values:
         raise ValueError("canonical dataset must contain at least one candle")
+    if schema_version == "candle-dataset-v2":
+        if closure_manifest_bytes is None or segment_manifest_bytes is None:
+            raise ValueError("candle-dataset-v2 requires supporting manifest bytes")
+        identity = dataset_id_v2(
+            provider=provider,
+            instrument=instrument,
+            timeframe=timeframe,
+            start_time=start_time,
+            end_time=end_time,
+            canonical_bytes=canonical_bytes,
+            closure_manifest_bytes=closure_manifest_bytes,
+            segment_manifest_bytes=segment_manifest_bytes,
+        )
+        closure_sha256 = hashlib.sha256(closure_manifest_bytes).hexdigest()
+        segment_sha256 = hashlib.sha256(segment_manifest_bytes).hexdigest()
+    else:
+        if closure_manifest_bytes is not None or segment_manifest_bytes is not None:
+            raise ValueError("supporting manifest bytes require candle-dataset-v2")
+        identity = dataset_id(schema_version, canonical_bytes)
+        closure_sha256 = None
+        segment_sha256 = None
+
     return DatasetManifest(
         schema_version=schema_version,
-        dataset_id=dataset_id(schema_version, canonical_bytes),
+        dataset_id=identity,
         provider=provider,
         instrument=instrument,
         timeframe=timeframe,
@@ -96,27 +152,39 @@ def build_dataset_manifest(
         last_open_time=candle_values[-1].open_time,
         candle_count=len(candle_values),
         canonical_sha256=hashlib.sha256(canonical_bytes).hexdigest(),
+        closure_manifest_sha256=closure_sha256,
+        segment_manifest_sha256=segment_sha256,
+        closure_count=closure_count,
+        segment_count=segment_count,
     )
 
 
 def serialize_dataset_manifest(manifest: DatasetManifest) -> bytes:
     """Serialize a deterministic canonical dataset manifest."""
 
-    return _json_bytes(
-        {
-            "schema_version": manifest.schema_version,
-            "dataset_id": manifest.dataset_id,
-            "provider": manifest.provider,
-            "instrument": _instrument_payload(manifest.instrument),
-            "timeframe": manifest.timeframe.value,
-            "start_time": _format_datetime(manifest.start_time),
-            "end_time": _format_datetime(manifest.end_time),
-            "first_open_time": _format_datetime(manifest.first_open_time),
-            "last_open_time": _format_datetime(manifest.last_open_time),
-            "candle_count": manifest.candle_count,
-            "canonical_sha256": manifest.canonical_sha256,
-        }
-    )
+    payload: dict[str, object] = {
+        "schema_version": manifest.schema_version,
+        "dataset_id": manifest.dataset_id,
+        "provider": manifest.provider,
+        "instrument": _instrument_payload(manifest.instrument),
+        "timeframe": manifest.timeframe.value,
+        "start_time": _format_datetime(manifest.start_time),
+        "end_time": _format_datetime(manifest.end_time),
+        "first_open_time": _format_datetime(manifest.first_open_time),
+        "last_open_time": _format_datetime(manifest.last_open_time),
+        "candle_count": manifest.candle_count,
+        "canonical_sha256": manifest.canonical_sha256,
+    }
+    if manifest.schema_version == "candle-dataset-v2":
+        payload.update(
+            {
+                "closure_manifest_sha256": manifest.closure_manifest_sha256,
+                "segment_manifest_sha256": manifest.segment_manifest_sha256,
+                "closure_count": manifest.closure_count,
+                "segment_count": manifest.segment_count,
+            }
+        )
+    return _json_bytes(payload)
 
 
 def build_provenance(

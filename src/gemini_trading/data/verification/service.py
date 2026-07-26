@@ -15,10 +15,16 @@ from gemini_trading.data.datasets.canonical_writer import (
     serialize_provenance,
 )
 from gemini_trading.data.errors import MarketDataError
+from gemini_trading.data.exchange_closures import load_exchange_closure_manifest
 from gemini_trading.data.ingestion.replay import (
     ReplayRawStore,
     load_verified_run,
     reconstruct_completed_candles,
+)
+from gemini_trading.data.segments import (
+    load_candle_segment_manifest,
+    serialize_candle_segment_manifest,
+    validate_and_segment_candle_sequence,
 )
 from gemini_trading.data.validation.candles import validate_candle_sequence
 from gemini_trading.domain.candle import Candle
@@ -31,6 +37,8 @@ from gemini_trading.domain.instrument import Instrument
 from gemini_trading.domain.timeframe import Timeframe
 
 _DATASET_SCHEMA_VERSION = "candle-dataset-v1"
+_DATASET_SCHEMA_VERSION_V2 = "candle-dataset-v2"
+_RETRIEVAL_SCHEMA_VERSION_V2 = "retrieval-manifest-v2"
 _PROVENANCE_SCHEMA_VERSION = "dataset-provenance-v1"
 _CHECKS = (
     "retrieval_manifest_bytes",
@@ -44,11 +52,26 @@ _CHECKS = (
     "completed_state",
 )
 
+_V2_CHECKS = (
+    "retrieval_manifest_bytes",
+    "raw_page_hashes",
+    "raw_reconstruction",
+    "canonical_bytes",
+    "canonical_manifest",
+    "dataset_identity",
+    "provenance_linkage",
+    "declared_gap_exactness",
+    "segment_continuity",
+    "completed_state",
+)
+
 
 class VerificationCanonicalStore(Protocol):
     """Readable canonical artifacts required for independent verification."""
 
     def read_dataset(self, dataset_id: str) -> tuple[bytes, bytes]: ...
+
+    def read_dataset_supporting_manifests(self, dataset_id: str) -> tuple[bytes, bytes]: ...
 
     def read_provenance(self, dataset_id: str, run_id: str) -> bytes: ...
 
@@ -179,6 +202,26 @@ def _parse_dataset_manifest(raw: bytes) -> DatasetManifest:
             last_open_time=_parse_datetime(_required_str(mapping, "last_open_time")),
             candle_count=_required_int(mapping, "candle_count"),
             canonical_sha256=_required_str(mapping, "canonical_sha256"),
+            closure_manifest_sha256=(
+                _required_str(mapping, "closure_manifest_sha256")
+                if mapping.get("schema_version") == _DATASET_SCHEMA_VERSION_V2
+                else None
+            ),
+            segment_manifest_sha256=(
+                _required_str(mapping, "segment_manifest_sha256")
+                if mapping.get("schema_version") == _DATASET_SCHEMA_VERSION_V2
+                else None
+            ),
+            closure_count=(
+                _required_int(mapping, "closure_count")
+                if mapping.get("schema_version") == _DATASET_SCHEMA_VERSION_V2
+                else 0
+            ),
+            segment_count=(
+                _required_int(mapping, "segment_count")
+                if mapping.get("schema_version") == _DATASET_SCHEMA_VERSION_V2
+                else 1
+            ),
         )
     except ValueError:
         raise MarketDataError("dataset manifest schema is invalid") from None
@@ -228,7 +271,35 @@ class VerificationService:
                 self.raw_store,
                 run_id,
             )
-            reconstructed = reconstruct_completed_candles(retrieval_manifest, pages)
+            closure_manifest = None
+            closure_bytes: bytes | None = None
+            segment_bytes: bytes | None = None
+            stored_segments = None
+            if retrieval_manifest.schema_version == _RETRIEVAL_SCHEMA_VERSION_V2:
+                try:
+                    run_closure_bytes = self.raw_store.read_run_closure_manifest_bytes(run_id)
+                    closure_manifest = load_exchange_closure_manifest(run_closure_bytes)
+                    closure_bytes, segment_bytes = (
+                        self.canonical_store.read_dataset_supporting_manifests(dataset_id)
+                    )
+                    stored_segments = load_candle_segment_manifest(segment_bytes)
+                except Exception:
+                    raise MarketDataError(
+                        "verification failed to read supporting evidence"
+                    ) from None
+                if run_closure_bytes != closure_bytes:
+                    raise MarketDataError("run and canonical closure evidence differ")
+                if (
+                    hashlib.sha256(run_closure_bytes).hexdigest()
+                    != retrieval_manifest.closure_manifest_sha256
+                ):
+                    raise MarketDataError("run closure manifest hash mismatch")
+
+            reconstructed = reconstruct_completed_candles(
+                retrieval_manifest,
+                pages,
+                closure_manifest,
+            )
             canonical_bytes, dataset_manifest_bytes = self.canonical_store.read_dataset(dataset_id)
             provenance_bytes = self.canonical_store.read_provenance(dataset_id, run_id)
 
@@ -239,17 +310,35 @@ class VerificationService:
                 start_time=retrieval_manifest.start_time,
                 end_time=retrieval_manifest.end_time,
             )
-            validate_candle_sequence(parsed_candles, request)
+            derived_segments = None
+            if closure_manifest is None:
+                validate_candle_sequence(parsed_candles, request)
+            else:
+                derived_segments = validate_and_segment_candle_sequence(
+                    parsed_candles,
+                    request,
+                    closure_manifest,
+                )
+                if stored_segments != derived_segments:
+                    raise MarketDataError("stored candle segment evidence mismatch")
+                assert segment_bytes is not None
+                if serialize_candle_segment_manifest(derived_segments) != segment_bytes:
+                    raise MarketDataError("candle segment bytes are not deterministic")
             if parsed_candles != reconstructed:
                 raise MarketDataError("canonical candles do not match raw reconstruction")
             if serialize_candles(parsed_candles) != canonical_bytes:
                 raise MarketDataError("canonical JSONL bytes are not deterministic")
 
             dataset_manifest = _parse_dataset_manifest(dataset_manifest_bytes)
-            if dataset_manifest.schema_version != _DATASET_SCHEMA_VERSION:
+            expected_schema = (
+                _DATASET_SCHEMA_VERSION_V2
+                if closure_manifest is not None
+                else _DATASET_SCHEMA_VERSION
+            )
+            if dataset_manifest.schema_version != expected_schema:
                 raise MarketDataError("unsupported canonical dataset schema")
             expected_manifest = build_dataset_manifest(
-                schema_version=_DATASET_SCHEMA_VERSION,
+                schema_version=expected_schema,
                 provider=retrieval_manifest.provider,
                 instrument=retrieval_manifest.instrument,
                 timeframe=retrieval_manifest.timeframe,
@@ -257,6 +346,10 @@ class VerificationService:
                 end_time=retrieval_manifest.end_time,
                 candles=reconstructed,
                 canonical_bytes=canonical_bytes,
+                closure_manifest_bytes=closure_bytes,
+                segment_manifest_bytes=segment_bytes,
+                closure_count=(0 if closure_manifest is None else len(closure_manifest.closures)),
+                segment_count=(1 if derived_segments is None else len(derived_segments.segments)),
             )
             if expected_manifest.dataset_id != dataset_id:
                 raise MarketDataError("dataset identity mismatch")
@@ -287,7 +380,7 @@ class VerificationService:
                 dataset_id=dataset_id,
                 run_id=run_id,
                 candle_count=len(reconstructed),
-                checks=_CHECKS,
+                checks=(_V2_CHECKS if closure_manifest is not None else _CHECKS),
             )
         except MarketDataError:
             raise

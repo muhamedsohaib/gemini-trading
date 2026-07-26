@@ -253,6 +253,7 @@ def build_artifacts(
         ),
         "orders.jsonl": canonical_jsonl_bytes(_order_payload(order) for order in evidence.orders),
         "rejections.jsonl": canonical_jsonl_bytes(evidence.rejection_records),
+        "segment-boundaries.jsonl": canonical_jsonl_bytes(evidence.segment_boundary_records),
         "fills.jsonl": canonical_jsonl_bytes(_fill_payload(fill) for fill in evidence.fills),
         "cash-ledger.jsonl": canonical_jsonl_bytes(
             _ledger_payload(entry) for entry in evidence.ledger

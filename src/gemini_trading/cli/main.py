@@ -102,6 +102,25 @@ def build_parser() -> SafeArgumentParser:
         strategy_command.add_argument("--project-root", required=True)
         strategy_command.add_argument("--output-root", required=True)
 
+    dataset_ingest = research_commands.add_parser(
+        "dataset-ingest", help="ingest the fixed closure-aware BTCUSDT dataset"
+    )
+    dataset_ingest.add_argument("--project-root", required=True)
+    dataset_ingest.add_argument("--output-root", required=True)
+
+    dataset_replay = research_commands.add_parser(
+        "dataset-replay", help="replay the fixed dataset evidence offline"
+    )
+    dataset_replay.add_argument("--run-id", required=True)
+    dataset_replay.add_argument("--output-root", required=True)
+
+    dataset_verify = research_commands.add_parser(
+        "dataset-verify", help="independently verify the fixed v2 dataset"
+    )
+    dataset_verify.add_argument("--dataset-id", required=True)
+    dataset_verify.add_argument("--run-id", required=True)
+    dataset_verify.add_argument("--output-root", required=True)
+
     handoff = research_commands.add_parser(
         "strategy-handoff", help="seal one verified BTCUSDT dataset handoff"
     )
@@ -179,6 +198,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif command == "research":
             research_command = getattr(arguments, "research_command", None)
             historical_commands = {
+                "dataset-ingest",
+                "dataset-replay",
+                "dataset-verify",
                 "strategy-authorize-final",
                 "strategy-finalize",
                 "strategy-handoff",

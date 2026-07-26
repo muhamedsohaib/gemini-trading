@@ -9,13 +9,15 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import cast
 
+from gemini_trading.data.exchange_closures import load_exchange_closure_manifest
+from gemini_trading.data.segments import load_candle_segment_manifest
 from gemini_trading.research.serialization import canonical_json_bytes
 from gemini_trading.strategy.errors import DatasetHandoffError, HistoricalValidationError
 
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 _GIT_COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 _IDENTITY_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
-_SCHEMA_VERSION = "sealed-dataset-handoff-v1"
+_SCHEMA_VERSION = "sealed-dataset-handoff-v2"
 _REPOSITORY = "muhamedsohaib/gemini-trading"
 _WORKFLOW_NAME = "sealed-btcusdt-dataset"
 _JOB_NAME = "dataset"
@@ -43,6 +45,14 @@ _ALLOWED_FIELDS = {
     "end_exclusive",
     "run_id",
     "dataset_id",
+    "dataset_schema_version",
+    "closure_manifest_path",
+    "closure_manifest_sha256",
+    "segment_manifest_path",
+    "segment_manifest_sha256",
+    "closure_count",
+    "segment_count",
+    "closure_ids",
     "candle_count",
     "first_open_time",
     "last_open_time",
@@ -180,6 +190,14 @@ class DatasetHandoffManifest:
     end_exclusive: str
     run_id: str
     dataset_id: str
+    dataset_schema_version: str
+    closure_manifest_path: str
+    closure_manifest_sha256: str
+    segment_manifest_path: str
+    segment_manifest_sha256: str
+    closure_count: int
+    segment_count: int
+    closure_ids: tuple[str, ...]
     candle_count: int
     first_open_time: str
     last_open_time: str
@@ -212,6 +230,30 @@ class DatasetHandoffManifest:
             raise DatasetHandoffError("dataset handoff historical window mismatch")
         _require_identity(self.run_id, "retrieval run ID")
         _require_sha256(self.dataset_id, "dataset ID")
+        if self.dataset_schema_version != "candle-dataset-v2":
+            raise DatasetHandoffError("dataset handoff requires candle-dataset-v2")
+        object.__setattr__(
+            self,
+            "closure_manifest_path",
+            validate_artifact_relative_path(self.closure_manifest_path),
+        )
+        object.__setattr__(
+            self,
+            "segment_manifest_path",
+            validate_artifact_relative_path(self.segment_manifest_path),
+        )
+        _require_sha256(self.closure_manifest_sha256, "closure manifest SHA-256")
+        _require_sha256(self.segment_manifest_sha256, "segment manifest SHA-256")
+        _require_positive_int(self.closure_count, "closure count")
+        _require_positive_int(self.segment_count, "segment count")
+        if self.segment_count != self.closure_count + 1:
+            raise DatasetHandoffError("dataset handoff segment count mismatch")
+        if len(self.closure_ids) != self.closure_count:
+            raise DatasetHandoffError("dataset handoff closure count mismatch")
+        if not self.closure_ids or len(set(self.closure_ids)) != len(self.closure_ids):
+            raise DatasetHandoffError("invalid dataset handoff closure IDs")
+        for closure_id in self.closure_ids:
+            _require_identity(closure_id, "closure ID")
         _require_positive_int(self.candle_count, "candle count")
         if self.first_open_time != _START or self.last_open_time != "2026-06-30T20:00:00Z":
             raise DatasetHandoffError("dataset handoff candle boundary mismatch")
@@ -248,6 +290,14 @@ def _handoff_payload(manifest: DatasetHandoffManifest) -> dict[str, object]:
         "end_exclusive": manifest.end_exclusive,
         "run_id": manifest.run_id,
         "dataset_id": manifest.dataset_id,
+        "dataset_schema_version": manifest.dataset_schema_version,
+        "closure_manifest_path": manifest.closure_manifest_path,
+        "closure_manifest_sha256": manifest.closure_manifest_sha256,
+        "segment_manifest_path": manifest.segment_manifest_path,
+        "segment_manifest_sha256": manifest.segment_manifest_sha256,
+        "closure_count": manifest.closure_count,
+        "segment_count": manifest.segment_count,
+        "closure_ids": list(manifest.closure_ids),
         "candle_count": manifest.candle_count,
         "first_open_time": manifest.first_open_time,
         "last_open_time": manifest.last_open_time,
@@ -295,6 +345,16 @@ def _int(mapping: dict[str, object], key: str) -> int:
     return value
 
 
+def _strings(mapping: dict[str, object], key: str) -> tuple[str, ...]:
+    value = mapping.get(key)
+    if not isinstance(value, list):
+        raise DatasetHandoffError(f"invalid dataset handoff field: {key}")
+    raw_values = cast(list[object], value)
+    if not all(isinstance(item, str) for item in raw_values):
+        raise DatasetHandoffError(f"invalid dataset handoff field: {key}")
+    return tuple(cast(list[str], raw_values))
+
+
 def load_dataset_handoff(raw: bytes) -> DatasetHandoffManifest:
     """Parse exact canonical handoff bytes and reject alternate encodings or fields."""
 
@@ -335,6 +395,14 @@ def load_dataset_handoff(raw: bytes) -> DatasetHandoffManifest:
         end_exclusive=_str(mapping, "end_exclusive"),
         run_id=_str(mapping, "run_id"),
         dataset_id=_str(mapping, "dataset_id"),
+        dataset_schema_version=_str(mapping, "dataset_schema_version"),
+        closure_manifest_path=_str(mapping, "closure_manifest_path"),
+        closure_manifest_sha256=_str(mapping, "closure_manifest_sha256"),
+        segment_manifest_path=_str(mapping, "segment_manifest_path"),
+        segment_manifest_sha256=_str(mapping, "segment_manifest_sha256"),
+        closure_count=_int(mapping, "closure_count"),
+        segment_count=_int(mapping, "segment_count"),
+        closure_ids=_strings(mapping, "closure_ids"),
         candle_count=_int(mapping, "candle_count"),
         first_open_time=_str(mapping, "first_open_time"),
         last_open_time=_str(mapping, "last_open_time"),
@@ -364,6 +432,28 @@ def verify_dataset_handoff(
         raise DatasetHandoffError("dataset identity mismatch")
     if expected_run_id is not None and manifest.workflow_run_id != expected_run_id:
         raise DatasetHandoffError("source workflow run mismatch")
+    try:
+        closure_path = Path(artifact_root) / manifest.closure_manifest_path
+        segment_path = Path(artifact_root) / manifest.segment_manifest_path
+        closure_bytes = closure_path.read_bytes()
+        segment_bytes = segment_path.read_bytes()
+        if hashlib.sha256(closure_bytes).hexdigest() != manifest.closure_manifest_sha256:
+            raise DatasetHandoffError("closure manifest hash mismatch")
+        if hashlib.sha256(segment_bytes).hexdigest() != manifest.segment_manifest_sha256:
+            raise DatasetHandoffError("segment manifest hash mismatch")
+        closure_manifest = load_exchange_closure_manifest(closure_bytes)
+        segment_manifest = load_candle_segment_manifest(segment_bytes)
+        closure_ids = tuple(item.closure_id for item in closure_manifest.closures)
+        if closure_ids != manifest.closure_ids:
+            raise DatasetHandoffError("closure ID mismatch")
+        if len(closure_manifest.closures) != manifest.closure_count:
+            raise DatasetHandoffError("closure count mismatch")
+        if len(segment_manifest.segments) != manifest.segment_count:
+            raise DatasetHandoffError("segment count mismatch")
+    except DatasetHandoffError:
+        raise
+    except Exception:
+        raise DatasetHandoffError("unable to verify dataset supporting evidence") from None
     try:
         rebuilt = build_artifact_inventory(
             artifact_root,

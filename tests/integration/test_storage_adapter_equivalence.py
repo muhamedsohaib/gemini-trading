@@ -86,6 +86,18 @@ class CapturingCanonicalStore:
         directory = self._root / "capturing-adapter" / dataset_id
         return directory / "candles.jsonl", directory / "dataset-manifest.json"
 
+    def write_dataset_supporting_manifests(
+        self,
+        dataset_id: str,
+        closure_raw: bytes,
+        segment_raw: bytes,
+    ) -> tuple[Path, Path]:
+        directory = self._root / "capturing-adapter" / dataset_id
+        return directory / "exchange-closures.json", directory / "candle-segments.json"
+
+    def read_dataset_supporting_manifests(self, dataset_id: str) -> tuple[bytes, bytes]:
+        raise FileNotFoundError(dataset_id)
+
     def write_provenance(
         self,
         dataset_id: str,

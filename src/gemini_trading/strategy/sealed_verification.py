@@ -82,6 +82,24 @@ def verify_sealed_evidence_chain(
         raise StudyVerificationError("sealed dataset handoff verification failed") from None
     if handoff.inventory_root_sha256 != manifest.dataset_handoff_inventory_root:
         raise StudyVerificationError("sealed dataset handoff inventory root mismatch")
+    if (
+        manifest.dataset_schema_version != handoff.dataset_schema_version
+        or manifest.closure_manifest_sha256 != handoff.closure_manifest_sha256
+        or manifest.segment_manifest_sha256 != handoff.segment_manifest_sha256
+        or manifest.closure_count != handoff.closure_count
+        or manifest.segment_count != handoff.segment_count
+        or manifest.closure_ids != handoff.closure_ids
+    ):
+        raise StudyVerificationError("sealed closure and segment identity mismatch")
+
+    pre_final_boundaries = pre_final_manifest.get("segment_boundary_indices")
+    if not isinstance(pre_final_boundaries, list):
+        raise StudyVerificationError("sealed segment boundary identity mismatch")
+    boundary_values = cast(list[object], pre_final_boundaries)
+    if not all(isinstance(item, int) and not isinstance(item, bool) for item in boundary_values):
+        raise StudyVerificationError("sealed segment boundary identity mismatch")
+    if tuple(cast(list[int], boundary_values)) != manifest.segment_boundary_indices:
+        raise StudyVerificationError("sealed segment boundary identity mismatch")
 
     try:
         verify_pre_final_artifacts(
@@ -134,6 +152,7 @@ def verify_sealed_evidence_chain(
         "exact_resume_policy_verified",
         "pre_final_identity_verified",
         "single_final_access_verified",
+        "closure_segment_identity_verified",
     )
 
 

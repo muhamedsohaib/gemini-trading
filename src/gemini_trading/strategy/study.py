@@ -91,6 +91,7 @@ def split_plan_payload(plan: ChronologicalSplitPlan) -> dict[str, object]:
         "final_test_indices": list(plan.final_test_indices),
         "folds": [_fold_payload(fold) for fold in plan.folds],
         "boundary_indices": list(plan.boundary_indices),
+        "segment_boundary_indices": list(plan.segment_boundary_indices),
         "used_label_indices": list(plan.used_label_indices),
         "purge_candles": plan.purge_candles,
         "embargo_candles": plan.embargo_candles,

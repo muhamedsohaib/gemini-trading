@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from decimal import ROUND_HALF_EVEN, Context, Decimal, localcontext
 
+from gemini_trading.data.segments import CandleSegmentManifest, segment_number_for_index
 from gemini_trading.domain.candle import Candle
 from gemini_trading.domain.experiment import LimitFillPolicy, TimingPolicy
 from gemini_trading.domain.order import OrderSide
@@ -142,6 +143,7 @@ class LabelPolicy:
         candles: tuple[Candle, ...],
         *,
         eligible_indices: tuple[int, ...],
+        segments: CandleSegmentManifest | None = None,
     ) -> LabelVector:
         """Build labels whose complete future outcome is available locally."""
 
@@ -159,6 +161,18 @@ class LabelPolicy:
                 exit_index = entry_index + self.horizon_candles
                 if exit_index >= len(candles):
                     continue
+                if segments is not None:
+                    if (
+                        segments.segments[0].start_index != 0
+                        or len(candles) > segments.segments[-1].end_exclusive
+                    ):
+                        raise ValueError("label segment evidence does not cover candles")
+                    segment_number = segment_number_for_index(segments, decision_index)
+                    if (
+                        segment_number_for_index(segments, entry_index) != segment_number
+                        or segment_number_for_index(segments, exit_index) != segment_number
+                    ):
+                        continue
                 observations.append(
                     self._observation(
                         decision_index=decision_index,

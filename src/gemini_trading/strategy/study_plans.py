@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import replace
 from decimal import Decimal
 
+from gemini_trading.data.segments import CandleSegmentManifest
 from gemini_trading.domain.candle import Candle
 from gemini_trading.research.config import SimulationConfig
 from gemini_trading.research.dataset_reader import VerifiedDataset
@@ -34,11 +35,14 @@ def build_split_plan(
     candles: tuple[Candle, ...],
     eligible_indices: tuple[int, ...],
     policy: CandidatePolicy,
+    segment_manifest: CandleSegmentManifest | None = None,
 ) -> tuple[ChronologicalSplitPlan, bool]:
     """Build the locked plan, falling back only to non-promotable diagnostic history."""
 
     try:
-        return ChronologicalSplitPlan.build(candles, eligible_indices, policy), True
+        return ChronologicalSplitPlan.build(
+            candles, eligible_indices, policy, segment_manifest
+        ), True
     except InsufficientHistoryError:
         diagnostic_policy = replace(
             policy,
@@ -55,6 +59,7 @@ def build_split_plan(
                 candles,
                 eligible_indices,
                 diagnostic_policy,
+                segment_manifest,
             ), False
         except InsufficientHistoryError:
             raise StudyArtifactError(

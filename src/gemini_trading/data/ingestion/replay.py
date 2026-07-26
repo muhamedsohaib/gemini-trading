@@ -15,8 +15,16 @@ from gemini_trading.data.datasets.canonical_writer import (
     serialize_provenance,
 )
 from gemini_trading.data.errors import MarketDataError
+from gemini_trading.data.exchange_closures import (
+    ExchangeClosureManifest,
+    load_exchange_closure_manifest,
+)
 from gemini_trading.data.ingestion.service import IngestionResult
 from gemini_trading.data.normalization.binance_klines import normalize_binance_klines
+from gemini_trading.data.segments import (
+    serialize_candle_segment_manifest,
+    validate_and_segment_candle_sequence,
+)
 from gemini_trading.data.storage.local_immutable import serialize_retrieval_manifest
 from gemini_trading.data.validation.candles import completed_candles, validate_candle_sequence
 from gemini_trading.domain.candle import Candle
@@ -28,7 +36,9 @@ from gemini_trading.domain.dataset import (
 )
 
 _RETRIEVAL_SCHEMA_VERSION = "retrieval-manifest-v1"
+_RETRIEVAL_SCHEMA_VERSION_V2 = "retrieval-manifest-v2"
 _DATASET_SCHEMA_VERSION = "candle-dataset-v1"
+_DATASET_SCHEMA_VERSION_V2 = "candle-dataset-v2"
 _PROVENANCE_SCHEMA_VERSION = "dataset-provenance-v1"
 _PROVIDER = "binance_spot"
 _EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
@@ -45,6 +55,8 @@ class ReplayRawStore(Protocol):
 
     def read_retrieval_manifest_bytes(self, run_id: str) -> bytes: ...
 
+    def read_run_closure_manifest_bytes(self, run_id: str) -> bytes: ...
+
 
 class ReplayCanonicalStore(Protocol):
     """Canonical publication operations required by offline replay."""
@@ -54,6 +66,13 @@ class ReplayCanonicalStore(Protocol):
         dataset_id: str,
         jsonl_bytes: bytes,
         manifest_bytes: bytes,
+    ) -> tuple[Path, Path]: ...
+
+    def write_dataset_supporting_manifests(
+        self,
+        dataset_id: str,
+        closure_raw: bytes,
+        segment_raw: bytes,
     ) -> tuple[Path, Path]: ...
 
     def write_provenance(
@@ -119,7 +138,10 @@ def load_verified_run(
 
     if manifest.run_id != run_id:
         raise MarketDataError("retrieval manifest run identity mismatch")
-    if manifest.schema_version != _RETRIEVAL_SCHEMA_VERSION:
+    if manifest.schema_version not in {
+        _RETRIEVAL_SCHEMA_VERSION,
+        _RETRIEVAL_SCHEMA_VERSION_V2,
+    }:
         raise MarketDataError("unsupported retrieval manifest schema")
     if manifest.provider != _PROVIDER:
         raise MarketDataError("unsupported retrieval provider")
@@ -152,6 +174,7 @@ def load_verified_run(
 def reconstruct_completed_candles(
     manifest: RetrievalManifest,
     pages: tuple[RawPage, ...],
+    closure_manifest: ExchangeClosureManifest | None = None,
 ) -> tuple[Candle, ...]:
     if manifest.server_time_snapshot is None:
         raise MarketDataError("completed retrieval manifest lacks server time")
@@ -176,8 +199,10 @@ def reconstruct_completed_candles(
         )
         if not normalized:
             raise MarketDataError("raw evidence contains an empty non-terminal page")
-        if normalized[0].open_time != cursor:
+        if index == 0 and normalized[0].open_time != cursor:
             raise MarketDataError("raw evidence does not begin at the requested cursor")
+        if index > 0 and normalized[0].open_time < cursor:
+            raise MarketDataError("raw evidence page begins before the requested cursor")
 
         next_cursor = normalized[-1].open_time + manifest.timeframe.duration
         if next_cursor <= cursor:
@@ -201,7 +226,10 @@ def reconstruct_completed_candles(
         start_time=manifest.start_time,
         end_time=manifest.end_time,
     )
-    validate_candle_sequence(candles, request)
+    if closure_manifest is None:
+        validate_candle_sequence(candles, request)
+    else:
+        validate_and_segment_candle_sequence(candles, request, closure_manifest)
     return candles
 
 
@@ -217,10 +245,42 @@ class ReplayService:
         """Verify immutable raw evidence and reproduce canonical output offline."""
 
         manifest, pages, manifest_bytes = load_verified_run(self.raw_store, run_id)
-        candles = reconstruct_completed_candles(manifest, pages)
+        closure_manifest: ExchangeClosureManifest | None = None
+        closure_bytes: bytes | None = None
+        segment_bytes: bytes | None = None
+        segment_count = 1
+        if manifest.schema_version == _RETRIEVAL_SCHEMA_VERSION_V2:
+            try:
+                closure_bytes = self.raw_store.read_run_closure_manifest_bytes(run_id)
+                closure_manifest = load_exchange_closure_manifest(closure_bytes)
+            except Exception:
+                raise MarketDataError("replay failed to read closure evidence") from None
+            if hashlib.sha256(closure_bytes).hexdigest() != manifest.closure_manifest_sha256:
+                raise MarketDataError("run closure manifest hash mismatch")
+
+        candles = reconstruct_completed_candles(manifest, pages, closure_manifest)
+        if closure_manifest is not None:
+            request = RetrievalRequest(
+                instrument=manifest.instrument,
+                timeframe=manifest.timeframe,
+                start_time=manifest.start_time,
+                end_time=manifest.end_time,
+            )
+            segment_manifest = validate_and_segment_candle_sequence(
+                candles,
+                request,
+                closure_manifest,
+            )
+            segment_bytes = serialize_candle_segment_manifest(segment_manifest)
+            segment_count = len(segment_manifest.segments)
+
         canonical_bytes = serialize_candles(candles)
         dataset_manifest = build_dataset_manifest(
-            schema_version=_DATASET_SCHEMA_VERSION,
+            schema_version=(
+                _DATASET_SCHEMA_VERSION_V2
+                if closure_manifest is not None
+                else _DATASET_SCHEMA_VERSION
+            ),
             provider=manifest.provider,
             instrument=manifest.instrument,
             timeframe=manifest.timeframe,
@@ -228,6 +288,10 @@ class ReplayService:
             end_time=manifest.end_time,
             candles=candles,
             canonical_bytes=canonical_bytes,
+            closure_manifest_bytes=closure_bytes,
+            segment_manifest_bytes=segment_bytes,
+            closure_count=(0 if closure_manifest is None else len(closure_manifest.closures)),
+            segment_count=segment_count,
         )
         dataset_manifest_bytes = serialize_dataset_manifest(dataset_manifest)
         candle_path, dataset_manifest_path = self.canonical_store.write_dataset(
@@ -235,6 +299,17 @@ class ReplayService:
             canonical_bytes,
             dataset_manifest_bytes,
         )
+        supporting_paths: tuple[tuple[str, Path], ...] = ()
+        if closure_bytes is not None and segment_bytes is not None:
+            closure_path, segment_path = self.canonical_store.write_dataset_supporting_manifests(
+                dataset_manifest.dataset_id,
+                closure_bytes,
+                segment_bytes,
+            )
+            supporting_paths = (
+                ("canonical_closure_manifest", closure_path),
+                ("segment_manifest", segment_path),
+            )
         provenance = build_provenance(
             schema_version=_PROVENANCE_SCHEMA_VERSION,
             dataset_id=dataset_manifest.dataset_id,
@@ -257,6 +332,7 @@ class ReplayService:
             paths=(
                 ("canonical_jsonl", candle_path),
                 ("dataset_manifest", dataset_manifest_path),
+                *supporting_paths,
                 ("provenance", provenance_path),
             ),
         )

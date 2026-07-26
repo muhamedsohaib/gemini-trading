@@ -41,6 +41,15 @@ jobs:
           if-no-files-found: error
           retention-days: 1
           compression-level: 6
+      - name: Export Python 3.12 runtime
+        uses: actions/upload-artifact@v4
+        with:
+          name: inline-python-runtime-${{ github.sha }}
+          path: /opt/hostedtoolcache/Python/3.12.13/x64/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 6
       - run: uv run ruff format --check .
       - run: uv run ruff check .
       - run: uv run pyright

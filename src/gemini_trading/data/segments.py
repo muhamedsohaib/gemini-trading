@@ -7,15 +7,14 @@ import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import cast
+from typing import Never, cast
 
 from gemini_trading.data.errors import CandleGapError, CandleValidationError
 from gemini_trading.data.exchange_closures import ExchangeClosureManifest
 from gemini_trading.data.validation.candles import validate_candle_sequence_structure
 from gemini_trading.domain.candle import Candle
 from gemini_trading.domain.dataset import RetrievalRequest
-from gemini_trading.domain.time import require_utc
-from gemini_trading.research.serialization import canonical_json_bytes
+from gemini_trading.domain.timeframe import Timeframe
 
 _SCHEMA_VERSION = "candle-segment-manifest-v1"
 _ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]{0,127}$")
@@ -31,54 +30,52 @@ _SEGMENT_FIELDS = {
 }
 
 
-def _format_utc(value: datetime) -> str:
-    require_utc(value, "timestamp")
-    return value.astimezone(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
+def _fail(message: str) -> Never:
+    raise CandleValidationError(message)
 
 
 def _mapping(value: object, description: str) -> dict[str, object]:
     if not isinstance(value, dict):
-        raise CandleValidationError(f"{description} must be a JSON object")
+        _fail(f"candle segment {description} must be an object")
     raw = cast(dict[object, object], value)
     if not all(isinstance(key, str) for key in raw):
-        raise CandleValidationError(f"{description} keys must be strings")
+        _fail(f"candle segment {description} fields are invalid")
     return cast(dict[str, object], raw)
 
 
-def _exact_fields(
-    mapping: dict[str, object],
-    expected: set[str],
-    description: str,
-) -> None:
+def _exact_fields(mapping: dict[str, object], expected: set[str], description: str) -> None:
     if set(mapping) != expected:
-        raise CandleValidationError(f"invalid {description} fields")
+        _fail(f"candle segment {description} fields are invalid")
 
 
-def _string(mapping: dict[str, object], key: str, description: str) -> str:
+def _string(mapping: dict[str, object], key: str) -> str:
     value = mapping.get(key)
     if not isinstance(value, str) or not value:
-        raise CandleValidationError(f"invalid {description} field: {key}")
+        _fail(f"candle segment field is invalid: {key}")
     return value
 
 
-def _integer(mapping: dict[str, object], key: str, description: str) -> int:
+def _integer(mapping: dict[str, object], key: str) -> int:
     value = mapping.get(key)
     if isinstance(value, bool) or not isinstance(value, int):
-        raise CandleValidationError(f"invalid {description} field: {key}")
+        _fail(f"candle segment field is invalid: {key}")
     return value
 
 
 def _utc(value: str, field_name: str) -> datetime:
     if not value.endswith("Z"):
-        raise CandleValidationError(f"candle segment {field_name} must be UTC")
+        _fail(f"candle segment {field_name} must be UTC")
     try:
         parsed = datetime.fromisoformat(f"{value[:-1]}+00:00")
-        require_utc(parsed, field_name)
     except ValueError:
-        raise CandleValidationError(
-            f"candle segment {field_name} must be valid UTC"
-        ) from None
+        _fail(f"candle segment {field_name} must be valid UTC")
+    if parsed.utcoffset() != UTC.utcoffset(parsed):
+        _fail(f"candle segment {field_name} must be UTC")
     return parsed.astimezone(UTC)
+
+
+def _format_datetime(value: datetime) -> str:
+    return value.astimezone(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,22 +92,26 @@ class CandleSegment:
 
     def __post_init__(self) -> None:
         if isinstance(self.segment_number, bool) or self.segment_number < 1:
-            raise CandleValidationError("candle segment number must be positive")
+            _fail("candle segment number must be positive")
         if isinstance(self.start_index, bool) or self.start_index < 0:
-            raise CandleValidationError("candle segment start index must be non-negative")
+            _fail("candle segment start index must be non-negative")
         if isinstance(self.end_exclusive, bool) or self.end_exclusive <= self.start_index:
-            raise CandleValidationError("candle segment index window is empty")
+            _fail("candle segment index window must be non-empty")
         if isinstance(self.candle_count, bool) or self.candle_count < 1:
-            raise CandleValidationError("candle segment count must be positive")
+            _fail("candle segment count must be positive")
         if self.candle_count != self.end_exclusive - self.start_index:
-            raise CandleValidationError("candle segment count does not match index window")
-        require_utc(self.first_open_time, "first_open_time")
-        require_utc(self.last_open_time, "last_open_time")
+            _fail("candle segment count does not match its index window")
+        if self.first_open_time.tzinfo is None or self.first_open_time.utcoffset() is None:
+            _fail("candle segment first_open_time must be UTC")
+        if self.last_open_time.tzinfo is None or self.last_open_time.utcoffset() is None:
+            _fail("candle segment last_open_time must be UTC")
         if self.last_open_time < self.first_open_time:
-            raise CandleValidationError("candle segment timestamps are reversed")
-        if self.preceding_closure_id is not None:
-            if _ID_PATTERN.fullmatch(self.preceding_closure_id) is None:
-                raise CandleValidationError("invalid preceding exchange closure ID")
+            _fail("candle segment timestamps are reversed")
+        if (
+            self.preceding_closure_id is not None
+            and _ID_PATTERN.fullmatch(self.preceding_closure_id) is None
+        ):
+            _fail("invalid preceding exchange closure ID")
 
 
 @dataclass(frozen=True, slots=True)
@@ -122,32 +123,32 @@ class CandleSegmentManifest:
 
     def __post_init__(self) -> None:
         if self.schema_version != _SCHEMA_VERSION:
-            raise CandleValidationError("unsupported candle segment manifest schema")
+            _fail("unsupported candle segment manifest schema")
         if not self.segments:
-            raise CandleValidationError("candle segment manifest must not be empty")
+            _fail("candle segment manifest must not be empty")
         expected_numbers = tuple(range(1, len(self.segments) + 1))
         actual_numbers = tuple(segment.segment_number for segment in self.segments)
         if actual_numbers != expected_numbers:
-            raise CandleValidationError("candle segment numbers must be consecutive")
+            _fail("candle segment numbers must be consecutive")
         if self.segments[0].start_index != 0:
-            raise CandleValidationError("first candle segment must start at index zero")
+            _fail("first candle segment must start at index zero")
         if self.segments[0].preceding_closure_id is not None:
-            raise CandleValidationError("first candle segment cannot follow a closure")
+            _fail("first candle segment cannot follow a closure")
 
         preceding_ids: list[str] = []
         previous: CandleSegment | None = None
         for segment in self.segments:
             if previous is not None:
                 if segment.start_index != previous.end_exclusive:
-                    raise CandleValidationError("candle segment index coverage is not contiguous")
+                    _fail("candle segment index coverage is not contiguous")
                 if segment.first_open_time <= previous.last_open_time:
-                    raise CandleValidationError("candle segment timestamps are not ordered")
+                    _fail("candle segment timestamps are not ordered")
                 if segment.preceding_closure_id is None:
-                    raise CandleValidationError("resumed candle segment lacks closure identity")
+                    _fail("resumed candle segment lacks closure identity")
                 preceding_ids.append(segment.preceding_closure_id)
             previous = segment
         if len(preceding_ids) != len(set(preceding_ids)):
-            raise CandleValidationError("duplicate preceding exchange closure ID")
+            _fail("duplicate preceding exchange closure ID")
 
     @property
     def boundary_indices(self) -> tuple[int, ...]:
@@ -161,8 +162,8 @@ def _segment_payload(segment: CandleSegment) -> dict[str, object]:
         "segment_number": segment.segment_number,
         "start_index": segment.start_index,
         "end_exclusive": segment.end_exclusive,
-        "first_open_time": _format_utc(segment.first_open_time),
-        "last_open_time": _format_utc(segment.last_open_time),
+        "first_open_time": _format_datetime(segment.first_open_time),
+        "last_open_time": _format_datetime(segment.last_open_time),
         "candle_count": segment.candle_count,
         "preceding_closure_id": segment.preceding_closure_id,
     }
@@ -171,12 +172,12 @@ def _segment_payload(segment: CandleSegment) -> dict[str, object]:
 def serialize_candle_segment_manifest(manifest: CandleSegmentManifest) -> bytes:
     """Serialize deterministic candle segment evidence."""
 
-    return canonical_json_bytes(
-        {
-            "schema_version": manifest.schema_version,
-            "segments": [_segment_payload(segment) for segment in manifest.segments],
-        }
-    )
+    payload: dict[str, object] = {
+        "schema_version": manifest.schema_version,
+        "segments": [_segment_payload(segment) for segment in manifest.segments],
+    }
+    serialized = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    return f"{serialized}\n".encode()
 
 
 def load_candle_segment_manifest(raw: bytes) -> CandleSegmentManifest:
@@ -185,58 +186,42 @@ def load_candle_segment_manifest(raw: bytes) -> CandleSegmentManifest:
     try:
         loaded: object = json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError):
-        raise CandleValidationError("invalid candle segment manifest JSON") from None
-    mapping = _mapping(loaded, "candle segment manifest")
-    _exact_fields(mapping, _MANIFEST_FIELDS, "candle segment manifest")
+        _fail("candle segment manifest is not valid JSON")
+    mapping = _mapping(loaded, "manifest")
+    _exact_fields(mapping, _MANIFEST_FIELDS, "manifest")
     raw_segments = mapping.get("segments")
     if not isinstance(raw_segments, list):
-        raise CandleValidationError("invalid candle segment manifest field: segments")
+        _fail("candle segment manifest segments field is invalid")
 
     segments: list[CandleSegment] = []
     for raw_segment in cast(list[object], raw_segments):
-        segment_mapping = _mapping(raw_segment, "candle segment")
-        _exact_fields(segment_mapping, _SEGMENT_FIELDS, "candle segment")
-        preceding_raw = segment_mapping.get("preceding_closure_id")
-        if preceding_raw is not None and not isinstance(preceding_raw, str):
-            raise CandleValidationError(
-                "invalid candle segment field: preceding_closure_id"
-            )
+        segment_mapping = _mapping(raw_segment, "entry")
+        _exact_fields(segment_mapping, _SEGMENT_FIELDS, "entry")
+        preceding_closure_id = segment_mapping.get("preceding_closure_id")
+        if preceding_closure_id is not None and not isinstance(preceding_closure_id, str):
+            _fail("candle segment preceding_closure_id field is invalid")
         segments.append(
             CandleSegment(
-                segment_number=_integer(
-                    segment_mapping,
-                    "segment_number",
-                    "segment",
-                ),
-                start_index=_integer(segment_mapping, "start_index", "segment"),
-                end_exclusive=_integer(
-                    segment_mapping,
-                    "end_exclusive",
-                    "segment",
-                ),
+                segment_number=_integer(segment_mapping, "segment_number"),
+                start_index=_integer(segment_mapping, "start_index"),
+                end_exclusive=_integer(segment_mapping, "end_exclusive"),
                 first_open_time=_utc(
-                    _string(segment_mapping, "first_open_time", "segment"),
-                    "first_open_time",
+                    _string(segment_mapping, "first_open_time"), "first_open_time"
                 ),
                 last_open_time=_utc(
-                    _string(segment_mapping, "last_open_time", "segment"),
-                    "last_open_time",
+                    _string(segment_mapping, "last_open_time"), "last_open_time"
                 ),
-                candle_count=_integer(
-                    segment_mapping,
-                    "candle_count",
-                    "segment",
-                ),
-                preceding_closure_id=preceding_raw,
+                candle_count=_integer(segment_mapping, "candle_count"),
+                preceding_closure_id=preceding_closure_id,
             )
         )
 
     manifest = CandleSegmentManifest(
-        schema_version=_string(mapping, "schema_version", "manifest"),
+        schema_version=_string(mapping, "schema_version"),
         segments=tuple(segments),
     )
     if serialize_candle_segment_manifest(manifest) != raw:
-        raise CandleValidationError("candle segment manifest encoding is not canonical")
+        _fail("candle segment manifest encoding is not canonical")
     return manifest
 
 
@@ -259,6 +244,27 @@ def _build_segment(
     )
 
 
+def _validate_manifest_scope(
+    manifest: ExchangeClosureManifest,
+    request: RetrievalRequest,
+) -> None:
+    if (
+        manifest.instrument != request.instrument
+        or manifest.timeframe != request.timeframe
+        or manifest.start_time != request.start_time
+        or manifest.end_time != request.end_time
+    ):
+        _fail("exchange closure manifest does not match retrieval request")
+
+
+def _validate_candle_boundaries(candles: tuple[Candle, ...], timeframe: Timeframe) -> None:
+    expected_close_delta = timeframe.duration - timedelta(milliseconds=1)
+    if any(
+        candle.close_time - candle.open_time != expected_close_delta for candle in candles
+    ):
+        _fail("candle boundaries do not match timeframe")
+
+
 def validate_and_segment_candle_sequence(
     candles: Sequence[Candle],
     request: RetrievalRequest,
@@ -268,21 +274,8 @@ def validate_and_segment_candle_sequence(
 
     validate_candle_sequence_structure(candles, request)
     candle_values = tuple(candles)
-    if (
-        closure_manifest.instrument != request.instrument
-        or closure_manifest.timeframe != request.timeframe
-        or closure_manifest.start_time != request.start_time
-        or closure_manifest.end_time != request.end_time
-    ):
-        raise CandleValidationError(
-            "exchange closure manifest does not match retrieval request"
-        )
-
-    duration = request.timeframe.duration
-    expected_close_delta = duration - timedelta(milliseconds=1)
-    for candle in candle_values:
-        if candle.close_time - candle.open_time != expected_close_delta:
-            raise CandleValidationError("candle boundaries do not match timeframe")
+    _validate_manifest_scope(closure_manifest, request)
+    _validate_candle_boundaries(candle_values, request.timeframe)
 
     closures_by_bounds = {
         (closure.missing_start, closure.resumed_open): closure
@@ -293,10 +286,10 @@ def validate_and_segment_candle_sequence(
     segments: list[CandleSegment] = []
     segment_start = 0
     preceding_closure_id: str | None = None
-
     previous = candle_values[0]
+
     for index, current in enumerate(candle_values[1:], start=1):
-        expected_open = previous.open_time + duration
+        expected_open = previous.open_time + request.timeframe.duration
         if current.open_time != expected_open:
             closure = closures_by_bounds.get((expected_open, current.open_time))
             if closure is None:
@@ -307,9 +300,7 @@ def validate_and_segment_candle_sequence(
                     f"actual_open_time={current.open_time.isoformat()}"
                 )
             if closure.closure_id in used_ids:
-                raise CandleValidationError(
-                    "exchange closure declaration was observed more than once"
-                )
+                _fail("exchange closure declaration was observed more than once")
             segments.append(
                 _build_segment(
                     candle_values,
@@ -326,9 +317,8 @@ def validate_and_segment_candle_sequence(
 
     unused_ids = tuple(sorted(declared_ids - used_ids))
     if unused_ids:
-        raise CandleValidationError(
-            "exchange closure manifest contains unused declarations: "
-            + ",".join(unused_ids)
+        _fail(
+            "exchange closure manifest contains unused declarations: " + ",".join(unused_ids)
         )
     segments.append(
         _build_segment(
@@ -339,24 +329,18 @@ def validate_and_segment_candle_sequence(
             preceding_closure_id=preceding_closure_id,
         )
     )
-    return CandleSegmentManifest(
-        schema_version=_SCHEMA_VERSION,
-        segments=tuple(segments),
-    )
+    return CandleSegmentManifest(schema_version=_SCHEMA_VERSION, segments=tuple(segments))
 
 
-def segment_number_for_index(
-    manifest: CandleSegmentManifest,
-    index: int,
-) -> int:
+def segment_number_for_index(manifest: CandleSegmentManifest, index: int) -> int:
     """Return the one-based segment number containing a global candle index."""
 
     if isinstance(index, bool) or index < 0:
-        raise CandleValidationError("candle index must be a non-negative integer")
+        _fail("candle index must be a non-negative integer")
     for segment in manifest.segments:
         if segment.start_index <= index < segment.end_exclusive:
             return segment.segment_number
-    raise CandleValidationError("candle index is outside segment evidence")
+    _fail("candle index is outside segment evidence")
 
 
 __all__ = [

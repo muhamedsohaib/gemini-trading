@@ -68,10 +68,8 @@ def _verified_dataset(root: Path) -> VerifiedDataset:
     )
     canonical_bytes = serialize_candles(candles)
     boundary = 1
-    synthetic_gap_start = candles[0].open_time + candles[0].timeframe.duration
-    synthetic_expected_close = (
-        synthetic_gap_start + candles[0].timeframe.duration - timedelta(milliseconds=1)
-    )
+    synthetic_gap_start = candles[0].open_time
+    synthetic_expected_close = candles[0].close_time
     closure_manifest = ExchangeClosureManifest(
         schema_version="exchange-closure-manifest-v2",
         provider="binance_spot",
@@ -84,9 +82,9 @@ def _verified_dataset(root: Path) -> VerifiedDataset:
                 closure_id=_CLOSURE_ID,
                 canonical_gap_start=synthetic_gap_start,
                 resumed_open=candles[boundary].open_time,
-                unavailable_candle_count=7,
+                unavailable_candle_count=8,
                 fully_missing_start=synthetic_gap_start + candles[0].timeframe.duration,
-                fully_missing_candle_count=6,
+                fully_missing_candle_count=7,
                 reason_code="exchange_system_upgrade",
                 governance_reference="synthetic-sealed-test",
                 partial_candle=PartialCandleDeclaration(

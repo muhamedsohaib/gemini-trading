@@ -10,7 +10,7 @@ permissions:
 jobs:
   pytest:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6.0.2
         with:
@@ -23,11 +23,13 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync --all-groups --frozen
-      - name: Capture full pytest failure summary
+      - name: Capture sealed integration failure
         shell: bash
         run: |
           set +e
-          uv run pytest -q --tb=short > /tmp/partial-closure-final-pytest.txt 2>&1
+          uv run pytest -q --tb=short \
+            tests/integration/test_sealed_historical_validation.py \
+            > /tmp/partial-closure-final-pytest.txt 2>&1
           status=$?
           cat /tmp/partial-closure-final-pytest.txt
           echo "$status" > /tmp/partial-closure-final-pytest-status.txt

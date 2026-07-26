@@ -23,6 +23,24 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync --all-groups --frozen
+      - name: Export frozen inline workspace
+        uses: actions/upload-artifact@v4
+        with:
+          name: inline-workspace-${{ github.sha }}
+          path: |
+            .github/
+            .venv/
+            config/
+            docs/
+            src/
+            tests/
+            README.md
+            pyproject.toml
+            uv.lock
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 6
       - run: uv run ruff format --check .
       - run: uv run ruff check .
       - run: uv run pyright

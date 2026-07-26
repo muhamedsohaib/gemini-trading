@@ -5,10 +5,10 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  diagnose:
+  finalize:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -23,21 +23,18 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync --all-groups --frozen
-      - name: Diagnose Stage 2 workflow transformation
+      - name: Commit verified Stage 2 identity barrier
         shell: bash
         run: |
-          set +e
-          exec > >(tee /tmp/stage2-workflow-diagnostic.txt) 2>&1
+          set -euo pipefail
           python - <<'PY'
           from pathlib import Path
 
           study = Path(".github/workflows/sealed-btcusdt-study.yml")
           text = study.read_text()
           start_marker = '          if handoff.dataset_schema_version != "candle-dataset-v2":\n'
-          print(f"start_marker_count={text.count(start_marker)}")
           start = text.index(start_marker)
           end = text.index("          PY\n", start)
-          print(f"start={start} end={end}")
           replacement = "\n".join(
               (
                   '          if handoff.dataset_schema_version != "candle-dataset-v3":',
@@ -56,16 +53,11 @@ jobs:
           ) + "\n"
           study.write_text(text[:start] + replacement + text[end:])
           PY
-          echo "TRANSFORM_STATUS=$?"
           uv run pytest -q tests/acceptance/test_sealed_historical_validation_workflows.py
-          echo "PYTEST_STATUS=$?"
           git diff --check
-          echo "DIFF_CHECK_STATUS=$?"
-          git diff -- .github/workflows/sealed-btcusdt-study.yml
-          exit 0
-      - uses: actions/upload-artifact@v4
-        with:
-          name: stage2-workflow-diagnostic-${{ github.sha }}
-          path: /tmp/stage2-workflow-diagnostic.txt
-          if-no-files-found: error
-          retention-days: 1
+          git rm .github/workflows/partial-closure-workflow-finalize.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/workflows/sealed-btcusdt-study.yml
+          git commit -m "ci: require exact sealed dataset v3 identity"
+          git push origin "HEAD:${{ github.head_ref }}"

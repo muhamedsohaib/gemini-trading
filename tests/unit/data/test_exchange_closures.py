@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -17,9 +18,16 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 def _fixed_mapping() -> dict[str, object]:
     path = PROJECT_ROOT / "config/market-data/sealed-btcusdt-4h-exchange-closures.json"
-    loaded = json.loads(path.read_text(encoding="utf-8"))
+    loaded: object = json.loads(path.read_text(encoding="utf-8"))
     assert isinstance(loaded, dict)
-    return loaded
+    return cast(dict[str, object], loaded)
+
+
+def _closures(mapping: dict[str, object]) -> list[dict[str, object]]:
+    value = mapping["closures"]
+    assert isinstance(value, list)
+    assert all(isinstance(item, dict) for item in value)
+    return cast(list[dict[str, object]], value)
 
 
 def _canonical(mapping: dict[str, object]) -> bytes:
@@ -28,7 +36,6 @@ def _canonical(mapping: dict[str, object]) -> bytes:
 
 def test_fixed_manifest_is_canonical_and_exact() -> None:
     manifest, raw = load_fixed_btcusdt_closure_manifest(PROJECT_ROOT)
-
     assert serialize_exchange_closure_manifest(manifest) == raw
     assert manifest.provider == "binance_spot"
     assert manifest.instrument.symbol == "BTCUSDT"
@@ -46,124 +53,115 @@ def test_fixed_manifest_is_canonical_and_exact() -> None:
 def test_manifest_rejects_extra_fields() -> None:
     mapping = _fixed_mapping()
     mapping["unexpected"] = True
-
     with pytest.raises(CandleValidationError, match="fields"):
         load_exchange_closure_manifest(_canonical(mapping))
 
 
 def test_manifest_rejects_noncanonical_whitespace() -> None:
     mapping = _fixed_mapping()
-    raw = json.dumps(mapping, indent=2).encode()
-
     with pytest.raises(CandleValidationError, match="canonical"):
-        load_exchange_closure_manifest(raw)
+        load_exchange_closure_manifest(json.dumps(mapping, indent=2).encode())
 
 
 def test_manifest_rejects_duplicate_closure_ids() -> None:
     mapping = _fixed_mapping()
-    closures = list(mapping["closures"])
-    closures.append(dict(closures[0]))
-    second = dict(closures[1])
-    second["missing_start"] = "2018-03-01T00:00:00Z"
-    second["resumed_open"] = "2018-03-01T04:00:00Z"
-    second["missing_candle_count"] = 1
-    closures[1] = second
-    mapping["closures"] = closures
-
+    closures = _closures(mapping)
+    second = dict(closures[0])
+    second.update(
+        missing_start="2018-03-01T00:00:00Z",
+        resumed_open="2018-03-01T04:00:00Z",
+        missing_candle_count=1,
+    )
+    closures.append(second)
     with pytest.raises(CandleValidationError, match="duplicate"):
         load_exchange_closure_manifest(_canonical(mapping))
 
 
 def test_manifest_rejects_unsorted_entries() -> None:
     mapping = _fixed_mapping()
-    first = dict(list(mapping["closures"])[0])
+    first = dict(_closures(mapping)[0])
     later = dict(first)
-    later["closure_id"] = "later"
-    later["missing_start"] = "2018-03-01T00:00:00Z"
-    later["resumed_open"] = "2018-03-01T04:00:00Z"
-    later["missing_candle_count"] = 1
+    later.update(
+        closure_id="later",
+        missing_start="2018-03-01T00:00:00Z",
+        resumed_open="2018-03-01T04:00:00Z",
+        missing_candle_count=1,
+    )
     mapping["closures"] = [later, first]
-
     with pytest.raises(CandleValidationError, match="ordered"):
         load_exchange_closure_manifest(_canonical(mapping))
 
 
 def test_manifest_rejects_overlapping_entries() -> None:
     mapping = _fixed_mapping()
-    first = dict(list(mapping["closures"])[0])
+    first = dict(_closures(mapping)[0])
     overlap = dict(first)
-    overlap["closure_id"] = "overlap"
-    overlap["missing_start"] = "2018-02-09T04:00:00Z"
-    overlap["resumed_open"] = "2018-02-09T12:00:00Z"
-    overlap["missing_candle_count"] = 2
+    overlap.update(
+        closure_id="overlap",
+        missing_start="2018-02-09T04:00:00Z",
+        resumed_open="2018-02-09T12:00:00Z",
+        missing_candle_count=2,
+    )
     mapping["closures"] = [first, overlap]
-
     with pytest.raises(CandleValidationError, match="overlap"):
         load_exchange_closure_manifest(_canonical(mapping))
 
 
 def test_manifest_rejects_touching_entries() -> None:
     mapping = _fixed_mapping()
-    first = dict(list(mapping["closures"])[0])
+    first = dict(_closures(mapping)[0])
     touching = dict(first)
-    touching["closure_id"] = "touching"
-    touching["missing_start"] = first["resumed_open"]
-    touching["resumed_open"] = "2018-02-09T12:00:00Z"
-    touching["missing_candle_count"] = 1
+    touching.update(
+        closure_id="touching",
+        missing_start=first["resumed_open"],
+        resumed_open="2018-02-09T12:00:00Z",
+        missing_candle_count=1,
+    )
     mapping["closures"] = [first, touching]
-
     with pytest.raises(CandleValidationError, match="overlap"):
         load_exchange_closure_manifest(_canonical(mapping))
 
 
 def test_manifest_rejects_non_utc_timestamp() -> None:
     mapping = _fixed_mapping()
-    closure = dict(list(mapping["closures"])[0])
+    closure = _closures(mapping)[0]
     closure["missing_start"] = "2018-02-08T08:00:00+04:00"
-    mapping["closures"] = [closure]
-
     with pytest.raises(CandleValidationError, match="UTC"):
         load_exchange_closure_manifest(_canonical(mapping))
 
 
 def test_manifest_rejects_timeframe_misalignment() -> None:
     mapping = _fixed_mapping()
-    closure = dict(list(mapping["closures"])[0])
+    closure = _closures(mapping)[0]
     closure["missing_start"] = "2018-02-08T05:00:00Z"
-    mapping["closures"] = [closure]
-
     with pytest.raises(CandleValidationError, match="aligned"):
         load_exchange_closure_manifest(_canonical(mapping))
 
 
 def test_manifest_rejects_wrong_missing_count() -> None:
     mapping = _fixed_mapping()
-    closure = dict(list(mapping["closures"])[0])
-    closure["missing_candle_count"] = 6
-    mapping["closures"] = [closure]
-
+    _closures(mapping)[0]["missing_candle_count"] = 6
     with pytest.raises(CandleValidationError, match="count"):
         load_exchange_closure_manifest(_canonical(mapping))
 
 
 def test_manifest_rejects_wrong_market_identity() -> None:
     mapping = _fixed_mapping()
-    instrument = dict(mapping["instrument"])
+    instrument = mapping["instrument"]
+    assert isinstance(instrument, dict)
     instrument["symbol"] = "ETHUSDT"
     instrument["base_asset"] = "ETH"
-    mapping["instrument"] = instrument
-
     with pytest.raises(CandleValidationError, match="market"):
         load_exchange_closure_manifest(_canonical(mapping))
 
 
 def test_manifest_rejects_closure_outside_request_window() -> None:
     mapping = _fixed_mapping()
-    closure = dict(list(mapping["closures"])[0])
-    closure["missing_start"] = "2017-12-31T20:00:00Z"
-    closure["resumed_open"] = "2018-01-01T00:00:00Z"
-    closure["missing_candle_count"] = 1
-    mapping["closures"] = [closure]
-
+    closure = _closures(mapping)[0]
+    closure.update(
+        missing_start="2017-12-31T20:00:00Z",
+        resumed_open="2018-01-01T00:00:00Z",
+        missing_candle_count=1,
+    )
     with pytest.raises(CandleValidationError, match="window"):
         load_exchange_closure_manifest(_canonical(mapping))

@@ -1,10 +1,15 @@
 """Unit tests for sealed historical-validation artifact handoffs."""
 
+import hashlib
 from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
+from gemini_trading.data.exclusions import (
+    load_candle_exclusion_manifest,
+    serialize_candle_exclusion_manifest,
+)
 from gemini_trading.strategy.errors import DatasetHandoffError, HistoricalValidationError
 from gemini_trading.strategy.handoff import (
     DatasetHandoffManifest,
@@ -21,10 +26,15 @@ def _manifest(root: Path, relative_paths: tuple[str, ...]) -> DatasetHandoffMani
     support = write_fixed_supporting_evidence(root)
     entries = build_artifact_inventory(
         root,
-        (*relative_paths, support.closure_manifest_path, support.segment_manifest_path),
+        (
+            *relative_paths,
+            support.closure_manifest_path,
+            support.exclusion_manifest_path,
+            support.segment_manifest_path,
+        ),
     )
     return DatasetHandoffManifest(
-        schema_version="sealed-dataset-handoff-v2",
+        schema_version="sealed-dataset-handoff-v3",
         repository="muhamedsohaib/gemini-trading",
         source_commit="a" * 40,
         workflow_name="sealed-btcusdt-dataset",
@@ -43,12 +53,17 @@ def _manifest(root: Path, relative_paths: tuple[str, ...]) -> DatasetHandoffMani
         dataset_schema_version=support.dataset_schema_version,
         closure_manifest_path=support.closure_manifest_path,
         closure_manifest_sha256=support.closure_manifest_sha256,
+        exclusion_manifest_path=support.exclusion_manifest_path,
+        exclusion_manifest_sha256=support.exclusion_manifest_sha256,
         segment_manifest_path=support.segment_manifest_path,
         segment_manifest_sha256=support.segment_manifest_sha256,
         closure_count=support.closure_count,
+        exclusion_count=support.exclusion_count,
         segment_count=support.segment_count,
         closure_ids=support.closure_ids,
-        candle_count=18_618,
+        excluded_provider_row_sha256=support.excluded_provider_row_sha256,
+        segment_boundary_indices=support.segment_boundary_indices,
+        candle_count=18_617,
         first_open_time="2018-01-01T00:00:00Z",
         last_open_time="2026-06-30T20:00:00Z",
         replay_status="completed",
@@ -146,3 +161,60 @@ def test_handoff_rejects_changed_scope(tmp_path: Path) -> None:
     (tmp_path / "data.txt").write_bytes(b"evidence\n")
     with pytest.raises(DatasetHandoffError, match="market scope"):
         replace(_manifest(tmp_path, ("data.txt",)), symbol="ETHUSDT")
+
+
+def test_handoff_rejects_tampered_exclusion_manifest(tmp_path: Path) -> None:
+    (tmp_path / "data.txt").write_bytes(b"evidence\n")
+    manifest = _manifest(tmp_path, ("data.txt",))
+    exclusion_path = tmp_path / manifest.exclusion_manifest_path
+    exclusion_path.write_bytes(
+        exclusion_path.read_bytes().replace(b'"row_index":228', b'"row_index":229')
+    )
+
+    with pytest.raises(DatasetHandoffError, match="exclusion manifest hash"):
+        verify_dataset_handoff(manifest, tmp_path)
+
+
+def test_handoff_rejects_exclusion_linked_to_different_closure(tmp_path: Path) -> None:
+    (tmp_path / "data.txt").write_bytes(b"evidence\n")
+    manifest = _manifest(tmp_path, ("data.txt",))
+    exclusion_path = tmp_path / manifest.exclusion_manifest_path
+    exclusion_manifest = load_candle_exclusion_manifest(exclusion_path.read_bytes())
+    altered_exclusion = replace(
+        exclusion_manifest.exclusions[0],
+        closure_id="different-exchange-closure",
+    )
+    altered_bytes = serialize_candle_exclusion_manifest(
+        replace(exclusion_manifest, exclusions=(altered_exclusion,))
+    )
+    exclusion_path.write_bytes(altered_bytes)
+    rebuilt_files = build_artifact_inventory(tmp_path, tuple(item.path for item in manifest.files))
+    altered_manifest = replace(
+        manifest,
+        exclusion_manifest_sha256=hashlib.sha256(altered_bytes).hexdigest(),
+        files=rebuilt_files,
+        inventory_root_sha256=inventory_root_sha256(rebuilt_files),
+    )
+
+    with pytest.raises(DatasetHandoffError, match="exclusion closure ID"):
+        verify_dataset_handoff(altered_manifest, tmp_path)
+
+
+def test_handoff_rejects_wrong_excluded_row_identity(tmp_path: Path) -> None:
+    (tmp_path / "data.txt").write_bytes(b"evidence\n")
+
+    with pytest.raises(DatasetHandoffError, match="excluded row identity"):
+        replace(
+            _manifest(tmp_path, ("data.txt",)),
+            excluded_provider_row_sha256="c" * 64,
+        )
+
+
+def test_handoff_rejects_wrong_segment_boundary_count(tmp_path: Path) -> None:
+    (tmp_path / "data.txt").write_bytes(b"evidence\n")
+
+    with pytest.raises(DatasetHandoffError, match="segment boundary count"):
+        replace(
+            _manifest(tmp_path, ("data.txt",)),
+            segment_boundary_indices=(),
+        )

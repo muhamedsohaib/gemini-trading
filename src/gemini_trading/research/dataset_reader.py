@@ -10,6 +10,7 @@ from typing import cast
 from gemini_trading.data.datasets.canonical_writer import (
     dataset_id,
     dataset_id_v2,
+    dataset_id_v3,
     serialize_candles,
     serialize_dataset_manifest,
 )
@@ -17,6 +18,10 @@ from gemini_trading.data.errors import CandleValidationError
 from gemini_trading.data.exchange_closures import (
     ExchangeClosureManifest,
     load_exchange_closure_manifest,
+)
+from gemini_trading.data.exclusions import (
+    CandleExclusionManifest,
+    load_candle_exclusion_manifest,
 )
 from gemini_trading.data.segments import (
     CandleSegmentManifest,
@@ -52,6 +57,10 @@ _MANIFEST_FIELDS_V2 = _MANIFEST_FIELDS_V1 | {
     "closure_count",
     "segment_count",
 }
+_MANIFEST_FIELDS_V3 = _MANIFEST_FIELDS_V2 | {
+    "exclusion_manifest_sha256",
+    "exclusion_count",
+}
 _INSTRUMENT_FIELDS = {"symbol", "base_asset", "quote_asset"}
 _CANDLE_FIELDS = {
     "symbol",
@@ -78,8 +87,10 @@ class VerifiedDataset:
     candles: tuple[Candle, ...]
     canonical_bytes: bytes
     closure_manifest: ExchangeClosureManifest | None = None
+    exclusion_manifest: CandleExclusionManifest | None = None
     segment_manifest: CandleSegmentManifest | None = None
     closure_manifest_bytes: bytes | None = None
+    exclusion_manifest_bytes: bytes | None = None
     segment_manifest_bytes: bytes | None = None
 
 
@@ -150,7 +161,11 @@ def _parse_manifest(manifest_bytes: bytes) -> DatasetManifest:
     mapping = _mapping(loaded, "dataset manifest")
     schema_version = _string(mapping, "schema_version", "manifest")
     expected_fields = (
-        _MANIFEST_FIELDS_V2 if schema_version == "candle-dataset-v2" else _MANIFEST_FIELDS_V1
+        _MANIFEST_FIELDS_V3
+        if schema_version == "candle-dataset-v3"
+        else _MANIFEST_FIELDS_V2
+        if schema_version == "candle-dataset-v2"
+        else _MANIFEST_FIELDS_V1
     )
     _exact_fields(mapping, expected_fields, "manifest")
     instrument_mapping = _mapping(mapping["instrument"], "manifest instrument")
@@ -180,22 +195,32 @@ def _parse_manifest(manifest_bytes: bytes) -> DatasetManifest:
             canonical_sha256=_string(mapping, "canonical_sha256", "manifest"),
             closure_manifest_sha256=(
                 _string(mapping, "closure_manifest_sha256", "manifest")
-                if schema_version == "candle-dataset-v2"
+                if schema_version in {"candle-dataset-v2", "candle-dataset-v3"}
+                else None
+            ),
+            exclusion_manifest_sha256=(
+                _string(mapping, "exclusion_manifest_sha256", "manifest")
+                if schema_version == "candle-dataset-v3"
                 else None
             ),
             segment_manifest_sha256=(
                 _string(mapping, "segment_manifest_sha256", "manifest")
-                if schema_version == "candle-dataset-v2"
+                if schema_version in {"candle-dataset-v2", "candle-dataset-v3"}
                 else None
             ),
             closure_count=(
                 _integer(mapping, "closure_count", "manifest")
-                if schema_version == "candle-dataset-v2"
+                if schema_version in {"candle-dataset-v2", "candle-dataset-v3"}
+                else 0
+            ),
+            exclusion_count=(
+                _integer(mapping, "exclusion_count", "manifest")
+                if schema_version == "candle-dataset-v3"
                 else 0
             ),
             segment_count=(
                 _integer(mapping, "segment_count", "manifest")
-                if schema_version == "candle-dataset-v2"
+                if schema_version in {"candle-dataset-v2", "candle-dataset-v3"}
                 else 1
             ),
         )
@@ -211,13 +236,32 @@ def _verify_content_identity(
     manifest: DatasetManifest,
     canonical_bytes: bytes,
     closure_manifest_bytes: bytes | None = None,
+    exclusion_manifest_bytes: bytes | None = None,
     segment_manifest_bytes: bytes | None = None,
 ) -> None:
     if manifest.dataset_id != dataset_id_value:
         raise DatasetVerificationError("dataset identity mismatch")
     if hashlib.sha256(canonical_bytes).hexdigest() != manifest.canonical_sha256:
         raise DatasetVerificationError("canonical content hash mismatch")
-    if manifest.schema_version == "candle-dataset-v2":
+    if manifest.schema_version == "candle-dataset-v3":
+        if (
+            closure_manifest_bytes is None
+            or exclusion_manifest_bytes is None
+            or segment_manifest_bytes is None
+        ):
+            raise DatasetVerificationError("v3 supporting evidence is missing")
+        expected_id = dataset_id_v3(
+            provider=manifest.provider,
+            instrument=manifest.instrument,
+            timeframe=manifest.timeframe,
+            start_time=manifest.start_time,
+            end_time=manifest.end_time,
+            canonical_bytes=canonical_bytes,
+            closure_manifest_bytes=closure_manifest_bytes,
+            exclusion_manifest_bytes=exclusion_manifest_bytes,
+            segment_manifest_bytes=segment_manifest_bytes,
+        )
+    elif manifest.schema_version == "candle-dataset-v2":
         if closure_manifest_bytes is None or segment_manifest_bytes is None:
             raise DatasetVerificationError("v2 supporting evidence is missing")
         expected_id = dataset_id_v2(
@@ -325,6 +369,7 @@ def load_verified_dataset(
     dataset_id_value: str,
     *,
     require_v2: bool = False,
+    require_v3: bool = False,
 ) -> VerifiedDataset:
     """Load and independently verify one immutable canonical dataset."""
 
@@ -333,21 +378,36 @@ def load_verified_dataset(
         manifest = _parse_manifest(manifest_bytes)
         if require_v2 and manifest.schema_version != "candle-dataset-v2":
             raise DatasetVerificationError("sealed dataset loading requires candle-dataset-v2")
+        if require_v3 and manifest.schema_version != "candle-dataset-v3":
+            raise DatasetVerificationError("sealed dataset loading requires candle-dataset-v3")
         closure_manifest = None
+        exclusion_manifest = None
         segment_manifest = None
         closure_manifest_bytes = None
+        exclusion_manifest_bytes = None
         segment_manifest_bytes = None
-        if manifest.schema_version == "candle-dataset-v2":
+        if manifest.schema_version in {"candle-dataset-v2", "candle-dataset-v3"}:
             closure_manifest_bytes, segment_manifest_bytes = (
                 store.read_dataset_supporting_manifests(dataset_id_value)
             )
             closure_manifest = load_exchange_closure_manifest(closure_manifest_bytes)
             segment_manifest = load_candle_segment_manifest(segment_manifest_bytes)
+            if manifest.schema_version == "candle-dataset-v3":
+                exclusion_manifest_bytes = store.read_dataset_exclusion_manifest_bytes(
+                    dataset_id_value
+                )
+                exclusion_manifest = load_candle_exclusion_manifest(exclusion_manifest_bytes)
             if (
                 hashlib.sha256(closure_manifest_bytes).hexdigest()
                 != manifest.closure_manifest_sha256
             ):
                 raise DatasetVerificationError("closure manifest hash mismatch")
+            if (
+                exclusion_manifest_bytes is not None
+                and hashlib.sha256(exclusion_manifest_bytes).hexdigest()
+                != manifest.exclusion_manifest_sha256
+            ):
+                raise DatasetVerificationError("exclusion manifest hash mismatch")
             if (
                 hashlib.sha256(segment_manifest_bytes).hexdigest()
                 != manifest.segment_manifest_sha256
@@ -355,6 +415,22 @@ def load_verified_dataset(
                 raise DatasetVerificationError("segment manifest hash mismatch")
             if len(closure_manifest.closures) != manifest.closure_count:
                 raise DatasetVerificationError("closure count mismatch")
+            if exclusion_manifest is not None:
+                if len(exclusion_manifest.exclusions) != manifest.exclusion_count:
+                    raise DatasetVerificationError("exclusion count mismatch")
+                declarations = {item.closure_id: item for item in closure_manifest.closures}
+                for exclusion in exclusion_manifest.exclusions:
+                    declaration = declarations.get(exclusion.closure_id)
+                    if declaration is None:
+                        raise DatasetVerificationError("exclusion closure identity mismatch")
+                    partial = declaration.partial_candle
+                    if (
+                        exclusion.provider_row_sha256 != partial.provider_row_sha256
+                        or exclusion.open_time != partial.open_time
+                        or exclusion.actual_close_time != partial.actual_close_time
+                        or exclusion.expected_close_time != partial.expected_close_time
+                    ):
+                        raise DatasetVerificationError("exclusion declaration mismatch")
             if len(segment_manifest.segments) != manifest.segment_count:
                 raise DatasetVerificationError("segment count mismatch")
         _verify_content_identity(
@@ -362,6 +438,7 @@ def load_verified_dataset(
             manifest,
             canonical_bytes,
             closure_manifest_bytes,
+            exclusion_manifest_bytes,
             segment_manifest_bytes,
         )
         candles = _parse_candles(canonical_bytes, manifest)
@@ -378,11 +455,13 @@ def load_verified_dataset(
     except (OSError, TypeError, ValueError) as error:
         raise DatasetVerificationError("canonical dataset could not be loaded safely") from error
     return VerifiedDataset(
-        manifest,
-        candles,
-        canonical_bytes,
-        closure_manifest,
-        segment_manifest,
-        closure_manifest_bytes,
-        segment_manifest_bytes,
+        manifest=manifest,
+        candles=candles,
+        canonical_bytes=canonical_bytes,
+        closure_manifest=closure_manifest,
+        exclusion_manifest=exclusion_manifest,
+        segment_manifest=segment_manifest,
+        closure_manifest_bytes=closure_manifest_bytes,
+        exclusion_manifest_bytes=exclusion_manifest_bytes,
+        segment_manifest_bytes=segment_manifest_bytes,
     )

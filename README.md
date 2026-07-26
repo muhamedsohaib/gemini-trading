@@ -83,7 +83,7 @@ gemini-trading research strategy-resume
 
 The Candidate remains `RESEARCH_ONLY` and always reports `promotable:false` at the CLI boundary. Rejection and inconclusive evidence are valid outcomes. The concrete provider-free evaluator and deterministic synthetic end-to-end acceptance are implemented. The diagnostic acceptance result is `INCONCLUSIVE`; it verifies architecture and reproducibility only.
 
-The two-stage GitHub Actions implementation for the fixed BTCUSDT window `[2018-01-01T00:00:00Z, 2026-07-01T00:00:00Z)` uses `candle-dataset-v2`, one verified seven-candle Binance closure declaration, and two deterministic continuous segments. It fabricates no candles and resets all research dependencies at the segment boundary. There is no real historical Candidate result until the dataset and study workflows run against an approved exact merged-main SHA and the downloaded artifacts independently verify. No durable profitability, execution readiness, or capital authorization is claimed.
+The two-stage GitHub Actions implementation for the fixed BTCUSDT window `[2018-01-01T00:00:00Z, 2026-07-01T00:00:00Z)` uses `candle-dataset-v3`, `exchange-closure-manifest-v2`, one exact partial-candle exclusion bound to provider-row SHA-256 `6d0ed02c75960a3acf11073a2b7276e0bdc04f217fc99a488b15a5ff68e70775`, seven fully absent opens, and two deterministic continuous segments. It preserves raw evidence, fabricates no candles, and resets all research dependencies at the segment boundary. There is no real historical Candidate result until the dataset and study workflows run against an approved exact merged-main SHA and the downloaded artifacts independently verify. No durable profitability, execution readiness, or capital authorization is claimed.
 
 See:
 

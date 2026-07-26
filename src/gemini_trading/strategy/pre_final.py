@@ -63,7 +63,7 @@ def _case_payload(record: StudyCaseEvidence) -> dict[str, object]:
 
 def _handoff_reference(handoff: DatasetHandoffManifest) -> dict[str, object]:
     return {
-        "schema_version": "dataset-handoff-reference-v2",
+        "schema_version": "dataset-handoff-reference-v3",
         "dataset_id": handoff.dataset_id,
         "dataset_schema_version": handoff.dataset_schema_version,
         "inventory_root_sha256": handoff.inventory_root_sha256,
@@ -72,10 +72,14 @@ def _handoff_reference(handoff: DatasetHandoffManifest) -> dict[str, object]:
         "workflow_run_attempt": handoff.workflow_run_attempt,
         "retrieval_run_id": handoff.run_id,
         "closure_manifest_sha256": handoff.closure_manifest_sha256,
+        "exclusion_manifest_sha256": handoff.exclusion_manifest_sha256,
         "segment_manifest_sha256": handoff.segment_manifest_sha256,
         "closure_count": handoff.closure_count,
+        "exclusion_count": handoff.exclusion_count,
         "segment_count": handoff.segment_count,
         "closure_ids": list(handoff.closure_ids),
+        "excluded_provider_row_sha256": handoff.excluded_provider_row_sha256,
+        "segment_boundary_indices": list(handoff.segment_boundary_indices),
     }
 
 
@@ -89,10 +93,13 @@ def _identity_payload(
     split_plan_sha256: str,
     dataset_schema_version: str,
     closure_manifest_sha256: str,
+    exclusion_manifest_sha256: str,
     segment_manifest_sha256: str,
     closure_count: int,
+    exclusion_count: int,
     segment_count: int,
     closure_ids: tuple[str, ...],
+    excluded_provider_row_sha256: str,
     segment_boundary_indices: tuple[int, ...],
     development_records: tuple[StudyCaseEvidence, ...],
 ) -> dict[str, object]:
@@ -106,10 +113,13 @@ def _identity_payload(
         "split_plan_sha256": split_plan_sha256,
         "dataset_schema_version": dataset_schema_version,
         "closure_manifest_sha256": closure_manifest_sha256,
+        "exclusion_manifest_sha256": exclusion_manifest_sha256,
         "segment_manifest_sha256": segment_manifest_sha256,
         "closure_count": closure_count,
+        "exclusion_count": exclusion_count,
         "segment_count": segment_count,
         "closure_ids": list(closure_ids),
+        "excluded_provider_row_sha256": excluded_provider_row_sha256,
         "segment_boundary_indices": list(segment_boundary_indices),
         "required_development_case_ids": list(REQUIRED_DEVELOPMENT_CASE_IDS),
         "development_experiments": [_case_payload(item) for item in development_records],
@@ -177,6 +187,8 @@ def build_pre_final_artifacts(
         raise PreFinalArtifactError("pre-final dataset handoff identity mismatch")
     if handoff.source_commit != code_commit:
         raise PreFinalArtifactError("pre-final source commit mismatch")
+    if segment_boundary_indices != handoff.segment_boundary_indices:
+        raise PreFinalArtifactError("pre-final segment boundary identity mismatch")
     _validate_development_records(development_records)
     policy_sha256 = _sha256_bytes(policy_bytes)
     configuration_sha256 = _sha256_bytes(configuration_bytes)
@@ -189,10 +201,13 @@ def build_pre_final_artifacts(
         split_plan_sha256=split_plan_sha256,
         dataset_schema_version=handoff.dataset_schema_version,
         closure_manifest_sha256=handoff.closure_manifest_sha256,
+        exclusion_manifest_sha256=handoff.exclusion_manifest_sha256,
         segment_manifest_sha256=handoff.segment_manifest_sha256,
         closure_count=handoff.closure_count,
+        exclusion_count=handoff.exclusion_count,
         segment_count=handoff.segment_count,
         closure_ids=handoff.closure_ids,
+        excluded_provider_row_sha256=handoff.excluded_provider_row_sha256,
         segment_boundary_indices=segment_boundary_indices,
         development_records=development_records,
     )
@@ -369,10 +384,13 @@ def verify_pre_final_artifacts(
         "split_plan_sha256",
         "dataset_schema_version",
         "closure_manifest_sha256",
+        "exclusion_manifest_sha256",
         "segment_manifest_sha256",
         "closure_count",
+        "exclusion_count",
         "segment_count",
         "closure_ids",
+        "excluded_provider_row_sha256",
         "segment_boundary_indices",
         "required_development_case_ids",
         "development_experiments",
@@ -418,10 +436,14 @@ def verify_pre_final_artifacts(
         expected_fields: dict[str, object] = {
             "dataset_schema_version": expected_handoff.dataset_schema_version,
             "closure_manifest_sha256": expected_handoff.closure_manifest_sha256,
+            "exclusion_manifest_sha256": expected_handoff.exclusion_manifest_sha256,
             "segment_manifest_sha256": expected_handoff.segment_manifest_sha256,
             "closure_count": expected_handoff.closure_count,
+            "exclusion_count": expected_handoff.exclusion_count,
             "segment_count": expected_handoff.segment_count,
             "closure_ids": list(expected_handoff.closure_ids),
+            "excluded_provider_row_sha256": expected_handoff.excluded_provider_row_sha256,
+            "segment_boundary_indices": list(expected_handoff.segment_boundary_indices),
         }
         for key, expected in expected_fields.items():
             if manifest.get(key) != expected:
@@ -453,10 +475,13 @@ def verify_pre_final_artifacts(
         split_plan_sha256=_required_str(manifest, "split_plan_sha256"),
         dataset_schema_version=_required_str(manifest, "dataset_schema_version"),
         closure_manifest_sha256=_required_str(manifest, "closure_manifest_sha256"),
+        exclusion_manifest_sha256=_required_str(manifest, "exclusion_manifest_sha256"),
         segment_manifest_sha256=_required_str(manifest, "segment_manifest_sha256"),
         closure_count=_required_int(manifest, "closure_count"),
+        exclusion_count=_required_int(manifest, "exclusion_count"),
         segment_count=_required_int(manifest, "segment_count"),
         closure_ids=closure_ids,
+        excluded_provider_row_sha256=_required_str(manifest, "excluded_provider_row_sha256"),
         segment_boundary_indices=segment_boundaries,
         development_records=records,
     )

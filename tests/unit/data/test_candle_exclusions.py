@@ -197,7 +197,9 @@ def test_exact_partial_row_is_excluded_once_without_changing_raw_bytes() -> None
     assert exclusion.row_index == 1
     assert exclusion.open_time == _PARTIAL_OPEN
     assert exclusion.canonical_index_before_removal == 1
-    assert exclusion.provider_row_sha256 == _manifest().closures[0].partial_candle.provider_row_sha256
+    assert (
+        exclusion.provider_row_sha256 == _manifest().closures[0].partial_candle.provider_row_sha256
+    )
 
 
 def test_exclusion_manifest_round_trips_only_canonical_bytes() -> None:
@@ -211,9 +213,7 @@ def test_exclusion_manifest_round_trips_only_canonical_bytes() -> None:
         load_candle_exclusion_manifest(json.dumps(mapping, indent=2).encode())
     mapping["unexpected"] = True
     with pytest.raises(CandleValidationError, match="fields"):
-        load_candle_exclusion_manifest(
-            (json.dumps(mapping, separators=(",", ":")) + "\n").encode()
-        )
+        load_candle_exclusion_manifest((json.dumps(mapping, separators=(",", ":")) + "\n").encode())
 
 
 def test_manifest_rejects_invalid_provider_row_hash() -> None:

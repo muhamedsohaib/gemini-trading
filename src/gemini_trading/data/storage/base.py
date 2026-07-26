@@ -39,6 +39,10 @@ class CanonicalStore(Protocol):
 
     def read_dataset_supporting_manifests(self, dataset_id: str) -> tuple[bytes, bytes]: ...
 
+    def write_dataset_exclusion_manifest(self, dataset_id: str, exclusion_raw: bytes) -> Path: ...
+
+    def read_dataset_exclusion_manifest_bytes(self, dataset_id: str) -> bytes: ...
+
     def write_provenance(
         self,
         dataset_id: str,

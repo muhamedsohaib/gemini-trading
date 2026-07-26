@@ -127,8 +127,10 @@ class DatasetManifest:
     candle_count: int
     canonical_sha256: str
     closure_manifest_sha256: str | None = None
+    exclusion_manifest_sha256: str | None = None
     segment_manifest_sha256: str | None = None
     closure_count: int = 0
+    exclusion_count: int = 0
     segment_count: int = 1
 
     def __post_init__(self) -> None:
@@ -143,24 +145,38 @@ class DatasetManifest:
         if self.candle_count < 1:
             raise ValueError("candle_count must be positive")
         _require_sha256(self.canonical_sha256, "canonical_sha256")
-        if self.schema_version == "candle-dataset-v2":
+        if self.schema_version in {"candle-dataset-v2", "candle-dataset-v3"}:
             if self.closure_manifest_sha256 is None:
-                raise ValueError("closure_manifest_sha256 is required for candle-dataset-v2")
+                raise ValueError("closure_manifest_sha256 is required for sealed datasets")
             if self.segment_manifest_sha256 is None:
-                raise ValueError("segment_manifest_sha256 is required for candle-dataset-v2")
+                raise ValueError("segment_manifest_sha256 is required for sealed datasets")
             _require_sha256(self.closure_manifest_sha256, "closure_manifest_sha256")
             _require_sha256(self.segment_manifest_sha256, "segment_manifest_sha256")
             if self.closure_count < 1:
-                raise ValueError("closure_count must be positive for candle-dataset-v2")
+                raise ValueError("closure_count must be positive for sealed datasets")
             if self.segment_count != self.closure_count + 1:
                 raise ValueError("segment_count must equal closure_count plus one")
+            if self.schema_version == "candle-dataset-v3":
+                if self.exclusion_manifest_sha256 is None:
+                    raise ValueError("exclusion_manifest_sha256 is required for candle-dataset-v3")
+                _require_sha256(self.exclusion_manifest_sha256, "exclusion_manifest_sha256")
+                if self.exclusion_count != self.closure_count:
+                    raise ValueError(
+                        "exclusion_count must equal closure_count for candle-dataset-v3"
+                    )
+            elif self.exclusion_manifest_sha256 is not None or self.exclusion_count != 0:
+                raise ValueError("exclusion evidence is only valid for candle-dataset-v3")
         else:
             if self.closure_manifest_sha256 is not None:
-                raise ValueError("closure_manifest_sha256 is only valid for candle-dataset-v2")
+                raise ValueError("closure_manifest_sha256 is only valid for sealed datasets")
+            if self.exclusion_manifest_sha256 is not None:
+                raise ValueError("exclusion_manifest_sha256 is only valid for candle-dataset-v3")
             if self.segment_manifest_sha256 is not None:
-                raise ValueError("segment_manifest_sha256 is only valid for candle-dataset-v2")
-            if self.closure_count != 0 or self.segment_count != 1:
-                raise ValueError("legacy dataset manifests must use zero closures and one segment")
+                raise ValueError("segment_manifest_sha256 is only valid for sealed datasets")
+            if self.closure_count != 0 or self.exclusion_count != 0 or self.segment_count != 1:
+                raise ValueError(
+                    "legacy dataset manifests must use no closures or exclusions and one segment"
+                )
 
 
 @dataclass(frozen=True, slots=True)

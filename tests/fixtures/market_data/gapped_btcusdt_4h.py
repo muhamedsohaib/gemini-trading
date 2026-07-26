@@ -38,7 +38,6 @@ def _candle(open_time: datetime, value: str) -> Candle:
 CANDLES = (
     _candle(datetime(2018, 2, 7, 16, tzinfo=UTC), "8000"),
     _candle(datetime(2018, 2, 7, 20, tzinfo=UTC), "8050"),
-    _candle(datetime(2018, 2, 8, 0, tzinfo=UTC), "8100"),
     _candle(datetime(2018, 2, 9, 8, tzinfo=UTC), "8200"),
     _candle(datetime(2018, 2, 9, 12, tzinfo=UTC), "8250"),
     _candle(datetime(2018, 2, 9, 16, tzinfo=UTC), "8300"),

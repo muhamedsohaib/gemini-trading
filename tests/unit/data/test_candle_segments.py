@@ -45,13 +45,13 @@ def test_declared_exchange_closure_produces_two_segments() -> None:
     segments = validate_and_segment_candle_sequence(CANDLES, REQUEST, _manifest())
 
     assert [(item.start_index, item.end_exclusive) for item in segments.segments] == [
-        (0, 3),
-        (3, 6),
+        (0, 2),
+        (2, 5),
     ]
     assert segments.segments[0].preceding_closure_id is None
     assert segments.segments[1].preceding_closure_id == "binance-spot-system-upgrade-2018-02-08"
     assert segment_number_for_index(segments, 0) == 1
-    assert segment_number_for_index(segments, 5) == 2
+    assert segment_number_for_index(segments, 4) == 2
 
 
 def test_strict_validation_still_rejects_the_gap() -> None:
@@ -60,7 +60,7 @@ def test_strict_validation_still_rejects_the_gap() -> None:
 
 
 def test_shifted_actual_resumption_is_rejected_as_undeclared() -> None:
-    shifted = _shift_from(3, timedelta(hours=4))
+    shifted = _shift_from(2, timedelta(hours=4))
 
     with pytest.raises(CandleGapError, match="undeclared timeframe gap"):
         validate_and_segment_candle_sequence(shifted, REQUEST, _manifest())
@@ -73,7 +73,7 @@ def test_additional_provider_gap_is_rejected() -> None:
             open_time=candle.open_time + timedelta(hours=4),
             close_time=candle.close_time + timedelta(hours=4),
         )
-        if index == 5
+        if index == 4
         else candle
         for index, candle in enumerate(CANDLES)
     )
@@ -83,7 +83,7 @@ def test_additional_provider_gap_is_rejected() -> None:
 
 
 def test_unused_closure_declaration_is_rejected() -> None:
-    continuous = _shift_from(3, -timedelta(hours=28))
+    continuous = _shift_from(2, -timedelta(hours=32))
 
     with pytest.raises(CandleValidationError, match="unused"):
         validate_and_segment_candle_sequence(continuous, REQUEST, _manifest())
@@ -110,4 +110,4 @@ def test_segment_lookup_rejects_an_index_outside_evidence() -> None:
     segments = validate_and_segment_candle_sequence(CANDLES, REQUEST, _manifest())
 
     with pytest.raises(CandleValidationError, match="outside"):
-        segment_number_for_index(segments, 6)
+        segment_number_for_index(segments, 5)

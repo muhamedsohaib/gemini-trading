@@ -27,6 +27,10 @@ from gemini_trading.data.exchange_closures import (
     ExchangeClosureManifest,
     serialize_exchange_closure_manifest,
 )
+from gemini_trading.data.exclusions import (
+    match_and_exclude_partial_candles,
+    serialize_candle_exclusion_manifest,
+)
 from gemini_trading.data.ingestion.retry import RetryPolicy
 from gemini_trading.data.normalization.binance_klines import normalize_binance_klines
 from gemini_trading.data.providers.base import MarketDataProvider
@@ -50,6 +54,7 @@ _RETRIEVAL_SCHEMA_VERSION = "retrieval-manifest-v1"
 _RETRIEVAL_SCHEMA_VERSION_V2 = "retrieval-manifest-v2"
 _DATASET_SCHEMA_VERSION = "candle-dataset-v1"
 _DATASET_SCHEMA_VERSION_V2 = "candle-dataset-v2"
+_DATASET_SCHEMA_VERSION_V3 = "candle-dataset-v3"
 _PROVENANCE_SCHEMA_VERSION = "dataset-provenance-v1"
 _PROVIDER = "binance_spot"
 
@@ -192,6 +197,7 @@ class IngestionService:
         server_time_snapshot: datetime | None = None
         pages: list[RawPage] = []
         candidates: list[Candle] = []
+        normalized_pages: list[tuple[Candle, ...]] = []
         paths: list[tuple[str, Path]] = []
         completed_manifest_written = False
 
@@ -242,19 +248,35 @@ class IngestionService:
                     raise IncompleteWindowError("provider cursor did not advance")
 
                 candidates.extend(normalized)
+                normalized_pages.append(normalized)
                 cursor = next_cursor
                 sequence += 1
                 if terminal_guard:
                     break
 
-            canonical_candles = completed_candles(candidates, server_time)
-            if not canonical_candles:
-                raise IncompleteWindowError("retrieval produced zero completed candles")
+            exclusion_manifest_bytes: bytes | None = None
+            exclusion_count = 0
             segment_manifest_bytes: bytes | None = None
             segment_count = 1
             if self._closure_manifest is None:
+                canonical_candles = completed_candles(candidates, server_time)
+                if not canonical_candles:
+                    raise IncompleteWindowError("retrieval produced zero completed candles")
                 validate_candle_sequence(canonical_candles, request)
             else:
+                exclusion_result = match_and_exclude_partial_candles(
+                    pages,
+                    normalized_pages,
+                    self._closure_manifest,
+                    server_time=server_time,
+                )
+                canonical_candles = exclusion_result.candles
+                if not canonical_candles:
+                    raise IncompleteWindowError("retrieval produced zero canonical candles")
+                exclusion_manifest_bytes = serialize_candle_exclusion_manifest(
+                    exclusion_result.manifest
+                )
+                exclusion_count = len(exclusion_result.manifest.exclusions)
                 segment_manifest = validate_and_segment_candle_sequence(
                     canonical_candles,
                     request,
@@ -272,7 +294,7 @@ class IngestionService:
             canonical_bytes = serialize_candles(canonical_candles)
             dataset_manifest = build_dataset_manifest(
                 schema_version=(
-                    _DATASET_SCHEMA_VERSION_V2
+                    _DATASET_SCHEMA_VERSION_V3
                     if self._closure_manifest is not None
                     else _DATASET_SCHEMA_VERSION
                 ),
@@ -284,10 +306,12 @@ class IngestionService:
                 candles=canonical_candles,
                 canonical_bytes=canonical_bytes,
                 closure_manifest_bytes=self._closure_manifest_bytes,
+                exclusion_manifest_bytes=exclusion_manifest_bytes,
                 segment_manifest_bytes=segment_manifest_bytes,
                 closure_count=(
                     0 if self._closure_manifest is None else len(self._closure_manifest.closures)
                 ),
+                exclusion_count=exclusion_count,
                 segment_count=segment_count,
             )
             dataset_manifest_bytes = serialize_dataset_manifest(dataset_manifest)
@@ -319,7 +343,11 @@ class IngestionService:
                     ("dataset_manifest", dataset_manifest_path),
                 )
             )
-            if self._closure_manifest_bytes is not None and segment_manifest_bytes is not None:
+            if (
+                self._closure_manifest_bytes is not None
+                and exclusion_manifest_bytes is not None
+                and segment_manifest_bytes is not None
+            ):
                 closure_path, segment_path = (
                     self._canonical_store.write_dataset_supporting_manifests(
                         dataset_manifest.dataset_id,
@@ -327,9 +355,14 @@ class IngestionService:
                         segment_manifest_bytes,
                     )
                 )
+                exclusion_path = self._canonical_store.write_dataset_exclusion_manifest(
+                    dataset_manifest.dataset_id,
+                    exclusion_manifest_bytes,
+                )
                 paths.extend(
                     (
                         ("canonical_closure_manifest", closure_path),
+                        ("exclusion_manifest", exclusion_path),
                         ("segment_manifest", segment_path),
                     )
                 )

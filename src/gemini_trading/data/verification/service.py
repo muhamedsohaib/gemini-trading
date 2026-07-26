@@ -16,10 +16,14 @@ from gemini_trading.data.datasets.canonical_writer import (
 )
 from gemini_trading.data.errors import MarketDataError
 from gemini_trading.data.exchange_closures import load_exchange_closure_manifest
+from gemini_trading.data.exclusions import (
+    load_candle_exclusion_manifest,
+    serialize_candle_exclusion_manifest,
+)
 from gemini_trading.data.ingestion.replay import (
     ReplayRawStore,
     load_verified_run,
-    reconstruct_completed_candles,
+    reconstruct_candles_and_exclusions,
 )
 from gemini_trading.data.segments import (
     load_candle_segment_manifest,
@@ -38,6 +42,7 @@ from gemini_trading.domain.timeframe import Timeframe
 
 _DATASET_SCHEMA_VERSION = "candle-dataset-v1"
 _DATASET_SCHEMA_VERSION_V2 = "candle-dataset-v2"
+_DATASET_SCHEMA_VERSION_V3 = "candle-dataset-v3"
 _RETRIEVAL_SCHEMA_VERSION_V2 = "retrieval-manifest-v2"
 _PROVENANCE_SCHEMA_VERSION = "dataset-provenance-v1"
 _CHECKS = (
@@ -52,7 +57,7 @@ _CHECKS = (
     "completed_state",
 )
 
-_V2_CHECKS = (
+_V3_CHECKS = (
     "retrieval_manifest_bytes",
     "raw_page_hashes",
     "raw_reconstruction",
@@ -60,6 +65,8 @@ _V2_CHECKS = (
     "canonical_manifest",
     "dataset_identity",
     "provenance_linkage",
+    "partial_candle_exactness",
+    "exclusion_evidence",
     "declared_gap_exactness",
     "segment_continuity",
     "completed_state",
@@ -72,6 +79,8 @@ class VerificationCanonicalStore(Protocol):
     def read_dataset(self, dataset_id: str) -> tuple[bytes, bytes]: ...
 
     def read_dataset_supporting_manifests(self, dataset_id: str) -> tuple[bytes, bytes]: ...
+
+    def read_dataset_exclusion_manifest_bytes(self, dataset_id: str) -> bytes: ...
 
     def read_provenance(self, dataset_id: str, run_id: str) -> bytes: ...
 
@@ -204,22 +213,48 @@ def _parse_dataset_manifest(raw: bytes) -> DatasetManifest:
             canonical_sha256=_required_str(mapping, "canonical_sha256"),
             closure_manifest_sha256=(
                 _required_str(mapping, "closure_manifest_sha256")
-                if mapping.get("schema_version") == _DATASET_SCHEMA_VERSION_V2
+                if mapping.get("schema_version")
+                in {
+                    _DATASET_SCHEMA_VERSION_V2,
+                    _DATASET_SCHEMA_VERSION_V3,
+                }
+                else None
+            ),
+            exclusion_manifest_sha256=(
+                _required_str(mapping, "exclusion_manifest_sha256")
+                if mapping.get("schema_version") == _DATASET_SCHEMA_VERSION_V3
                 else None
             ),
             segment_manifest_sha256=(
                 _required_str(mapping, "segment_manifest_sha256")
-                if mapping.get("schema_version") == _DATASET_SCHEMA_VERSION_V2
+                if mapping.get("schema_version")
+                in {
+                    _DATASET_SCHEMA_VERSION_V2,
+                    _DATASET_SCHEMA_VERSION_V3,
+                }
                 else None
             ),
             closure_count=(
                 _required_int(mapping, "closure_count")
-                if mapping.get("schema_version") == _DATASET_SCHEMA_VERSION_V2
+                if mapping.get("schema_version")
+                in {
+                    _DATASET_SCHEMA_VERSION_V2,
+                    _DATASET_SCHEMA_VERSION_V3,
+                }
+                else 0
+            ),
+            exclusion_count=(
+                _required_int(mapping, "exclusion_count")
+                if mapping.get("schema_version") == _DATASET_SCHEMA_VERSION_V3
                 else 0
             ),
             segment_count=(
                 _required_int(mapping, "segment_count")
-                if mapping.get("schema_version") == _DATASET_SCHEMA_VERSION_V2
+                if mapping.get("schema_version")
+                in {
+                    _DATASET_SCHEMA_VERSION_V2,
+                    _DATASET_SCHEMA_VERSION_V3,
+                }
                 else 1
             ),
         )
@@ -273,7 +308,9 @@ class VerificationService:
             )
             closure_manifest = None
             closure_bytes: bytes | None = None
+            exclusion_bytes: bytes | None = None
             segment_bytes: bytes | None = None
+            stored_exclusions = None
             stored_segments = None
             if retrieval_manifest.schema_version == _RETRIEVAL_SCHEMA_VERSION_V2:
                 try:
@@ -282,6 +319,10 @@ class VerificationService:
                     closure_bytes, segment_bytes = (
                         self.canonical_store.read_dataset_supporting_manifests(dataset_id)
                     )
+                    exclusion_bytes = self.canonical_store.read_dataset_exclusion_manifest_bytes(
+                        dataset_id
+                    )
+                    stored_exclusions = load_candle_exclusion_manifest(exclusion_bytes)
                     stored_segments = load_candle_segment_manifest(segment_bytes)
                 except Exception:
                     raise MarketDataError(
@@ -295,11 +336,18 @@ class VerificationService:
                 ):
                     raise MarketDataError("run closure manifest hash mismatch")
 
-            reconstructed = reconstruct_completed_candles(
+            reconstructed, derived_exclusions = reconstruct_candles_and_exclusions(
                 retrieval_manifest,
                 pages,
                 closure_manifest,
             )
+            if closure_manifest is not None:
+                if stored_exclusions != derived_exclusions:
+                    raise MarketDataError("stored candle exclusion evidence mismatch")
+                assert exclusion_bytes is not None
+                assert derived_exclusions is not None
+                if serialize_candle_exclusion_manifest(derived_exclusions) != exclusion_bytes:
+                    raise MarketDataError("candle exclusion bytes are not deterministic")
             canonical_bytes, dataset_manifest_bytes = self.canonical_store.read_dataset(dataset_id)
             provenance_bytes = self.canonical_store.read_provenance(dataset_id, run_id)
 
@@ -331,7 +379,7 @@ class VerificationService:
 
             dataset_manifest = _parse_dataset_manifest(dataset_manifest_bytes)
             expected_schema = (
-                _DATASET_SCHEMA_VERSION_V2
+                _DATASET_SCHEMA_VERSION_V3
                 if closure_manifest is not None
                 else _DATASET_SCHEMA_VERSION
             )
@@ -347,8 +395,12 @@ class VerificationService:
                 candles=reconstructed,
                 canonical_bytes=canonical_bytes,
                 closure_manifest_bytes=closure_bytes,
+                exclusion_manifest_bytes=exclusion_bytes,
                 segment_manifest_bytes=segment_bytes,
                 closure_count=(0 if closure_manifest is None else len(closure_manifest.closures)),
+                exclusion_count=(
+                    0 if derived_exclusions is None else len(derived_exclusions.exclusions)
+                ),
                 segment_count=(1 if derived_segments is None else len(derived_segments.segments)),
             )
             if expected_manifest.dataset_id != dataset_id:
@@ -380,7 +432,7 @@ class VerificationService:
                 dataset_id=dataset_id,
                 run_id=run_id,
                 candle_count=len(reconstructed),
-                checks=(_V2_CHECKS if closure_manifest is not None else _CHECKS),
+                checks=(_V3_CHECKS if closure_manifest is not None else _CHECKS),
             )
         except MarketDataError:
             raise

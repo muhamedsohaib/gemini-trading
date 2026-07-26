@@ -1,4 +1,4 @@
-"""Strict parsing tests for sealed closure and segment study identity."""
+"""Strict parsing tests for sealed closure, exclusion, and segment identity."""
 
 import pytest
 
@@ -20,34 +20,41 @@ def _manifest(**overrides: object) -> bytes:
         "pre_final_id": "1" * 64,
         "dataset_handoff_inventory_root": "2" * 64,
         "durable_final_access_receipt_id": "f" * 64,
-        "dataset_schema_version": "candle-dataset-v2",
+        "dataset_schema_version": "candle-dataset-v3",
         "closure_manifest_sha256": "3" * 64,
+        "exclusion_manifest_sha256": "5" * 64,
         "segment_manifest_sha256": "4" * 64,
         "closure_count": 1,
+        "exclusion_count": 1,
         "segment_count": 2,
         "closure_ids": ["binance-spot-system-upgrade-2018-02-08"],
-        "segment_boundary_indices": [229],
+        "excluded_provider_row_sha256": "6" * 64,
+        "segment_boundary_indices": [228],
     }
     payload.update(overrides)
     return canonical_json_bytes(payload)
 
 
-def test_sealed_manifest_binds_closure_and_segment_identity() -> None:
+def test_sealed_manifest_binds_closure_exclusion_and_segment_identity() -> None:
     manifest = parse_study_manifest(_manifest())
 
-    assert manifest.dataset_schema_version == "candle-dataset-v2"
+    assert manifest.dataset_schema_version == "candle-dataset-v3"
     assert manifest.closure_manifest_sha256 == "3" * 64
+    assert manifest.exclusion_manifest_sha256 == "5" * 64
     assert manifest.segment_manifest_sha256 == "4" * 64
     assert manifest.closure_count == 1
+    assert manifest.exclusion_count == 1
     assert manifest.segment_count == 2
     assert manifest.closure_ids == ("binance-spot-system-upgrade-2018-02-08",)
-    assert manifest.segment_boundary_indices == (229,)
+    assert manifest.excluded_provider_row_sha256 == "6" * 64
+    assert manifest.segment_boundary_indices == (228,)
 
 
 @pytest.mark.parametrize(
     ("field", "value", "message"),
     [
-        ("dataset_schema_version", "candle-dataset-v1", "requires candle-dataset-v2"),
+        ("dataset_schema_version", "candle-dataset-v2", "requires candle-dataset-v3"),
+        ("exclusion_count", 0, "exclusion count"),
         ("segment_count", 3, "segment count"),
         ("closure_ids", [], "closure IDs"),
         ("segment_boundary_indices", [], "segment boundaries"),

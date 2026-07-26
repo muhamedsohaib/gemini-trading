@@ -93,13 +93,15 @@ def _validate_dataset(dataset: VerifiedDataset, policy: CandidatePolicy) -> None
     if dataset.manifest.timeframe.value != policy.timeframe:
         raise StudyArtifactError("candidate dataset timeframe does not match locked policy")
     if (
-        dataset.manifest.schema_version != "candle-dataset-v2"
+        dataset.manifest.schema_version != "candle-dataset-v3"
         or dataset.closure_manifest is None
+        or dataset.exclusion_manifest is None
         or dataset.segment_manifest is None
         or dataset.closure_manifest_bytes is None
+        or dataset.exclusion_manifest_bytes is None
         or dataset.segment_manifest_bytes is None
     ):
-        raise StudyArtifactError("sealed candidate evaluation requires dataset v2 evidence")
+        raise StudyArtifactError("sealed candidate evaluation requires dataset v3 evidence")
 
 
 def build_candidate_preparation(
@@ -140,8 +142,10 @@ def build_candidate_preparation(
         candles=preparation_candles,
         canonical_bytes=dataset.canonical_bytes,
         closure_manifest=dataset.closure_manifest,
+        exclusion_manifest=dataset.exclusion_manifest,
         segment_manifest=dataset.segment_manifest,
         closure_manifest_bytes=dataset.closure_manifest_bytes,
+        exclusion_manifest_bytes=dataset.exclusion_manifest_bytes,
         segment_manifest_bytes=dataset.segment_manifest_bytes,
     )
     matrix = registry.compute(preparation_candles, segments=dataset.segment_manifest)
@@ -212,8 +216,11 @@ def build_candidate_preparation(
         )
 
     closure_manifest = dataset.closure_manifest
-    if closure_manifest is None:
-        raise StudyArtifactError("sealed candidate evaluation requires segment evidence")
+    exclusion_manifest = dataset.exclusion_manifest
+    if closure_manifest is None or exclusion_manifest is None:
+        raise StudyArtifactError("sealed candidate evaluation requires exclusion evidence")
+    if len(exclusion_manifest.exclusions) != 1:
+        raise StudyArtifactError("sealed candidate evaluation requires one exclusion")
     policy_bytes = serialize_candidate_policy(policy)
     configuration_bytes = canonical_json_bytes(
         {
@@ -226,10 +233,13 @@ def build_candidate_preparation(
             "history_requirement_met": history_requirement_met,
             "dataset_schema_version": dataset.manifest.schema_version,
             "closure_manifest_sha256": dataset.manifest.closure_manifest_sha256,
+            "exclusion_manifest_sha256": dataset.manifest.exclusion_manifest_sha256,
             "segment_manifest_sha256": dataset.manifest.segment_manifest_sha256,
             "closure_count": dataset.manifest.closure_count,
+            "exclusion_count": dataset.manifest.exclusion_count,
             "segment_count": dataset.manifest.segment_count,
             "closure_ids": [item.closure_id for item in closure_manifest.closures],
+            "excluded_provider_row_sha256": exclusion_manifest.exclusions[0].provider_row_sha256,
             "segment_boundary_indices": list(split_plan.segment_boundary_indices),
         }
     )
@@ -540,10 +550,13 @@ def _extend_manifest(
             "durable_final_access_receipt_id": receipt.receipt_id,
             "dataset_schema_version": handoff.dataset_schema_version,
             "closure_manifest_sha256": handoff.closure_manifest_sha256,
+            "exclusion_manifest_sha256": handoff.exclusion_manifest_sha256,
             "segment_manifest_sha256": handoff.segment_manifest_sha256,
             "closure_count": handoff.closure_count,
+            "exclusion_count": handoff.exclusion_count,
             "segment_count": handoff.segment_count,
             "closure_ids": list(handoff.closure_ids),
+            "excluded_provider_row_sha256": handoff.excluded_provider_row_sha256,
             "segment_boundary_indices": list(segment_boundary_indices),
         }
     )

@@ -1,0 +1,56 @@
+name: Partial Closure Task 1 Fixture
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          ref: ${{ github.head_ref }}
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - name: Align legacy v2 fixture
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("tests/integration/test_sealed_historical_validation.py")
+          text = path.read_text()
+          old = '''    synthetic_gap_start = candles[0].open_time + candles[0].timeframe.duration
+              synthetic_expected_close = (
+                  synthetic_gap_start + candles[0].timeframe.duration - timedelta(milliseconds=1)
+              )'''
+          new = '''    synthetic_gap_start = candles[0].open_time
+              synthetic_expected_close = candles[0].close_time'''
+          if old not in text:
+              raise SystemExit("synthetic gap block not found")
+          text = text.replace(old, new, 1)
+          old_counts = '''                unavailable_candle_count=7,
+                          fully_missing_start=synthetic_gap_start + candles[0].timeframe.duration,
+                          fully_missing_candle_count=6,'''
+          new_counts = '''                unavailable_candle_count=8,
+                          fully_missing_start=synthetic_gap_start + candles[0].timeframe.duration,
+                          fully_missing_candle_count=7,'''
+          if old_counts not in text:
+              raise SystemExit("synthetic count block not found")
+          path.write_text(text.replace(old_counts, new_counts, 1))
+          PY
+          uv run ruff format tests/integration/test_sealed_historical_validation.py
+          uv run pyright tests/integration/test_sealed_historical_validation.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/integration/test_sealed_historical_validation.py
+          git commit -m "test: align legacy fixture with eight-slot closure"
+          git push origin "HEAD:${{ github.head_ref }}"

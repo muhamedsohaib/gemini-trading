@@ -6,7 +6,7 @@ import json
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import cast
+from typing import Never, cast
 
 from gemini_trading.data.errors import CandleValidationError
 from gemini_trading.domain.instrument import Instrument
@@ -39,7 +39,7 @@ _CLOSURE_FIELDS = {
 }
 
 
-def _fail(message: str) -> None:
+def _fail(message: str) -> Never:
     raise CandleValidationError(message)
 
 
@@ -157,10 +157,7 @@ class ExchangeClosureManifest:
             ):
                 _fail("exchange closure boundaries must be timeframe aligned")
             if not (
-                self.start_time
-                <= closure.missing_start
-                < closure.resumed_open
-                <= self.end_time
+                self.start_time <= closure.missing_start < closure.resumed_open <= self.end_time
             ):
                 _fail("exchange closure is outside the request window")
             expected_count = (

@@ -1,4 +1,4 @@
-name: Dispatch Stage 1 PR
+name: Monitor Stage 1 PR
 
 on:
   pull_request:
@@ -6,21 +6,41 @@ on:
       - main
 
 permissions:
-  actions: write
+  actions: read
   contents: read
 
 jobs:
-  dispatch:
+  monitor:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - name: Verify intended merged-main source
-        run: test "${{ github.event.pull_request.base.sha }}" = "cf8389f6b8964b5aee0563083f8bf362be33b1ab"
-      - name: Dispatch merged-main Stage 1
+      - name: Capture exact merged-main Stage 1 run
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh workflow run sealed-btcusdt-dataset.yml \
+          gh run list \
             --repo "${GITHUB_REPOSITORY}" \
-            --ref main
-          echo "Dispatched Sealed BTCUSDT Dataset from main."
+            --workflow sealed-btcusdt-dataset.yml \
+            --branch main \
+            --limit 10 \
+            --json databaseId,headSha,status,conclusion,createdAt,url \
+            > /tmp/stage1-runs.json
+          cat /tmp/stage1-runs.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          expected = "cf8389f6b8964b5aee0563083f8bf362be33b1ab"
+          runs = json.loads(Path("/tmp/stage1-runs.json").read_text())
+          matches = [run for run in runs if run["headSha"] == expected]
+          if not matches:
+              raise SystemExit("No Stage 1 run found for exact merged-main SHA")
+          Path("/tmp/stage1-run.json").write_text(json.dumps(matches[0], sort_keys=True))
+          print(json.dumps(matches[0], sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: exact-stage1-run-${{ github.sha }}
+          path: /tmp/stage1-run.json
+          if-no-files-found: error
+          retention-days: 1

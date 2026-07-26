@@ -98,7 +98,7 @@ def test_manifest_rejects_overlapping_entries() -> None:
     overlap["missing_candle_count"] = 2
     mapping["closures"] = [first, overlap]
 
-    with pytest.raises(CandleValidationError, match="overlap|touch"):
+    with pytest.raises(CandleValidationError, match=r"overlap|touch"):
         load_exchange_closure_manifest(_canonical(mapping))
 
 
@@ -112,7 +112,7 @@ def test_manifest_rejects_touching_entries() -> None:
     touching["missing_candle_count"] = 1
     mapping["closures"] = [first, touching]
 
-    with pytest.raises(CandleValidationError, match="overlap|touch"):
+    with pytest.raises(CandleValidationError, match=r"overlap|touch"):
         load_exchange_closure_manifest(_canonical(mapping))
 
 
@@ -153,7 +153,7 @@ def test_manifest_rejects_wrong_market_identity() -> None:
     instrument["base_asset"] = "ETH"
     mapping["instrument"] = instrument
 
-    with pytest.raises(CandleValidationError, match="market|scope"):
+    with pytest.raises(CandleValidationError, match=r"market|scope"):
         load_exchange_closure_manifest(_canonical(mapping))
 
 

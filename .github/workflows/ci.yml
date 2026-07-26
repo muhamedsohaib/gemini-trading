@@ -23,6 +23,9 @@ jobs:
           cat .github/inline-patch/part* | base64 --decode | gzip --decompress > /tmp/inline-completion.patch
           git apply --check /tmp/inline-completion.patch
           git apply /tmp/inline-completion.patch
+          git restore --source=HEAD -- \
+            .github/workflows/sealed-btcusdt-dataset.yml \
+            .github/workflows/sealed-btcusdt-study.yml
           rm -rf .github/inline-patch
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com

@@ -4,251 +4,110 @@
 
 **Goal:** Preserve the authentic truncated Binance BTCUSDT 4-hour row in immutable raw evidence, exclude it exactly once from canonical completed-candle data, and bind the resulting exclusion into a new `candle-dataset-v3` identity.
 
-**Architecture:** Upgrade the fixed closure declaration to version 2, add a focused exclusion-evidence module that matches exact raw rows and emits deterministic exclusion evidence, then thread that evidence through ingestion, storage, replay, verification, handoff, workflows, and sealed-study identity checks. All ordinary candles retain strict full-timeframe validation, and every undeclared or mismatched partial candle remains fatal.
+**Architecture:** Upgrade the fixed closure declaration to version 2, add focused exclusion evidence that exact-matches raw rows, and bind that evidence through ingestion, storage, replay, verification, handoff, workflows, and sealed-study identity checks. Strict full-timeframe validation remains the default for every other candle.
 
-**Tech Stack:** Python 3.12, dataclasses, canonical JSON, SHA-256 content identities, frozen `uv`, pytest, Ruff, Pyright, GitHub Actions.
+**Tech Stack:** Python 3.12, dataclasses, canonical JSON, SHA-256 identities, frozen `uv`, pytest, Ruff, Pyright, GitHub Actions.
 
 ## Global Constraints
 
-- Safety remains `RESEARCH_ONLY`; execution authority remains none.
-- Provider remains public Binance Spot market data only.
-- Instrument remains `BTCUSDT`; timeframe remains `4h`.
-- Window remains `[2018-01-01T00:00:00Z, 2026-07-01T00:00:00Z)`.
-- The exact provider row with SHA-256 `6d0ed02c75960a3acf11073a2b7276e0bdc04f217fc99a488b15a5ff68e70775` is the only approved partial candle.
-- Raw response bytes and the raw row must never be modified.
-- The approved partial candle is excluded once from canonical completed-4h data; no candle is repaired, padded, interpolated, forward-filled, or synthesized.
-- The unified closure contains eight unavailable canonical slots and produces exactly two segments.
-- Dataset schema becomes `candle-dataset-v3`; Stage 2 must reject v1 and v2 artifacts.
-- Strategy configuration, features, labels, costs, thresholds, folds, final-test dates, and final-access policy remain unchanged.
-- Stage 2 remains prohibited until a new merged-main Stage 1 v3 artifact is independently verified and explicitly approved in Issue #22.
+- `RESEARCH_ONLY`; no execution authority.
+- Public Binance Spot, `BTCUSDT`, `4h`, `[2018-01-01T00:00:00Z, 2026-07-01T00:00:00Z)` only.
+- Only provider-row SHA-256 `6d0ed02c75960a3acf11073a2b7276e0bdc04f217fc99a488b15a5ff68e70775` may be excluded.
+- Raw bytes remain unchanged; no repair, interpolation, filling, or synthesis.
+- One eight-slot closure, one exclusion, two continuous segments.
+- Dataset schema becomes `candle-dataset-v3`; Stage 2 rejects v1/v2.
+- Strategy, features, labels, costs, thresholds, folds, final dates, and final-access policy remain unchanged.
+- Stage 2 remains blocked until a new merged-main Stage 1 v3 artifact is independently approved in Issue #22.
 
----
+## Planned Tasks
 
-## File Structure
+### Task 1: Upgrade the fixed closure contract to v2
 
-### New focused files
+**Files:** fixed closure JSON, `data/exchange_closures.py`, closure tests.
 
-- `src/gemini_trading/data/exclusions.py` — canonical provider-row encoding, exact partial-row matching, exclusion manifest contracts, serialization, and validation.
-- `tests/unit/data/test_candle_exclusions.py` — unit tests for exact matching, rejection, canonical encoding, and exclusion evidence.
-- `tests/fixtures/market_data/partial_closure_btcusdt_4h.py` — deterministic synthetic raw pages with the approved-shaped partial row and seven missing opens.
+- [ ] Write failing tests for `PartialCandleDeclaration`, v2 fields, canonical encoding, UTC/timeframe arithmetic, exact counts, and SHA validation.
+- [ ] Run `uv run pytest tests/unit/data/test_exchange_closures.py -q` and confirm RED.
+- [ ] Implement `exchange-closure-manifest-v2` with canonical gap start, resumed open, eight unavailable slots, seven fully missing slots, and the exact partial-candle declaration.
+- [ ] Run tests, Ruff, Pyright, and commit `feat: upgrade sealed closure contract to v2`.
 
-### Existing files to modify
+### Task 2: Add exact raw-row matching and exclusion evidence
 
-- `config/market-data/sealed-btcusdt-4h-exchange-closures.json`
-- `src/gemini_trading/data/exchange_closures.py`
-- `src/gemini_trading/data/segments.py`
-- `src/gemini_trading/domain/dataset.py`
-- `src/gemini_trading/data/datasets/canonical_writer.py`
-- `src/gemini_trading/data/storage/base.py`
-- `src/gemini_trading/data/storage/local_immutable.py`
-- `src/gemini_trading/data/ingestion/service.py`
-- `src/gemini_trading/data/ingestion/replay.py`
-- `src/gemini_trading/data/verification/service.py`
-- `src/gemini_trading/research/dataset_reader.py`
-- `src/gemini_trading/strategy/handoff.py`
-- `src/gemini_trading/cli/historical_validation.py`
-- `.github/workflows/sealed-btcusdt-dataset.yml`
-- `.github/workflows/sealed-btcusdt-study.yml`
-- `docs/operations/sealed-btcusdt-historical-validation.md`
-- `README.md`
-- relevant unit, integration, acceptance, tamper, replay, and workflow tests.
+**Files:** create `data/exclusions.py`, exclusion tests, partial-closure fixture.
 
----
+**Interfaces:** `CandleExclusion`, `CandleExclusionManifest`, `PartialCandleExclusionResult`, `canonical_binance_kline_row_bytes()`, and `match_and_exclude_partial_candles()`.
 
-### Task 1: Upgrade the fixed closure contract to version 2
+- [ ] Write digest tests for the exact approved row and mutations of every field/type/order.
+- [ ] Write tests proving one exact exclusion, unchanged raw bytes, correct page/row/candidate indices, and filtered canonical candidates.
+- [ ] Reject missing, duplicate, extra, overlong, misaligned, timestamp-shifted, OHLCV-mismatched, and hash-mismatched rows.
+- [ ] Confirm RED, implement deterministic matching/serialization, run focused tests and strict typing, then commit `feat: add exact partial-candle exclusion evidence`.
 
-**Files:**
-- Modify: `config/market-data/sealed-btcusdt-4h-exchange-closures.json`
-- Modify: `src/gemini_trading/data/exchange_closures.py`
-- Modify: `tests/unit/data/test_exchange_closures.py`
+### Task 3: Validate the unified eight-slot closure and segments
 
-**Interfaces:**
-- Produces: `PartialCandleDeclaration` and the upgraded `ExchangeClosure` / `ExchangeClosureManifest` contracts.
-- Produces: `load_exchange_closure_manifest(raw: bytes) -> ExchangeClosureManifest` and `serialize_exchange_closure_manifest(manifest: ExchangeClosureManifest) -> bytes` for `exchange-closure-manifest-v2` only.
+**Files:** `data/segments.py`, segment tests.
 
-- [ ] **Step 1: Replace the fixed manifest fixture with canonical v2 JSON**
+- [ ] Require the post-exclusion jump from `2018-02-07T20:00:00Z` to `2018-02-09T08:00:00Z`, one closure, and two segments.
+- [ ] Reject wrong bounds/counts, unused declarations, extra gaps, and unexcluded partial candles.
+- [ ] Match `(canonical_gap_start, resumed_open)`, verify timeframe arithmetic, run tests, and commit `feat: validate unified partial closure segments`.
 
-Use one compact newline-terminated JSON document containing the approved closure ID, canonical gap start, resumed open, eight unavailable slots, seven fully missing slots, and exact partial-row identity from the written specification.
+### Task 4: Introduce `candle-dataset-v3`
 
-- [ ] **Step 2: Write failing parser tests**
+**Files:** dataset domain, canonical writer, dataset tests.
 
-Require v2 fields and reject v1, unknown fields, missing partial-candle fields, invalid SHA-256, non-UTC values, misaligned expected close, incorrect counts, and a partial open different from `canonical_gap_start`.
+- [ ] Require exclusion hash/count fields and dataset-ID sensitivity to candle, closure, exclusion, and segment bytes.
+- [ ] Confirm RED, extend immutable contracts and canonical identity without changing v1/v2 meaning.
+- [ ] Run domain/data tests and commit `feat: bind exclusions into candle dataset v3`.
 
-- [ ] **Step 3: Run the focused tests and confirm RED**
+### Task 5: Persist exclusion evidence during ingestion
 
-```bash
-uv run pytest tests/unit/data/test_exchange_closures.py -q
-```
+**Files:** storage protocols/local storage, ingestion service/tests.
 
-- [ ] **Step 4: Implement the minimal immutable v2 contracts**
+- [ ] Test immutable run-level and dataset-level `candle-exclusions.json` storage.
+- [ ] Test unchanged raw bytes, one exclusion, two segments, v3 publication, and fail-closed no-publication variants.
+- [ ] Implement: store raw → normalize → complete-filter → exact exclusion → segment → v3 publication.
+- [ ] Run focused tests and commit `feat: persist partial-candle exclusions during ingestion`.
 
-Add `PartialCandleDeclaration` and update `ExchangeClosure` with the v2 fields. Validate exact timeframe arithmetic and canonical serialization.
+### Task 6: Replay and independently verify exclusions
 
-- [ ] **Step 5: Run focused tests and commit**
+**Files:** replay service, verification service, tests.
 
-```bash
-uv run pytest tests/unit/data/test_exchange_closures.py -q
-uv run ruff format --check src/gemini_trading/data/exchange_closures.py tests/unit/data/test_exchange_closures.py
-uv run ruff check src/gemini_trading/data/exchange_closures.py tests/unit/data/test_exchange_closures.py
-git add config/market-data/sealed-btcusdt-4h-exchange-closures.json src/gemini_trading/data/exchange_closures.py tests/unit/data/test_exchange_closures.py
-git commit -m "feat: upgrade sealed closure contract to v2"
-```
+- [ ] Require provider-free byte-identical v3 replay.
+- [ ] Tamper raw row, page hash, row/candidate indices, exclusion fields/hashes, closure/segment hashes, candles, and dataset ID.
+- [ ] Rebuild exclusion evidence from raw pages rather than trusting persisted fields.
+- [ ] Run tests and commit `feat: replay and verify candle exclusions`.
 
----
+### Task 7: Upgrade verified loading and Stage 1 handoff
 
-### Task 2: Add exact raw-row encoding and exclusion evidence
+**Files:** dataset reader, handoff, tests.
 
-**Files:**
-- Create: `src/gemini_trading/data/exclusions.py`
-- Create: `tests/unit/data/test_candle_exclusions.py`
-- Create: `tests/fixtures/market_data/partial_closure_btcusdt_4h.py`
+- [ ] Reject v1/v2, missing/extra exclusions, path traversal, hash mismatch, and irreproducible exclusions.
+- [ ] Bind exact paths/hashes, counts `1/1/2`, closure ID, excluded-row SHA-256, and segment boundaries.
+- [ ] Run tests and commit `feat: upgrade sealed dataset handoff to v3`.
 
-**Interfaces:**
-- Produces: `CandleExclusion`, `CandleExclusionManifest`, and `PartialCandleExclusionResult`.
-- Produces: `canonical_binance_kline_row_bytes(row: object) -> bytes`.
-- Produces: `match_and_exclude_partial_candles(*, pages: Sequence[RawPage], candidates: Sequence[Candle], closure_manifest: ExchangeClosureManifest) -> PartialCandleExclusionResult`.
-- Produces canonical exclusion serialization and parsing.
+### Task 8: Propagate v3 identity through sealed studies
 
-- [ ] **Step 1: Write canonical-row digest tests**
+**Files:** only strategy modules/tests currently binding v2 closure/segment identity.
 
-Require the approved row to hash to the exact approved SHA-256 and add mutations for price, volume, close time, trade count, row length, row order, and numeric type.
+- [ ] Add pre-final, final, replay, and independent-verification mismatch tests for exclusion identity.
+- [ ] Propagate v3 fields without changing features, labels, models, costs, thresholds, splits, simulator rules, or final access.
+- [ ] Run strategy tests and commit `feat: bind exclusion identity through sealed studies`.
 
-- [ ] **Step 2: Write exclusion matching tests**
+### Task 9: Update CLI and protected workflows
 
-Require one exact exclusion, unchanged raw bytes, correct page sequence, row index, candidate index, and filtered canonical candidates.
+**Files:** historical-validation CLI, both sealed workflows, acceptance tests.
 
-- [ ] **Step 3: Add fatal-path tests**
-
-Reject missing, duplicate, extra, overlong, misaligned, timestamp-shifted, OHLCV-mismatched, and hash-mismatched partial candles.
-
-- [ ] **Step 4: Run focused tests and confirm RED**
-
-```bash
-uv run pytest tests/unit/data/test_candle_exclusions.py -q
-```
-
-- [ ] **Step 5: Implement exact matching and canonical exclusion serialization**
-
-Flatten decoded raw rows in page/row order, verify one-to-one order against normalized candidates, locate exactly one approved partial row, emit deterministic evidence, remove only that candidate, and reject every other non-full-timeframe candidate.
-
-- [ ] **Step 6: Run focused tests and commit**
-
-```bash
-uv run pytest tests/unit/data/test_candle_exclusions.py -q
-uv run pyright src/gemini_trading/data/exclusions.py tests/unit/data/test_candle_exclusions.py
-git add src/gemini_trading/data/exclusions.py tests/unit/data/test_candle_exclusions.py tests/fixtures/market_data/partial_closure_btcusdt_4h.py
-git commit -m "feat: add exact partial-candle exclusion evidence"
-```
-
----
-
-### Task 3: Validate the unified eight-slot closure and derive segments
-
-**Files:**
-- Modify: `src/gemini_trading/data/segments.py`
-- Modify: `tests/unit/data/test_candle_segments.py`
-
-- [ ] Write tests requiring the post-exclusion jump from `2018-02-07T20:00:00Z` to `2018-02-09T08:00:00Z`, one closure, and two segments.
-- [ ] Add rejection tests for wrong counts, shifted bounds, unused declarations, extra gaps, and an unexcluded partial candle.
-- [ ] Run the focused tests and confirm RED.
-- [ ] Match observed discontinuities with `(canonical_gap_start, resumed_open)` and verify count arithmetic.
-- [ ] Run tests and commit as `feat: validate unified partial closure segments`.
-
----
-
-### Task 4: Introduce dataset identity version 3
-
-**Files:**
-- Modify: `src/gemini_trading/domain/dataset.py`
-- Modify: `src/gemini_trading/data/datasets/canonical_writer.py`
-- Modify: related dataset tests.
-
-- [ ] Write tests requiring `candle-dataset-v3`, exclusion hash/count fields, and identity changes for any candle, closure, exclusion, or segment mutation.
-- [ ] Run focused tests and confirm RED.
-- [ ] Extend immutable domain contracts and the canonical identity payload without changing v1/v2 meaning.
-- [ ] Run dataset/domain tests and commit as `feat: bind exclusions into candle dataset v3`.
-
----
-
-### Task 5: Persist exclusion evidence and produce v3 during ingestion
-
-**Files:**
-- Modify: storage protocols and local immutable storage.
-- Modify: `src/gemini_trading/data/ingestion/service.py`.
-- Modify: ingestion and storage tests.
-
-- [ ] Write immutable storage tests for run-level and dataset-level `candle-exclusions.json`.
-- [ ] Write ingestion success/failure tests covering unchanged raw bytes, one exclusion, two segments, and v3 publication.
-- [ ] Run focused tests and confirm RED.
-- [ ] Implement the order: store raw pages → normalize → complete-filter → exact partial match/exclusion → segment → write v3 dataset.
-- [ ] Run tests and commit as `feat: persist partial-candle exclusions during ingestion`.
-
----
-
-### Task 6: Reproduce exclusions in replay and independent verification
-
-**Files:**
-- Modify: replay and verification services and tests.
-
-- [ ] Add provider-free replay tests requiring byte equality for all v3 evidence.
-- [ ] Add tamper tests for raw row, page hash, row/candidate indices, exclusion fields, all manifest hashes, candle bytes, and dataset ID.
-- [ ] Run focused tests and confirm RED.
-- [ ] Rebuild exclusion evidence from raw pages rather than trusting persisted exclusion fields.
-- [ ] Run tests and commit as `feat: replay and verify candle exclusions`.
-
----
-
-### Task 7: Upgrade verified loading and Stage 1 handoff to v3
-
-**Files:**
-- Modify: `src/gemini_trading/research/dataset_reader.py`.
-- Modify: `src/gemini_trading/strategy/handoff.py`.
-- Modify: reader and handoff tests.
-
-- [ ] Add tests rejecting v1/v2, missing/extra exclusions, hash mismatch, path traversal, and irreproducible exclusions.
-- [ ] Require exact paths, hashes, counts, row digest, closure ID, and segment boundaries.
-- [ ] Run focused tests and confirm RED.
-- [ ] Implement v3-only sealed loading and handoff fields.
-- [ ] Run tests and commit as `feat: upgrade sealed dataset handoff to v3`.
-
----
-
-### Task 8: Propagate v3 identity through sealed study evidence
-
-**Files:**
-- Modify only strategy modules and tests that currently bind v2 closure/segment identity.
-
-- [ ] Locate propagation points with `git grep`.
-- [ ] Add pre-final, final, replay, and independent-verification tests for exclusion identity mismatch.
-- [ ] Implement minimal identity propagation without changing features, labels, models, costs, thresholds, splits, or final-access logic.
-- [ ] Run strategy tests and commit as `feat: bind exclusion identity through sealed studies`.
-
----
-
-### Task 9: Update CLI commands and protected workflows
-
-**Files:**
-- Modify historical-validation CLI.
-- Modify both sealed workflows.
-- Modify CLI/workflow acceptance tests.
-
-- [ ] Require Stage 1 artifact inventory to contain exclusion evidence.
-- [ ] Require Stage 2 v3, counts `1/1/2`, exact closure ID, and exact excluded-row SHA-256.
+- [ ] Stage 1 inventory includes exclusion evidence.
+- [ ] Stage 2 requires v3, counts `1/1/2`, exact closure ID, and exact row SHA-256.
 - [ ] Prove no operator closure/exclusion path or environment override exists.
-- [ ] Run acceptance tests and commit as `feat: require v3 exclusion evidence in sealed workflows`.
-
----
+- [ ] Run acceptance tests and commit `feat: require v3 exclusion evidence in sealed workflows`.
 
 ### Task 10: Complete integration, tamper, and documentation coverage
 
-- [ ] Add end-to-end synthetic Stage 1 tests covering ingest, replay, verify, load, and handoff.
-- [ ] Add the complete raw/declaration/exclusion/segment/dataset/inventory/handoff tamper matrix.
-- [ ] Update operator documentation and README with the v3 artifact inventory and approval evidence.
-- [ ] Run integration/acceptance tests and commit as `test: cover sealed partial-candle exclusion end to end`.
+- [ ] End-to-end synthetic Stage 1: ingest, replay, verify, load, handoff.
+- [ ] Complete raw/declaration/exclusion/segment/dataset/inventory/handoff tamper matrix.
+- [ ] Update operator docs and README with v3 inventory and approval evidence.
+- [ ] Run integration/acceptance tests and commit `test: cover sealed partial-candle exclusion end to end`.
 
----
-
-### Task 11: Run the complete repository gate
+### Task 11: Run the full repository gate
 
 ```bash
 uv run ruff format --check .
@@ -261,24 +120,20 @@ python scripts/validate_tracked_files.py
 uv run detect-secrets scan --all-files --baseline .secrets.baseline
 ```
 
-Review the diff to confirm no credentials, execution, model, threshold, cost, final-test, or unrelated refactor changes.
+Review the diff for credentials, execution, model, threshold, cost, final-test, or unrelated changes.
 
----
+### Task 12: Protected merge and new Stage 1 run
 
-### Task 12: Protected merge and new Stage 1 execution
-
-- [ ] Require exact-head GitHub CI for the complete gate and Gitleaks.
+- [ ] Require exact-head CI and Gitleaks.
 - [ ] Resolve all review threads and squash-merge with expected-head locking.
-- [ ] Verify the exact merged-main commit.
+- [ ] Verify exact merged-main CI.
 - [ ] Launch a completely new Stage 1 run from that exact `main` commit.
-- [ ] Independently inspect and record v3 source commit, workflow/artifact IDs, retrieval/dataset IDs, closure/exclusion/segment hashes, counts, closure ID, excluded-row SHA-256, boundary indices, candle bounds, inventory hash, replay success, and verification success.
-- [ ] Keep Stage 2 blocked until the exact dataset approval marker is posted in Issue #22 after artifact review.
-
----
+- [ ] Independently record source/workflow/artifact/retrieval/dataset IDs; v3 closure/exclusion/segment hashes; counts; closure ID; excluded-row SHA; boundaries; candle bounds; inventory hash; replay and verification success.
+- [ ] Keep Stage 2 blocked until the exact dataset approval marker is posted after artifact review.
 
 ## Plan Self-Review
 
-- Spec coverage: all architecture, identity, failure, testing, workflow, and migration requirements map to Tasks 1–12.
-- Placeholder scan: no deferred requirement remains.
-- Type consistency: closure v2 feeds exclusion matching; exclusion evidence feeds dataset v3; v3 feeds storage, replay, verification, reader, handoff, CLI, workflows, and sealed-study identity.
-- Scope check: no strategy behavior, execution capability, final-test rule, model configuration, or unrelated refactor is included.
+- All written-spec architecture, identity, failure, testing, workflow, and migration requirements map to Tasks 1–12.
+- No deferred requirement or placeholder remains.
+- Closure v2 → exclusion evidence → dataset v3 → storage/replay/verification → reader/handoff → CLI/workflows/study identity is type-consistent.
+- No execution, strategy behavior, final-test rule, model configuration, or unrelated refactor is included.

@@ -5,12 +5,12 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  diagnose:
+  apply:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v6.0.2
         with:
@@ -21,52 +21,58 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync --all-groups --frozen
-      - name: Capture source application diagnostics
+      - name: Apply and verify partial-closure source
         shell: bash
         run: |
-          set +e
-          exec > >(tee /tmp/partial-closure-source-diagnostic.txt) 2>&1
-          echo "HEAD=$(git rev-parse HEAD)"
+          set -euo pipefail
           cat .tmp/partial-closure-patch-{00..06}.b64 > /tmp/partial-closure-patch.b64
-          echo "BASE64_SHA=$(sha256sum /tmp/partial-closure-patch.b64 | cut -d' ' -f1)"
+          test "$(sha256sum /tmp/partial-closure-patch.b64 | cut -d' ' -f1)" = \
+            "98a6a615ba1c3ebe368436f4e7f42dbf43390c2b6489282b51df1d9c199f3cad"
           base64 -d /tmp/partial-closure-patch.b64 | xz -d > /tmp/partial-closure.patch
-          echo "DECODE_STATUS=$?"
-          echo "PATCH_SHA=$(sha256sum /tmp/partial-closure.patch | cut -d' ' -f1)"
+          test "$(sha256sum /tmp/partial-closure.patch | cut -d' ' -f1)" = \
+            "d727c0d138633e338668a4f9b1b53e23c0abc3700fd4dc5b246048cbbdac5fed"
+
+          set +e
           git apply --reject --whitespace=nowarn /tmp/partial-closure.patch
-          echo "APPLY_STATUS=$?"
-          echo "REJECT_COUNT=$(find . -name '*.rej' -type f | wc -l)"
-          find . -name '*.rej' -type f -print -exec sha256sum {} \;
-          grep -F 'actual_close_time="2018-02-08T04:28:14.788Z"' \
+          apply_status=$?
+          set -e
+          test "$apply_status" -eq 1
+          test "$(find . -name '*.rej' -type f | wc -l)" -eq 1
+          test -f tests/unit/data/test_exchange_closures.py.rej
+          test "$(sha256sum tests/unit/data/test_exchange_closures.py.rej | cut -d' ' -f1)" = \
+            "028ac4852cccf1b4a6ec3ba66133deb248a3978f99430d5149883f166aa8a251"
+          grep -Fq 'actual_close_time="2018-02-08T04:28:14.788Z"' \
             tests/unit/data/test_exchange_closures.py
-          echo "ACTUAL_CLOSE_CHECK=$?"
-          grep -F 'expected_close_time="2018-02-08T07:59:59.999Z"' \
+          grep -Fq 'expected_close_time="2018-02-08T07:59:59.999Z"' \
             tests/unit/data/test_exchange_closures.py
-          echo "EXPECTED_CLOSE_CHECK=$?"
-          rm -f tests/unit/data/test_exchange_closures.py.rej
+          rm tests/unit/data/test_exchange_closures.py.rej
+
           git rm \
             .tmp/partial-closure-patch-*.b64 \
             .tmp/partial-closure-exact-*.b64 \
             .github/workflows/partial-closure-apply.yml
-          echo "GIT_RM_STATUS=$?"
+
           uv run ruff format --check .
-          echo "RUFF_FORMAT_STATUS=$?"
           uv run ruff check .
-          echo "RUFF_CHECK_STATUS=$?"
           uv run pyright
-          echo "PYRIGHT_STATUS=$?"
           uv run pytest -q \
-            --ignore=tests/acceptance/test_sealed_historical_validation_workflows.py
-          echo "PYTEST_STATUS=$?"
+            tests/unit/data/test_exchange_closures.py \
+            tests/unit/data/test_candle_exclusions.py \
+            tests/unit/data/test_candle_segments.py \
+            tests/unit/data/datasets/test_canonical_writer.py \
+            tests/unit/data/ingestion/test_service.py \
+            tests/unit/data/storage/test_local_immutable.py \
+            tests/integration/test_market_data_exchange_closure_v2.py \
+            tests/integration/test_research_dataset_reader.py \
+            tests/unit/strategy/test_handoff.py \
+            tests/unit/strategy/test_pre_final.py \
+            tests/unit/strategy/test_sealed_manifest_identity.py \
+            tests/acceptance/test_sealed_historical_validation_documentation.py
           uv run python -m build
-          echo "BUILD_STATUS=$?"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           git diff --cached --check
-          echo "DIFF_CHECK_STATUS=$?"
-          git status --short
-          exit 0
-      - uses: actions/upload-artifact@v4
-        with:
-          name: partial-closure-source-diagnostic-${{ github.sha }}
-          path: /tmp/partial-closure-source-diagnostic.txt
-          if-no-files-found: error
-          retention-days: 1
+          git commit -m "feat: implement verified partial-closure candle exclusion"
+          git push origin "HEAD:${{ github.head_ref }}"

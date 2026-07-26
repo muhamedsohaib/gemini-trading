@@ -23,34 +23,19 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync --all-groups --frozen
-      - name: Format Task 1-2 files exactly
-        run: >-
-          uv run ruff format
-          src/gemini_trading/data/exchange_closures.py
-          src/gemini_trading/data/segments.py
-          src/gemini_trading/data/validation/candles.py
-          tests/fixtures/market_data/gapped_btcusdt_4h.py
-          tests/unit/data/test_candle_segments.py
-          tests/unit/data/test_exchange_closures.py
+      - run: uv run ruff format --check .
       - run: uv run ruff check .
       - run: uv run pyright
-      - name: Capture first full-suite regression
-        id: full_pytest
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -o pipefail
-          uv run pytest -x -vv 2>&1 | tee /tmp/full-pytest-first-failure.log
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: full-pytest-first-failure-${{ github.sha }}
-          path: /tmp/full-pytest-first-failure.log
-          if-no-files-found: error
-          retention-days: 1
-      - name: Enforce full pytest result
-        if: steps.full_pytest.outcome == 'failure'
-        run: exit 1
+      - run: uv run pytest
+      - run: uv run python -m build
+      - run: uv run pip-audit
+      - name: Validate tracked-file policy
+        run: >-
+          uv run python -c "import subprocess;
+          from gemini_trading.safety.repository_policy import validate_tracked_paths;
+          validate_tracked_paths(subprocess.check_output(['git','ls-files'], text=True).splitlines())"
+      - name: Scan tracked files for secrets
+        run: uv run pre-commit run detect-secrets --all-files
 
   gitleaks:
     runs-on: ubuntu-latest

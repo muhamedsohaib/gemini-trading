@@ -157,10 +157,7 @@ class ExchangeClosure:
             _fail("exchange closure interval must be positive")
         if isinstance(self.unavailable_candle_count, bool) or self.unavailable_candle_count < 1:
             _fail("exchange closure unavailable-candle count must be positive")
-        if (
-            isinstance(self.fully_missing_candle_count, bool)
-            or self.fully_missing_candle_count < 1
-        ):
+        if isinstance(self.fully_missing_candle_count, bool) or self.fully_missing_candle_count < 1:
             _fail("exchange closure fully-missing candle count must be positive")
 
     @property
@@ -210,9 +207,11 @@ class ExchangeClosureManifest:
 
         previous: ExchangeClosure | None = None
         for closure in self.closures:
-            if not _aligned(closure.canonical_gap_start, self.timeframe) or not _aligned(
-                closure.fully_missing_start, self.timeframe
-            ) or not _aligned(closure.resumed_open, self.timeframe):
+            if (
+                not _aligned(closure.canonical_gap_start, self.timeframe)
+                or not _aligned(closure.fully_missing_start, self.timeframe)
+                or not _aligned(closure.resumed_open, self.timeframe)
+            ):
                 _fail("exchange closure boundaries must be timeframe aligned")
             if not (
                 self.start_time
@@ -225,9 +224,7 @@ class ExchangeClosureManifest:
                 _fail("exchange closure partial candle does not match canonical gap start")
 
             expected_close = (
-                closure.canonical_gap_start
-                + self.timeframe.duration
-                - timedelta(milliseconds=1)
+                closure.canonical_gap_start + self.timeframe.duration - timedelta(milliseconds=1)
             )
             if closure.partial_candle.expected_close_time != expected_close:
                 _fail("exchange closure partial candle expected close mismatch")
@@ -334,15 +331,11 @@ def load_exchange_closure_manifest(raw: bytes) -> ExchangeClosureManifest:
                     _string(closure_mapping, "canonical_gap_start"), "canonical_gap_start"
                 ),
                 resumed_open=_utc(_string(closure_mapping, "resumed_open"), "resumed_open"),
-                unavailable_candle_count=_integer(
-                    closure_mapping, "unavailable_candle_count"
-                ),
+                unavailable_candle_count=_integer(closure_mapping, "unavailable_candle_count"),
                 fully_missing_start=_utc(
                     _string(closure_mapping, "fully_missing_start"), "fully_missing_start"
                 ),
-                fully_missing_candle_count=_integer(
-                    closure_mapping, "fully_missing_candle_count"
-                ),
+                fully_missing_candle_count=_integer(closure_mapping, "fully_missing_candle_count"),
                 reason_code=_string(closure_mapping, "reason_code"),
                 governance_reference=_string(closure_mapping, "governance_reference"),
                 partial_candle=PartialCandleDeclaration(

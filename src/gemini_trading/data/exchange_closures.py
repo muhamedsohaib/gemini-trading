@@ -52,11 +52,7 @@ def _mapping(value: object, description: str) -> dict[str, object]:
     return cast(dict[str, object], raw)
 
 
-def _exact_fields(
-    mapping: dict[str, object],
-    expected: set[str],
-    description: str,
-) -> None:
+def _exact_fields(mapping: dict[str, object], expected: set[str], description: str) -> None:
     if set(mapping) != expected:
         _fail(f"exchange closure {description} fields are invalid")
 
@@ -236,22 +232,14 @@ def load_exchange_closure_manifest(raw: bytes) -> ExchangeClosureManifest:
             ExchangeClosure(
                 closure_id=_string(closure_mapping, "closure_id"),
                 missing_start=_utc(
-                    _string(closure_mapping, "missing_start"),
-                    "missing_start",
+                    _string(closure_mapping, "missing_start"), "missing_start"
                 ),
                 resumed_open=_utc(
-                    _string(closure_mapping, "resumed_open"),
-                    "resumed_open",
+                    _string(closure_mapping, "resumed_open"), "resumed_open"
                 ),
-                missing_candle_count=_integer(
-                    closure_mapping,
-                    "missing_candle_count",
-                ),
+                missing_candle_count=_integer(closure_mapping, "missing_candle_count"),
                 reason_code=_string(closure_mapping, "reason_code"),
-                governance_reference=_string(
-                    closure_mapping,
-                    "governance_reference",
-                ),
+                governance_reference=_string(closure_mapping, "governance_reference"),
             )
         )
 
@@ -270,9 +258,7 @@ def load_exchange_closure_manifest(raw: bytes) -> ExchangeClosureManifest:
             closures=tuple(closures),
         )
     except ValueError as error:
-        raise CandleValidationError(
-            "exchange closure manifest values are invalid"
-        ) from error
+        raise CandleValidationError("exchange closure manifest values are invalid") from error
 
     if serialize_exchange_closure_manifest(manifest) != raw:
         _fail("exchange closure manifest encoding is not canonical")

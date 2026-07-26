@@ -29,6 +29,9 @@ from gemini_trading.domain.timeframe import Timeframe
 
 _INSTRUMENT = Instrument(symbol="BTCUSDT", base_asset="BTC", quote_asset="USDT")
 _TIMEFRAME = Timeframe.H4
+_APPROVED_ROW_SHA256 = (
+    "6d0ed02c75960a3acf11073a2b7276e0bdc04f217fc99a488b15a5ff68e70775"  # pragma: allowlist secret
+)
 _START = datetime(2020, 1, 1, tzinfo=UTC)
 _PARTIAL_OPEN = _START + timedelta(hours=4)
 _MISSING_OPEN = _START + timedelta(hours=8)
@@ -169,10 +172,7 @@ def test_canonical_provider_row_digest_matches_approved_evidence() -> None:
         "6532638.63751892",
         "0",
     ]
-    assert (
-        hashlib.sha256(canonical_binance_row_bytes(row)).hexdigest()
-        == "6d0ed02c75960a3acf11073a2b7276e0bdc04f217fc99a488b15a5ff68e70775"
-    )
+    assert hashlib.sha256(canonical_binance_row_bytes(row)).hexdigest() == _APPROVED_ROW_SHA256
 
 
 def test_exact_partial_row_is_excluded_once_without_changing_raw_bytes() -> None:

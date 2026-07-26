@@ -47,7 +47,9 @@ _GIT_COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 _RUN_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 _FIXED_CONFIG = Path("tests/fixtures/strategy/candidate-v0.1-config.json")
 _HANDOFF_NAME = "dataset-handoff.json"
-_EXPECTED_EXCLUDED_ROW_SHA256 = "6d0ed02c75960a3acf11073a2b7276e0bdc04f217fc99a488b15a5ff68e70775"
+_EXPECTED_EXCLUDED_ROW_SHA256 = (
+    "6d0ed02c75960a3acf11073a2b7276e0bdc04f217fc99a488b15a5ff68e70775"  # pragma: allowlist secret
+)
 _EXPECTED_SEGMENT_BOUNDARIES = (228,)
 _EXPECTED_CANDLE_COUNT = 18_617
 

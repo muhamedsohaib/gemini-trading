@@ -55,7 +55,9 @@ from strategy_fixture_support import base_simulation
 _CODE_COMMIT = "a" * 40
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _CLOSURE_ID = "binance-spot-system-upgrade-2018-02-08"
-_APPROVED_ROW_SHA256 = "6d0ed02c75960a3acf11073a2b7276e0bdc04f217fc99a488b15a5ff68e70775"
+_APPROVED_ROW_SHA256 = (
+    "6d0ed02c75960a3acf11073a2b7276e0bdc04f217fc99a488b15a5ff68e70775"  # pragma: allowlist secret
+)
 
 
 def _verified_dataset(root: Path) -> VerifiedDataset:

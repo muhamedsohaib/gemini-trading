@@ -21,7 +21,9 @@ from gemini_trading.data.segments import (
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 _CLOSURE_ID = "binance-spot-system-upgrade-2018-02-08"
-_PROVIDER_ROW_SHA256 = "6d0ed02c75960a3acf11073a2b7276e0bdc04f217fc99a488b15a5ff68e70775"
+_PROVIDER_ROW_SHA256 = (
+    "6d0ed02c75960a3acf11073a2b7276e0bdc04f217fc99a488b15a5ff68e70775"  # pragma: allowlist secret
+)
 
 
 @dataclass(frozen=True, slots=True)

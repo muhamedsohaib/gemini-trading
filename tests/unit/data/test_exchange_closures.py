@@ -15,7 +15,9 @@ from gemini_trading.data.exchange_closures import (
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 _FIXED_RELATIVE_PATH = Path("config/market-data/sealed-btcusdt-4h-exchange-closures.json")
-_APPROVED_ROW_SHA256 = "6d0ed02c75960a3acf11073a2b7276e0bdc04f217fc99a488b15a5ff68e70775"
+_APPROVED_ROW_SHA256 = (
+    "6d0ed02c75960a3acf11073a2b7276e0bdc04f217fc99a488b15a5ff68e70775"  # pragma: allowlist secret
+)
 
 
 def _fixed_mapping() -> dict[str, object]:

@@ -30,7 +30,9 @@ _INTERVAL = "4h"
 _START = "2018-01-01T00:00:00Z"
 _END_EXCLUSIVE = "2026-07-01T00:00:00Z"
 _CLOSURE_ID = "binance-spot-system-upgrade-2018-02-08"
-_PROVIDER_ROW_SHA256 = "6d0ed02c75960a3acf11073a2b7276e0bdc04f217fc99a488b15a5ff68e70775"
+_PROVIDER_ROW_SHA256 = (
+    "6d0ed02c75960a3acf11073a2b7276e0bdc04f217fc99a488b15a5ff68e70775"  # pragma: allowlist secret
+)
 _ALLOWED_FIELDS = {
     "schema_version",
     "repository",

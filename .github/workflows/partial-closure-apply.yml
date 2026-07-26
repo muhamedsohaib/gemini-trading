@@ -5,10 +5,10 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  apply:
+  diagnose:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -20,21 +20,31 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync --all-groups --frozen
-      - name: Verify and apply consolidated implementation
+      - name: Diagnose consolidated implementation
         shell: bash
         run: |
-          set -euo pipefail
+          set +e
+          exec > >(tee /tmp/partial-closure-apply-diagnostic.txt) 2>&1
+          echo "HEAD=$(git rev-parse HEAD)"
+          echo "CHUNKS"
+          wc -c .tmp/partial-closure-patch-{00..06}.b64
           cat .tmp/partial-closure-patch-{00..06}.b64 > /tmp/partial-closure-patch.b64
-          test "$(sha256sum /tmp/partial-closure-patch.b64 | cut -d' ' -f1)" = \
-            "98a6a615ba1c3ebe368436f4e7f42dbf43390c2b6489282b51df1d9c199f3cad"
-          base64 -d /tmp/partial-closure-patch.b64 | xz -d > /tmp/partial-closure.patch
-          test "$(sha256sum /tmp/partial-closure.patch | cut -d' ' -f1)" = \
-            "d727c0d138633e338668a4f9b1b53e23c0abc3700fd4dc5b246048cbbdac5fed"
+          echo "BASE64_SHA=$(sha256sum /tmp/partial-closure-patch.b64 | cut -d' ' -f1)"
+          base64 -d /tmp/partial-closure-patch.b64 > /tmp/partial-closure-patch.xz
+          echo "BASE64_DECODE_STATUS=$?"
+          xz -dc /tmp/partial-closure-patch.xz > /tmp/partial-closure.patch
+          echo "XZ_DECODE_STATUS=$?"
+          echo "PATCH_SIZE=$(wc -c < /tmp/partial-closure.patch)"
+          echo "PATCH_SHA=$(sha256sum /tmp/partial-closure.patch | cut -d' ' -f1)"
           git apply --check /tmp/partial-closure.patch
+          echo "APPLY_CHECK_STATUS=$?"
           git apply /tmp/partial-closure.patch
-          git rm .tmp/partial-closure-patch-{00..06}.b64
+          echo "APPLY_STATUS=$?"
+          git status --short
           uv run ruff format --check .
+          echo "RUFF_FORMAT_STATUS=$?"
           uv run ruff check .
+          echo "RUFF_CHECK_STATUS=$?"
           uv run pyright \
             src/gemini_trading/data/exclusions.py \
             src/gemini_trading/data/exchange_closures.py \
@@ -49,6 +59,7 @@ jobs:
             src/gemini_trading/strategy/replay.py \
             src/gemini_trading/strategy/sealed_evaluator.py \
             src/gemini_trading/strategy/sealed_verification.py
+          echo "PYRIGHT_STATUS=$?"
           uv run pytest -q \
             tests/unit/data/test_exchange_closures.py \
             tests/unit/data/test_candle_exclusions.py \
@@ -63,8 +74,12 @@ jobs:
             tests/unit/strategy/test_sealed_manifest_identity.py \
             tests/acceptance/test_sealed_historical_validation_workflows.py \
             tests/acceptance/test_sealed_historical_validation_documentation.py
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "feat: implement verified partial-closure candle exclusion"
-          git push origin "HEAD:${{ github.head_ref }}"
+          echo "PYTEST_STATUS=$?"
+          git diff --stat
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: partial-closure-apply-diagnostic-${{ github.sha }}
+          path: /tmp/partial-closure-apply-diagnostic.txt
+          if-no-files-found: error
+          retention-days: 1

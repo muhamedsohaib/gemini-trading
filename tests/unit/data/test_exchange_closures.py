@@ -188,13 +188,18 @@ def test_fixed_loader_rejects_wrong_market_identity(tmp_path: Path) -> None:
 def test_manifest_rejects_closure_outside_request_window() -> None:
     mapping = _fixed_mapping()
     closure = _closures(mapping)[0]
+    partial = _partial(closure)
     closure.update(
         canonical_gap_start="2017-12-31T20:00:00Z",
         resumed_open="2018-01-01T00:00:00Z",
         unavailable_candle_count=1,
         fully_missing_start="2017-12-31T20:00:00Z",
         fully_missing_candle_count=1,
-        partial_candle=None,
+    )
+    partial.update(
+        open_time="2017-12-31T20:00:00Z",
+        actual_close_time="2017-12-31T20:28:14.788Z",
+        expected_close_time="2017-12-31T23:59:59.999Z",
     )
     with pytest.raises(CandleValidationError, match="window"):
         load_exchange_closure_manifest(_canonical(mapping))

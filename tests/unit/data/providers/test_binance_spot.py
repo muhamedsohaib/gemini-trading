@@ -57,6 +57,15 @@ def _milliseconds(value: datetime) -> int:
     return (value - _EPOCH) // timedelta(milliseconds=1)
 
 
+def test_default_provider_uses_official_market_data_only_endpoint() -> None:
+    transport = _FakeTransport([_response(body=b'{"serverTime":1735689600123}')])
+    provider = BinanceSpotProvider(transport=transport, clock=lambda: _RETRIEVED_AT)
+
+    provider.fetch_server_time()
+
+    assert transport.calls == [("https://data-api.binance.vision/api/v3/time", 10.0)]
+
+
 def test_fetch_server_time_uses_exact_public_endpoint_and_integer_milliseconds() -> None:
     server_ms = 1_735_689_600_123
     transport = _FakeTransport([_response(body=b'{"serverTime":1735689600123}')])

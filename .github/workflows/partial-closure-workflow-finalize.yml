@@ -5,17 +5,16 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  finalize:
+  diagnose:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6.0.2
         with:
           ref: ${{ github.head_ref }}
-          fetch-depth: 0
       - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
         with:
           version: "0.11.25"
@@ -24,53 +23,21 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync --all-groups --frozen
-      - name: Upgrade sealed workflow identity barriers
+      - name: Diagnose Stage 2 workflow transformation
         shell: bash
         run: |
-          set -euo pipefail
+          set +e
+          exec > >(tee /tmp/stage2-workflow-diagnostic.txt) 2>&1
           python - <<'PY'
           from pathlib import Path
-
-          dataset = Path(".github/workflows/sealed-btcusdt-dataset.yml")
-          text = dataset.read_text()
-          marker = "      - name: Assert worktree stayed clean\n"
-          addition = "\n".join(
-              (
-                  "      - name: Assert exact v3 handoff identity",
-                  "        run: |",
-                  "          uv run python - <<'PY'",
-                  "          import json",
-                  "          import os",
-                  "          from pathlib import Path",
-                  "          from gemini_trading.strategy.handoff import load_dataset_handoff",
-                  "",
-                  "          root = Path(os.environ[\"OUTPUT_ROOT\"])",
-                  "          payload = json.loads((Path(os.environ[\"RUNNER_TEMP\"]) / \"handoff.json\").read_text())",
-                  "          handoff = load_dataset_handoff((root / payload[\"handoff_path\"]).read_bytes())",
-                  "          if handoff.dataset_schema_version != \"candle-dataset-v3\":",
-                  "              raise SystemExit(\"Stage 1 requires candle-dataset-v3\")",
-                  "          if (handoff.closure_count, handoff.exclusion_count, handoff.segment_count) != (1, 1, 2):",
-                  "              raise SystemExit(\"Stage 1 closure, exclusion, and segment count mismatch\")",
-                  "          if handoff.closure_ids != (\"binance-spot-system-upgrade-2018-02-08\",):",
-                  "              raise SystemExit(\"Stage 1 closure identity mismatch\")",
-                  "          if handoff.excluded_provider_row_sha256 != \"6d0ed02c75960a3acf11073a2b7276e0bdc04f217fc99a488b15a5ff68e70775\":",
-                  "              raise SystemExit(\"Stage 1 excluded provider row mismatch\")",
-                  "          if handoff.segment_boundary_indices != (228,):",
-                  "              raise SystemExit(\"Stage 1 segment boundary mismatch\")",
-                  "          if handoff.candle_count != 18617:",
-                  "              raise SystemExit(\"Stage 1 candle count mismatch\")",
-                  "          PY",
-              )
-          ) + "\n"
-          if marker not in text:
-              raise SystemExit("dataset workflow insertion marker not found")
-          dataset.write_text(text.replace(marker, addition + marker, 1))
 
           study = Path(".github/workflows/sealed-btcusdt-study.yml")
           text = study.read_text()
           start_marker = '          if handoff.dataset_schema_version != "candle-dataset-v2":\n'
+          print(f"start_marker_count={text.count(start_marker)}")
           start = text.index(start_marker)
           end = text.index("          PY\n", start)
+          print(f"start={start} end={end}")
           replacement = "\n".join(
               (
                   '          if handoff.dataset_schema_version != "candle-dataset-v3":',
@@ -89,14 +56,16 @@ jobs:
           ) + "\n"
           study.write_text(text[:start] + replacement + text[end:])
           PY
-
+          echo "TRANSFORM_STATUS=$?"
           uv run pytest -q tests/acceptance/test_sealed_historical_validation_workflows.py
+          echo "PYTEST_STATUS=$?"
           git diff --check
-          git rm .github/workflows/partial-closure-workflow-finalize.yml
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add \
-            .github/workflows/sealed-btcusdt-dataset.yml \
-            .github/workflows/sealed-btcusdt-study.yml
-          git commit -m "ci: enforce sealed dataset v3 identity"
-          git push origin "HEAD:${{ github.head_ref }}"
+          echo "DIFF_CHECK_STATUS=$?"
+          git diff -- .github/workflows/sealed-btcusdt-study.yml
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage2-workflow-diagnostic-${{ github.sha }}
+          path: /tmp/stage2-workflow-diagnostic.txt
+          if-no-files-found: error
+          retention-days: 1

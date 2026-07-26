@@ -274,7 +274,7 @@ def validate_and_segment_candle_sequence(
     _validate_candle_boundaries(candle_values, request.timeframe)
 
     closures_by_bounds = {
-        (closure.missing_start, closure.resumed_open): closure
+        (closure.canonical_gap_start, closure.resumed_open): closure
         for closure in closure_manifest.closures
     }
     declared_ids = {closure.closure_id for closure in closure_manifest.closures}

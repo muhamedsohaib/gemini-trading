@@ -350,6 +350,18 @@ class LocalImmutableStore:
             (dataset_directory / "candle-segments.json").read_bytes(),
         )
 
+    def write_dataset_exclusion_manifest(self, dataset_id: str, exclusion_raw: bytes) -> Path:
+        """Persist exact derived exclusion evidence beside one canonical dataset."""
+
+        path = self._dataset_directory(dataset_id) / "candle-exclusions.json"
+        return write_immutable(path, exclusion_raw)
+
+    def read_dataset_exclusion_manifest_bytes(self, dataset_id: str) -> bytes:
+        """Read exact derived exclusion evidence for one canonical dataset."""
+
+        path = self._dataset_directory(dataset_id) / "candle-exclusions.json"
+        return path.read_bytes()
+
     def write_provenance(
         self,
         dataset_id: str,

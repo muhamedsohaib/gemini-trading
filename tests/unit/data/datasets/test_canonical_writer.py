@@ -304,3 +304,83 @@ def test_v2_manifest_requires_supporting_evidence() -> None:
             candles=(_candle(),),
             canonical_bytes=canonical,
         )
+
+
+def test_v3_dataset_identity_binds_exclusion_evidence() -> None:
+    from gemini_trading.data.datasets.canonical_writer import dataset_id_v3
+
+    canonical = serialize_candles((_candle(),))
+    closure = b'{"closure":"exact"}\n'
+    exclusions = b'{"exclusions":[1]}\n'
+    segments = b'{"segments":[1,2]}\n'
+    identity = dataset_id_v3(
+        provider="binance_spot",
+        instrument=_INSTRUMENT,
+        timeframe=Timeframe.H4,
+        start_time=_START,
+        end_time=_END,
+        canonical_bytes=canonical,
+        closure_manifest_bytes=closure,
+        exclusion_manifest_bytes=exclusions,
+        segment_manifest_bytes=segments,
+    )
+    changed = dataset_id_v3(
+        provider="binance_spot",
+        instrument=_INSTRUMENT,
+        timeframe=Timeframe.H4,
+        start_time=_START,
+        end_time=_END,
+        canonical_bytes=canonical,
+        closure_manifest_bytes=closure,
+        exclusion_manifest_bytes=exclusions + b" ",
+        segment_manifest_bytes=segments,
+    )
+    assert changed != identity
+
+
+def test_build_and_serialize_v3_manifest_binds_all_evidence() -> None:
+    candles = (_candle(),)
+    canonical = serialize_candles(candles)
+    closure = b'{"closure":"exact"}\n'
+    exclusions = b'{"exclusions":[1]}\n'
+    segments = b'{"segments":[1,2]}\n'
+    manifest = build_dataset_manifest(
+        schema_version="candle-dataset-v3",
+        provider="binance_spot",
+        instrument=_INSTRUMENT,
+        timeframe=Timeframe.H4,
+        start_time=_START,
+        end_time=_END,
+        candles=candles,
+        canonical_bytes=canonical,
+        closure_manifest_bytes=closure,
+        exclusion_manifest_bytes=exclusions,
+        segment_manifest_bytes=segments,
+        closure_count=1,
+        exclusion_count=1,
+        segment_count=2,
+    )
+    encoded = serialize_dataset_manifest(manifest)
+    assert b'"exclusion_manifest_sha256":"' in encoded
+    assert b'"exclusion_count":1' in encoded
+    assert manifest.exclusion_manifest_sha256 == hashlib.sha256(exclusions).hexdigest()
+
+
+def test_v3_manifest_requires_exclusion_evidence() -> None:
+    canonical = serialize_candles((_candle(),))
+    with pytest.raises(ValueError, match="exclusion manifest"):
+        build_dataset_manifest(
+            schema_version="candle-dataset-v3",
+            provider="binance_spot",
+            instrument=_INSTRUMENT,
+            timeframe=Timeframe.H4,
+            start_time=_START,
+            end_time=_END,
+            candles=(_candle(),),
+            canonical_bytes=canonical,
+            closure_manifest_bytes=b"{}\n",
+            segment_manifest_bytes=b"{}\n",
+            closure_count=1,
+            exclusion_count=1,
+            segment_count=2,
+        )

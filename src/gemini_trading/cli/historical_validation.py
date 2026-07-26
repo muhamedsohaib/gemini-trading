@@ -47,6 +47,11 @@ _GIT_COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 _RUN_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 _FIXED_CONFIG = Path("tests/fixtures/strategy/candidate-v0.1-config.json")
 _HANDOFF_NAME = "dataset-handoff.json"
+_EXPECTED_EXCLUDED_ROW_SHA256 = (
+    "6d0ed02c75960a3acf11073a2b7276e0bdc04f217fc99a488b15a5ff68e70775"  # pragma: allowlist secret
+)
+_EXPECTED_SEGMENT_BOUNDARIES = (228,)
+_EXPECTED_CANDLE_COUNT = 18_617
 
 
 def _argument(arguments: argparse.Namespace, name: str) -> str:
@@ -215,7 +220,7 @@ def _strategy_handoff(arguments: argparse.Namespace) -> dict[str, object]:
         dataset_id,
         run_id,
     )
-    dataset = load_verified_dataset(store, dataset_id, require_v2=True)
+    dataset = load_verified_dataset(store, dataset_id, require_v3=True)
     raw_root = output_root / "data" / "raw" / "binance_spot" / run_id
     canonical_root = output_root / "data" / "canonical" / dataset_id
     relative_paths = tuple(
@@ -229,12 +234,28 @@ def _strategy_handoff(arguments: argparse.Namespace) -> dict[str, object]:
     files = build_artifact_inventory(output_root, relative_paths)
     if (
         dataset.manifest.closure_manifest_sha256 is None
+        or dataset.manifest.exclusion_manifest_sha256 is None
         or dataset.manifest.segment_manifest_sha256 is None
         or dataset.closure_manifest is None
+        or dataset.exclusion_manifest is None
+        or dataset.segment_manifest is None
     ):
-        raise CliUsageError("verified v2 dataset is missing supporting identity")
+        raise CliUsageError("verified v3 dataset is missing supporting identity")
+    excluded_row_hashes = tuple(
+        item.provider_row_sha256 for item in dataset.exclusion_manifest.exclusions
+    )
+    segment_boundaries = dataset.segment_manifest.boundary_indices
+    if (
+        dataset.manifest.closure_count != 1
+        or dataset.manifest.exclusion_count != 1
+        or dataset.manifest.segment_count != 2
+        or excluded_row_hashes != (_EXPECTED_EXCLUDED_ROW_SHA256,)
+        or segment_boundaries != _EXPECTED_SEGMENT_BOUNDARIES
+        or verification.candle_count != _EXPECTED_CANDLE_COUNT
+    ):
+        raise CliUsageError("verified v3 dataset fixed evidence identity mismatch")
     manifest = DatasetHandoffManifest(
-        schema_version="sealed-dataset-handoff-v2",
+        schema_version="sealed-dataset-handoff-v3",
         repository="muhamedsohaib/gemini-trading",
         source_commit=source_commit,
         workflow_name="sealed-btcusdt-dataset",
@@ -255,11 +276,18 @@ def _strategy_handoff(arguments: argparse.Namespace) -> dict[str, object]:
             canonical_root / "exchange-closures.json", output_root
         ),
         closure_manifest_sha256=dataset.manifest.closure_manifest_sha256,
+        exclusion_manifest_path=_safe_relative(
+            canonical_root / "candle-exclusions.json", output_root
+        ),
+        exclusion_manifest_sha256=dataset.manifest.exclusion_manifest_sha256,
         segment_manifest_path=_safe_relative(canonical_root / "candle-segments.json", output_root),
         segment_manifest_sha256=dataset.manifest.segment_manifest_sha256,
         closure_count=dataset.manifest.closure_count,
+        exclusion_count=dataset.manifest.exclusion_count,
         segment_count=dataset.manifest.segment_count,
         closure_ids=tuple(item.closure_id for item in dataset.closure_manifest.closures),
+        excluded_provider_row_sha256=excluded_row_hashes[0],
+        segment_boundary_indices=segment_boundaries,
         candle_count=verification.candle_count,
         first_open_time=dataset.manifest.first_open_time.isoformat().replace("+00:00", "Z"),
         last_open_time=dataset.manifest.last_open_time.isoformat().replace("+00:00", "Z"),
@@ -297,7 +325,7 @@ def _strategy_prepare(arguments: argparse.Namespace) -> dict[str, object]:
     if code_commit != handoff.source_commit:
         raise CliUsageError("code commit does not match dataset handoff")
     dataset = load_verified_dataset(
-        LocalImmutableStore(output_root), handoff.dataset_id, require_v2=True
+        LocalImmutableStore(output_root), handoff.dataset_id, require_v3=True
     )
     artifacts = prepare_candidate_strategy_study(
         dataset=dataset,
@@ -348,7 +376,7 @@ def _strategy_finalize(arguments: argparse.Namespace) -> dict[str, object]:
     code_commit = resolve_clean_git_commit(project_root)
     receipt = FinalAccessStore(output_root).load(receipt_id)
     config = load_candidate_strategy_config(project_root / _FIXED_CONFIG)
-    dataset = load_verified_dataset(LocalImmutableStore(output_root), dataset_id, require_v2=True)
+    dataset = load_verified_dataset(LocalImmutableStore(output_root), dataset_id, require_v3=True)
     artifacts = complete_candidate_strategy_study(
         pre_final=pre_final,
         receipt=receipt,

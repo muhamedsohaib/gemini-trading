@@ -19,6 +19,11 @@ from gemini_trading.data.exchange_closures import (
     ExchangeClosureManifest,
     load_exchange_closure_manifest,
 )
+from gemini_trading.data.exclusions import (
+    CandleExclusionManifest,
+    match_and_exclude_partial_candles,
+    serialize_candle_exclusion_manifest,
+)
 from gemini_trading.data.ingestion.service import IngestionResult
 from gemini_trading.data.normalization.binance_klines import normalize_binance_klines
 from gemini_trading.data.segments import (
@@ -39,6 +44,7 @@ _RETRIEVAL_SCHEMA_VERSION = "retrieval-manifest-v1"
 _RETRIEVAL_SCHEMA_VERSION_V2 = "retrieval-manifest-v2"
 _DATASET_SCHEMA_VERSION = "candle-dataset-v1"
 _DATASET_SCHEMA_VERSION_V2 = "candle-dataset-v2"
+_DATASET_SCHEMA_VERSION_V3 = "candle-dataset-v3"
 _PROVENANCE_SCHEMA_VERSION = "dataset-provenance-v1"
 _PROVIDER = "binance_spot"
 _EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
@@ -74,6 +80,8 @@ class ReplayCanonicalStore(Protocol):
         closure_raw: bytes,
         segment_raw: bytes,
     ) -> tuple[Path, Path]: ...
+
+    def write_dataset_exclusion_manifest(self, dataset_id: str, exclusion_raw: bytes) -> Path: ...
 
     def write_provenance(
         self,
@@ -171,17 +179,20 @@ def load_verified_run(
     return manifest, pages, manifest_bytes
 
 
-def reconstruct_completed_candles(
+def reconstruct_candles_and_exclusions(
     manifest: RetrievalManifest,
     pages: tuple[RawPage, ...],
     closure_manifest: ExchangeClosureManifest | None = None,
-) -> tuple[Candle, ...]:
+) -> tuple[tuple[Candle, ...], CandleExclusionManifest | None]:
+    """Reconstruct canonical candles and exact exclusion evidence from raw pages."""
+
     if manifest.server_time_snapshot is None:
         raise MarketDataError("completed retrieval manifest lacks server time")
 
     cursor = manifest.start_time
     terminal_guard_seen = False
     candidates: list[Candle] = []
+    normalized_pages: list[tuple[Candle, ...]] = []
     previous_retrieved_at: datetime | None = None
 
     for index, page in enumerate(pages):
@@ -214,12 +225,12 @@ def reconstruct_completed_candles(
             raise MarketDataError("raw evidence continues after a terminal guard page")
 
         candidates.extend(normalized)
+        normalized_pages.append(normalized)
         cursor = next_cursor
 
     if not terminal_guard_seen and cursor < manifest.end_time:
         raise MarketDataError("raw evidence does not cover the requested window")
 
-    candles = completed_candles(candidates, manifest.server_time_snapshot)
     request = RetrievalRequest(
         instrument=manifest.instrument,
         timeframe=manifest.timeframe,
@@ -227,10 +238,32 @@ def reconstruct_completed_candles(
         end_time=manifest.end_time,
     )
     if closure_manifest is None:
+        candles = completed_candles(candidates, manifest.server_time_snapshot)
         validate_candle_sequence(candles, request)
-    else:
-        validate_and_segment_candle_sequence(candles, request, closure_manifest)
-    return candles
+        return candles, None
+
+    exclusion_result = match_and_exclude_partial_candles(
+        pages,
+        normalized_pages,
+        closure_manifest,
+        server_time=manifest.server_time_snapshot,
+    )
+    validate_and_segment_candle_sequence(
+        exclusion_result.candles,
+        request,
+        closure_manifest,
+    )
+    return exclusion_result.candles, exclusion_result.manifest
+
+
+def reconstruct_completed_candles(
+    manifest: RetrievalManifest,
+    pages: tuple[RawPage, ...],
+    closure_manifest: ExchangeClosureManifest | None = None,
+) -> tuple[Candle, ...]:
+    """Compatibility wrapper returning only reconstructed canonical candles."""
+
+    return reconstruct_candles_and_exclusions(manifest, pages, closure_manifest)[0]
 
 
 @dataclass(frozen=True, slots=True)
@@ -247,6 +280,8 @@ class ReplayService:
         manifest, pages, manifest_bytes = load_verified_run(self.raw_store, run_id)
         closure_manifest: ExchangeClosureManifest | None = None
         closure_bytes: bytes | None = None
+        exclusion_bytes: bytes | None = None
+        exclusion_count = 0
         segment_bytes: bytes | None = None
         segment_count = 1
         if manifest.schema_version == _RETRIEVAL_SCHEMA_VERSION_V2:
@@ -258,8 +293,16 @@ class ReplayService:
             if hashlib.sha256(closure_bytes).hexdigest() != manifest.closure_manifest_sha256:
                 raise MarketDataError("run closure manifest hash mismatch")
 
-        candles = reconstruct_completed_candles(manifest, pages, closure_manifest)
+        candles, exclusion_manifest = reconstruct_candles_and_exclusions(
+            manifest,
+            pages,
+            closure_manifest,
+        )
         if closure_manifest is not None:
+            if exclusion_manifest is None:
+                raise MarketDataError("replay did not reproduce exclusion evidence")
+            exclusion_bytes = serialize_candle_exclusion_manifest(exclusion_manifest)
+            exclusion_count = len(exclusion_manifest.exclusions)
             request = RetrievalRequest(
                 instrument=manifest.instrument,
                 timeframe=manifest.timeframe,
@@ -277,7 +320,7 @@ class ReplayService:
         canonical_bytes = serialize_candles(candles)
         dataset_manifest = build_dataset_manifest(
             schema_version=(
-                _DATASET_SCHEMA_VERSION_V2
+                _DATASET_SCHEMA_VERSION_V3
                 if closure_manifest is not None
                 else _DATASET_SCHEMA_VERSION
             ),
@@ -289,8 +332,10 @@ class ReplayService:
             candles=candles,
             canonical_bytes=canonical_bytes,
             closure_manifest_bytes=closure_bytes,
+            exclusion_manifest_bytes=exclusion_bytes,
             segment_manifest_bytes=segment_bytes,
             closure_count=(0 if closure_manifest is None else len(closure_manifest.closures)),
+            exclusion_count=exclusion_count,
             segment_count=segment_count,
         )
         dataset_manifest_bytes = serialize_dataset_manifest(dataset_manifest)
@@ -300,14 +345,19 @@ class ReplayService:
             dataset_manifest_bytes,
         )
         supporting_paths: tuple[tuple[str, Path], ...] = ()
-        if closure_bytes is not None and segment_bytes is not None:
+        if closure_bytes is not None and exclusion_bytes is not None and segment_bytes is not None:
             closure_path, segment_path = self.canonical_store.write_dataset_supporting_manifests(
                 dataset_manifest.dataset_id,
                 closure_bytes,
                 segment_bytes,
             )
+            exclusion_path = self.canonical_store.write_dataset_exclusion_manifest(
+                dataset_manifest.dataset_id,
+                exclusion_bytes,
+            )
             supporting_paths = (
                 ("canonical_closure_manifest", closure_path),
+                ("exclusion_manifest", exclusion_path),
                 ("segment_manifest", segment_path),
             )
         provenance = build_provenance(

@@ -5,6 +5,9 @@ from pathlib import Path
 _ROOT = Path(__file__).resolve().parents[2]
 _GUIDE = _ROOT / "docs" / "operations" / "sealed-btcusdt-historical-validation.md"
 _README = _ROOT / "README.md"
+_APPROVED_ROW_SHA256 = (
+    "6d0ed02c75960a3acf11073a2b7276e0bdc04f217fc99a488b15a5ff68e70775"  # pragma: allowlist secret
+)
 
 
 def test_operator_guide_locks_scope_sequence_and_failure_policy() -> None:
@@ -36,10 +39,15 @@ def test_operator_guide_locks_scope_sequence_and_failure_policy() -> None:
         "INCONCLUSIVE",
         "RESEARCH_ONLY",
         "No classification authorizes execution or capital",
-        "candle-dataset-v2",
+        "candle-dataset-v3",
+        "exchange-closure-manifest-v2",
+        "candle-exclusion-manifest-v1",
         "binance-spot-system-upgrade-2018-02-08",
-        "[2018-02-08T04:00:00Z, 2018-02-09T08:00:00Z)",
-        "seven completed `4h` candle slots",
+        "2018-02-08T00:28:14.788Z",
+        _APPROVED_ROW_SHA256,
+        "[2018-02-08T00:00:00Z, 2018-02-09T08:00:00Z)",
+        "eight unavailable canonical `4h` slots",
+        "one exact partial-candle exclusion",
         "resulting canonical segments: two",
         "never inserts, forward-fills, interpolates, zero-fills",
         "Feature warm-up restarts",

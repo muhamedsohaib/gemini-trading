@@ -2,7 +2,11 @@ import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from gemini_trading.data.exchange_closures import load_fixed_btcusdt_closure_manifest
+from gemini_trading.data.exchange_closures import (
+    ExchangeClosure,
+    load_fixed_btcusdt_closure_manifest,
+)
+from gemini_trading.data.exclusions import load_candle_exclusion_manifest
 from gemini_trading.data.ingestion.replay import ReplayService
 from gemini_trading.data.ingestion.service import IngestionService
 from gemini_trading.data.providers.base import HttpResponse, ProviderPage
@@ -22,9 +26,8 @@ def _milliseconds(value: datetime) -> int:
 
 
 class ClosureAwareProvider:
-    def __init__(self, missing_start: datetime, resumed_open: datetime) -> None:
-        self.missing_start = missing_start
-        self.resumed_open = resumed_open
+    def __init__(self, closure: ExchangeClosure) -> None:
+        self.closure = closure
         self.page_number = 0
 
     def fetch_server_time(self) -> datetime:
@@ -39,8 +42,27 @@ class ClosureAwareProvider:
         rows: list[list[object]] = []
         open_time = cursor
         while open_time < request.end_time and len(rows) < limit:
-            if self.missing_start <= open_time < self.resumed_open:
-                open_time = self.resumed_open
+            if open_time == self.closure.canonical_gap_start:
+                rows.append(
+                    [
+                        1518048000000,
+                        "7599.00000000",
+                        "7844.00000000",
+                        "7572.09000000",
+                        "7784.02000000",
+                        "1521.53731800",
+                        1518049694788,
+                        "11770168.04386595",
+                        12417,
+                        "844.25881300",
+                        "6532638.63751892",
+                        "0",
+                    ]
+                )
+                open_time += request.timeframe.duration
+                continue
+            if self.closure.fully_missing_start <= open_time < self.closure.resumed_open:
+                open_time = self.closure.resumed_open
                 continue
             value = 10_000 + len(rows)
             rows.append(
@@ -78,7 +100,7 @@ class ClosureAwareProvider:
         )
 
 
-def test_sealed_ingestion_replay_and_verification_bind_exact_closure_segments(
+def test_sealed_ingestion_replay_and_verification_bind_exact_partial_closure(
     tmp_path: Path,
 ) -> None:
     closure_manifest, closure_bytes = load_fixed_btcusdt_closure_manifest(_PROJECT_ROOT)
@@ -91,7 +113,7 @@ def test_sealed_ingestion_replay_and_verification_bind_exact_closure_segments(
     )
     store = LocalImmutableStore(tmp_path)
     result = IngestionService(
-        provider=ClosureAwareProvider(closure.missing_start, closure.resumed_open),
+        provider=ClosureAwareProvider(closure),
         raw_store=store,
         canonical_store=store,
         run_id_factory=lambda: "sealed-v2-run",
@@ -107,20 +129,28 @@ def test_sealed_ingestion_replay_and_verification_bind_exact_closure_segments(
         "canonical_jsonl",
         "dataset_manifest",
         "canonical_closure_manifest",
+        "exclusion_manifest",
         "segment_manifest",
         "provenance",
     }
     canonical_closure, segment_bytes = store.read_dataset_supporting_manifests(result.dataset_id)
+    exclusion_bytes = store.read_dataset_exclusion_manifest_bytes(result.dataset_id)
     assert canonical_closure == closure_bytes
+    exclusions = load_candle_exclusion_manifest(exclusion_bytes)
+    assert len(exclusions.exclusions) == 1
+    assert (
+        exclusions.exclusions[0].provider_row_sha256 == closure.partial_candle.provider_row_sha256
+    )
     segments = load_candle_segment_manifest(segment_bytes)
     assert len(segments.segments) == 2
     assert segments.segments[1].preceding_closure_id == closure.closure_id
 
-    loaded = load_verified_dataset(store, result.dataset_id, require_v2=True)
-    assert loaded.manifest.schema_version == "candle-dataset-v2"
+    loaded = load_verified_dataset(store, result.dataset_id, require_v3=True)
+    assert loaded.manifest.schema_version == "candle-dataset-v3"
     assert loaded.closure_manifest_bytes == closure_bytes
+    assert loaded.exclusion_manifest is not None
     assert loaded.segment_manifest is not None
-    assert loaded.segment_manifest.boundary_indices == (229,)
+    assert loaded.segment_manifest.boundary_indices == (228,)
 
     replay = ReplayService(
         raw_store=store,

@@ -129,6 +129,13 @@ class RecordingStore:
     def read_dataset_supporting_manifests(self, dataset_id: str) -> tuple[bytes, bytes]:
         return self.local.read_dataset_supporting_manifests(dataset_id)
 
+    def write_dataset_exclusion_manifest(self, dataset_id: str, exclusion_raw: bytes) -> Path:
+        self.events.append("write_dataset_exclusion_manifest")
+        return self.local.write_dataset_exclusion_manifest(dataset_id, exclusion_raw)
+
+    def read_dataset_exclusion_manifest_bytes(self, dataset_id: str) -> bytes:
+        return self.local.read_dataset_exclusion_manifest_bytes(dataset_id)
+
     def write_provenance(
         self,
         dataset_id: str,

@@ -18,7 +18,13 @@ from gemini_trading.data.datasets.canonical_writer import (
 from gemini_trading.data.exchange_closures import (
     ExchangeClosure,
     ExchangeClosureManifest,
+    PartialCandleDeclaration,
     serialize_exchange_closure_manifest,
+)
+from gemini_trading.data.exclusions import (
+    CandleExclusion,
+    CandleExclusionManifest,
+    serialize_candle_exclusion_manifest,
 )
 from gemini_trading.data.segments import (
     CandleSegment,
@@ -49,6 +55,9 @@ from strategy_fixture_support import base_simulation
 _CODE_COMMIT = "a" * 40
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _CLOSURE_ID = "binance-spot-system-upgrade-2018-02-08"
+_APPROVED_ROW_SHA256 = (
+    "6d0ed02c75960a3acf11073a2b7276e0bdc04f217fc99a488b15a5ff68e70775"  # pragma: allowlist secret
+)
 
 
 def _verified_dataset(root: Path) -> VerifiedDataset:
@@ -67,8 +76,12 @@ def _verified_dataset(root: Path) -> VerifiedDataset:
     )
     canonical_bytes = serialize_candles(candles)
     boundary = 1
+    synthetic_gap_start = candles[0].open_time + candles[0].timeframe.duration
+    synthetic_expected_close = (
+        synthetic_gap_start + candles[0].timeframe.duration - timedelta(milliseconds=1)
+    )
     closure_manifest = ExchangeClosureManifest(
-        schema_version="exchange-closure-manifest-v1",
+        schema_version="exchange-closure-manifest-v2",
         provider="binance_spot",
         instrument=candles[0].instrument,
         timeframe=candles[0].timeframe,
@@ -77,15 +90,42 @@ def _verified_dataset(root: Path) -> VerifiedDataset:
         closures=(
             ExchangeClosure(
                 closure_id=_CLOSURE_ID,
-                missing_start=candles[0].open_time + candles[0].timeframe.duration,
+                canonical_gap_start=synthetic_gap_start,
                 resumed_open=candles[boundary].open_time,
-                missing_candle_count=7,
+                unavailable_candle_count=7,
+                fully_missing_start=synthetic_gap_start + candles[0].timeframe.duration,
+                fully_missing_candle_count=6,
                 reason_code="exchange_system_upgrade",
                 governance_reference="synthetic-sealed-test",
+                partial_candle=PartialCandleDeclaration(
+                    open_time=synthetic_gap_start,
+                    actual_close_time=synthetic_gap_start + timedelta(minutes=28),
+                    expected_close_time=synthetic_expected_close,
+                    provider_row_sha256=_APPROVED_ROW_SHA256,
+                    exclusion_reason="synthetic_exchange_closed_mid_candle",
+                ),
             ),
         ),
     )
     closure_bytes = serialize_exchange_closure_manifest(closure_manifest)
+    exclusion_manifest = CandleExclusionManifest(
+        schema_version="candle-exclusion-manifest-v1",
+        exclusions=(
+            CandleExclusion(
+                closure_id=_CLOSURE_ID,
+                raw_page_sequence=1,
+                raw_page_sha256="1" * 64,
+                row_index=boundary,
+                provider_row_sha256=_APPROVED_ROW_SHA256,
+                open_time=synthetic_gap_start,
+                actual_close_time=synthetic_gap_start + timedelta(minutes=28),
+                expected_close_time=synthetic_expected_close,
+                exclusion_reason="synthetic_exchange_closed_mid_candle",
+                canonical_index_before_removal=boundary,
+            ),
+        ),
+    )
+    exclusion_bytes = serialize_candle_exclusion_manifest(exclusion_manifest)
     segment_manifest = CandleSegmentManifest(
         schema_version="candle-segment-manifest-v1",
         segments=(
@@ -111,7 +151,7 @@ def _verified_dataset(root: Path) -> VerifiedDataset:
     )
     segment_bytes = serialize_candle_segment_manifest(segment_manifest)
     manifest = build_dataset_manifest(
-        schema_version="candle-dataset-v2",
+        schema_version="candle-dataset-v3",
         provider="binance_spot",
         instrument=candles[0].instrument,
         timeframe=candles[0].timeframe,
@@ -120,8 +160,10 @@ def _verified_dataset(root: Path) -> VerifiedDataset:
         candles=candles,
         canonical_bytes=canonical_bytes,
         closure_manifest_bytes=closure_bytes,
+        exclusion_manifest_bytes=exclusion_bytes,
         segment_manifest_bytes=segment_bytes,
         closure_count=1,
+        exclusion_count=1,
         segment_count=2,
     )
     store = LocalImmutableStore(root)
@@ -135,13 +177,16 @@ def _verified_dataset(root: Path) -> VerifiedDataset:
         closure_bytes,
         segment_bytes,
     )
+    store.write_dataset_exclusion_manifest(manifest.dataset_id, exclusion_bytes)
     return VerifiedDataset(
         manifest=manifest,
         candles=candles,
         canonical_bytes=canonical_bytes,
         closure_manifest=closure_manifest,
+        exclusion_manifest=exclusion_manifest,
         segment_manifest=segment_manifest,
         closure_manifest_bytes=closure_bytes,
+        exclusion_manifest_bytes=exclusion_bytes,
         segment_manifest_bytes=segment_bytes,
     )
 
@@ -158,9 +203,10 @@ def _handoff(root: Path, dataset: VerifiedDataset) -> DatasetHandoffManifest:
     )
     files = build_artifact_inventory(root, paths)
     closure_path = (canonical_root / "exchange-closures.json").relative_to(root).as_posix()
+    exclusion_path = (canonical_root / "candle-exclusions.json").relative_to(root).as_posix()
     segment_path = (canonical_root / "candle-segments.json").relative_to(root).as_posix()
     handoff = DatasetHandoffManifest(
-        schema_version="sealed-dataset-handoff-v2",
+        schema_version="sealed-dataset-handoff-v3",
         repository="muhamedsohaib/gemini-trading",
         source_commit=_CODE_COMMIT,
         workflow_name="sealed-btcusdt-dataset",
@@ -176,16 +222,21 @@ def _handoff(root: Path, dataset: VerifiedDataset) -> DatasetHandoffManifest:
         end_exclusive="2026-07-01T00:00:00Z",
         run_id="diagnostic-run",
         dataset_id=dataset_id,
-        dataset_schema_version="candle-dataset-v2",
+        dataset_schema_version="candle-dataset-v3",
         closure_manifest_path=closure_path,
         closure_manifest_sha256=dataset.manifest.closure_manifest_sha256 or "",
+        exclusion_manifest_path=exclusion_path,
+        exclusion_manifest_sha256=dataset.manifest.exclusion_manifest_sha256 or "",
         segment_manifest_path=segment_path,
         segment_manifest_sha256=dataset.manifest.segment_manifest_sha256 or "",
         closure_count=dataset.manifest.closure_count,
+        exclusion_count=dataset.manifest.exclusion_count,
         segment_count=dataset.manifest.segment_count,
         closure_ids=tuple(item.closure_id for item in dataset.closure_manifest.closures)
         if dataset.closure_manifest is not None
         else (),
+        excluded_provider_row_sha256=_APPROVED_ROW_SHA256,
+        segment_boundary_indices=(1,),
         candle_count=18_618,
         first_open_time="2018-01-01T00:00:00Z",
         last_open_time="2026-06-30T20:00:00Z",

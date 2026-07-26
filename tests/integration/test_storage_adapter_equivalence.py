@@ -98,6 +98,13 @@ class CapturingCanonicalStore:
     def read_dataset_supporting_manifests(self, dataset_id: str) -> tuple[bytes, bytes]:
         raise FileNotFoundError(dataset_id)
 
+    def write_dataset_exclusion_manifest(self, dataset_id: str, exclusion_raw: bytes) -> Path:
+        directory = self._root / "capturing-adapter" / dataset_id
+        return directory / "candle-exclusions.json"
+
+    def read_dataset_exclusion_manifest_bytes(self, dataset_id: str) -> bytes:
+        raise FileNotFoundError(dataset_id)
+
     def write_provenance(
         self,
         dataset_id: str,

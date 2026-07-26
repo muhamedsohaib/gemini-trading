@@ -50,10 +50,13 @@ _SEALED_STUDY_MANIFEST_KEYS = {
     "durable_final_access_receipt_id",
     "dataset_schema_version",
     "closure_manifest_sha256",
+    "exclusion_manifest_sha256",
     "segment_manifest_sha256",
     "closure_count",
+    "exclusion_count",
     "segment_count",
     "closure_ids",
+    "excluded_provider_row_sha256",
     "segment_boundary_indices",
 }
 _CASE_KEYS = {
@@ -176,10 +179,13 @@ class StoredStrategyStudyManifest:
     durable_final_access_receipt_id: str | None = None
     dataset_schema_version: str | None = None
     closure_manifest_sha256: str | None = None
+    exclusion_manifest_sha256: str | None = None
     segment_manifest_sha256: str | None = None
     closure_count: int | None = None
+    exclusion_count: int | None = None
     segment_count: int | None = None
     closure_ids: tuple[str, ...] = ()
+    excluded_provider_row_sha256: str | None = None
     segment_boundary_indices: tuple[int, ...] = ()
 
 
@@ -269,6 +275,14 @@ def parse_study_manifest(raw: bytes) -> StoredStrategyStudyManifest:
             if sealed
             else None
         ),
+        exclusion_manifest_sha256=(
+            _sha256(
+                _required_str(mapping, "exclusion_manifest_sha256", "strategy study manifest"),
+                "exclusion manifest identity",
+            )
+            if sealed
+            else None
+        ),
         segment_manifest_sha256=(
             _sha256(
                 _required_str(mapping, "segment_manifest_sha256", "strategy study manifest"),
@@ -280,6 +294,9 @@ def parse_study_manifest(raw: bytes) -> StoredStrategyStudyManifest:
         closure_count=(
             _required_int(mapping, "closure_count", "strategy study manifest") if sealed else None
         ),
+        exclusion_count=(
+            _required_int(mapping, "exclusion_count", "strategy study manifest") if sealed else None
+        ),
         segment_count=(
             _required_int(mapping, "segment_count", "strategy study manifest") if sealed else None
         ),
@@ -287,6 +304,18 @@ def parse_study_manifest(raw: bytes) -> StoredStrategyStudyManifest:
             _required_string_tuple(mapping, "closure_ids", "strategy study manifest")
             if sealed
             else ()
+        ),
+        excluded_provider_row_sha256=(
+            _sha256(
+                _required_str(
+                    mapping,
+                    "excluded_provider_row_sha256",
+                    "strategy study manifest",
+                ),
+                "excluded provider-row identity",
+            )
+            if sealed
+            else None
         ),
         segment_boundary_indices=(
             _required_positive_int_tuple(
@@ -301,12 +330,16 @@ def parse_study_manifest(raw: bytes) -> StoredStrategyStudyManifest:
     if manifest.final_evaluation_count != 1:
         raise StudyReplayMismatchError("final-test receipt must record exactly one evaluation")
     if sealed:
-        if manifest.dataset_schema_version != "candle-dataset-v2":
-            raise StudyReplayMismatchError("sealed study requires candle-dataset-v2")
+        if manifest.dataset_schema_version != "candle-dataset-v3":
+            raise StudyReplayMismatchError("sealed study requires candle-dataset-v3")
         if manifest.closure_count is None or manifest.closure_count < 1:
             raise StudyReplayMismatchError("invalid sealed study closure count")
+        if manifest.exclusion_count != manifest.closure_count:
+            raise StudyReplayMismatchError("invalid sealed study exclusion count")
         if manifest.segment_count != manifest.closure_count + 1:
             raise StudyReplayMismatchError("invalid sealed study segment count")
+        if manifest.excluded_provider_row_sha256 is None:
+            raise StudyReplayMismatchError("sealed study lacks excluded row identity")
         if len(manifest.closure_ids) != manifest.closure_count:
             raise StudyReplayMismatchError("invalid sealed study closure IDs")
         if len(manifest.segment_boundary_indices) != manifest.closure_count:

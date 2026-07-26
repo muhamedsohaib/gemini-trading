@@ -22,18 +22,24 @@ The workflow scope is immutable:
 Changing any scope, policy, configuration, split, cost, feature, label, model, control, threshold, or gate requires a new written design gate and newly sealed final test.
 
 
-## Verified exchange-closure evidence
+## Verified exchange-closure and partial-candle evidence
 
 The fixed historical window contains one source-controlled Binance Spot closure declaration:
 
 - manifest: `config/market-data/sealed-btcusdt-4h-exchange-closures.json`;
-- schema: `exchange-closure-manifest-v1`;
+- schema: `exchange-closure-manifest-v2`;
 - closure ID: `binance-spot-system-upgrade-2018-02-08`;
-- missing interval: `[2018-02-08T04:00:00Z, 2018-02-09T08:00:00Z)`;
-- missing opens: seven completed `4h` candle slots;
-- resulting canonical segments: two.
+- truncated candle open: `2018-02-08T00:00:00Z`;
+- authentic provider close: `2018-02-08T00:28:14.788Z`;
+- expected complete `4h` close: `2018-02-08T03:59:59.999Z`;
+- exact provider-row SHA-256: `6d0ed02c75960a3acf11073a2b7276e0bdc04f217fc99a488b15a5ff68e70775`;
+- effective canonical closure: `[2018-02-08T00:00:00Z, 2018-02-09T08:00:00Z)`;
+- eight unavailable canonical `4h` slots: one exact partial-candle exclusion and seven fully absent opens;
+- resulting canonical segments: two, with the resumed segment beginning at canonical index `228`.
 
-The dataset schema is `candle-dataset-v2`. Its identity binds the canonical candle bytes, exact closure-manifest bytes, and exact candle-segment-manifest bytes. The pipeline never inserts, forward-fills, interpolates, zero-fills, or otherwise fabricates a candle. Every undeclared, shifted, partial, expanded, contracted, overlapping, touching, or unused closure declaration fails closed.
+The raw provider page and truncated row remain byte-for-byte immutable. The row is excluded from canonical completed-`4h` data only after exact row encoding, timestamp, SHA-256, normalized-value, page, and row-index matching. Derived evidence is stored as `candle-exclusions.json` using `candle-exclusion-manifest-v1`. Every missing, duplicate, altered, shifted, additional, overlong, or undeclared partial candle fails closed.
+
+The dataset schema is `candle-dataset-v3`. Its identity binds the canonical candle bytes, exact closure-manifest bytes, exact exclusion-manifest bytes, and exact candle-segment-manifest bytes. The fixed valid dataset contains `18,617` canonical candles. The pipeline never inserts, forward-fills, interpolates, zero-fills, repairs, pads, or otherwise fabricates a candle.
 
 Features, labels, folds, strategy schedules, simulator orders, positions, returns, and final-test access cannot cross a segment boundary. Feature warm-up restarts after the closure. Label outcomes crossing the boundary are omitted. A noncash account or active order at a boundary is a terminal validation failure; no synthetic liquidation is allowed. The approved closure precedes the final 18-month test. Any closure intersecting that final partition requires a new written design gate.
 
@@ -45,7 +51,7 @@ gemini-trading research dataset-replay --run-id <retrieval-run-id> --output-root
 gemini-trading research dataset-verify --dataset-id <dataset-id> --run-id <retrieval-run-id> --output-root <artifact-root>
 ```
 
-There is no operator-provided closure-manifest path or environment override.
+There is no operator-provided closure or exclusion path, environment override, dispatch input, or remote policy source.
 
 ## Workflows
 
@@ -92,7 +98,7 @@ The workflow must complete these steps in order:
 5. build the strict dataset handoff manifest;
 6. upload `sealed-btcusdt-dataset-<source-sha>-<run-id>`.
 
-After completion, inspect every job step. Download the artifact immediately and independently verify its inventory and hashes, including `exchange-closures.json`, `candle-segments.json`, `dataset-manifest.json`, canonical candles, retrieval evidence, provenance, and `dataset-handoff.json`. GitHub Actions artifacts are retained for 90 days in these workflows and are not permanent archival storage.
+After completion, inspect every job step. Download the artifact immediately and independently verify its inventory and hashes, including `exchange-closures.json`, `candle-exclusions.json`, `candle-segments.json`, `dataset-manifest.json`, canonical candles, retrieval evidence, provenance, and `dataset-handoff.json`. GitHub Actions artifacts are retained for 90 days in these workflows and are not permanent archival storage.
 
 Record the following exact Stage 1 evidence on Issue #22:
 
@@ -100,11 +106,12 @@ Record the following exact Stage 1 evidence on Issue #22:
 - workflow run ID and attempt;
 - artifact name and artifact ID;
 - retrieval run ID;
-- dataset ID and `candle-dataset-v2` schema;
+- dataset ID and `candle-dataset-v3` schema;
 - closure-manifest path and SHA-256;
+- exclusion-manifest path and SHA-256;
 - segment-manifest path and SHA-256;
-- closure count, segment count, closure IDs, and segment boundary indices;
-- candle count;
+- closure count `1`, exclusion count `1`, segment count `2`, exact closure ID, exact excluded provider-row SHA-256, and segment boundary indices `(228,)`;
+- candle count `18,617`;
 - first and last open timestamps;
 - inventory root SHA-256;
 - replay result;

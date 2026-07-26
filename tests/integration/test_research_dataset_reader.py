@@ -81,3 +81,10 @@ def test_sealed_reader_rejects_v1_dataset(tmp_path: Path) -> None:
 
     with pytest.raises(DatasetVerificationError, match="candle-dataset-v2"):
         load_verified_dataset(LocalImmutableStore(tmp_path), dataset_id_value, require_v2=True)
+
+
+def test_v3_reader_rejects_legacy_dataset(tmp_path: Path) -> None:
+    dataset_id_value = _write_known_canonical_fixture(tmp_path)
+
+    with pytest.raises(DatasetVerificationError, match="candle-dataset-v3"):
+        load_verified_dataset(LocalImmutableStore(tmp_path), dataset_id_value, require_v3=True)

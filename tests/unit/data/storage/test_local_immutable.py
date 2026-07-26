@@ -340,3 +340,14 @@ def test_dataset_supporting_manifest_reads_require_both_files(tmp_path: Path) ->
 
     with pytest.raises(FileNotFoundError, match=r"candle-segments\.json"):
         store.read_dataset_supporting_manifests(_DATASET_ID)
+
+
+def test_exclusion_manifest_is_immutable_and_readable(tmp_path: Path) -> None:
+    store = LocalImmutableStore(tmp_path)
+    raw = b'{"schema_version":"candle-exclusion-manifest-v1","exclusions":[]}\n'
+    path = store.write_dataset_exclusion_manifest(_DATASET_ID, raw)
+    assert path.name == "candle-exclusions.json"
+    assert store.read_dataset_exclusion_manifest_bytes(_DATASET_ID) == raw
+    assert store.write_dataset_exclusion_manifest(_DATASET_ID, raw) == path
+    with pytest.raises(RawStorageConflictError, match="conflicts"):
+        store.write_dataset_exclusion_manifest(_DATASET_ID, raw + b" ")

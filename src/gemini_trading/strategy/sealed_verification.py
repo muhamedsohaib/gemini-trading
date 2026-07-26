@@ -85,12 +85,15 @@ def verify_sealed_evidence_chain(
     if (
         manifest.dataset_schema_version != handoff.dataset_schema_version
         or manifest.closure_manifest_sha256 != handoff.closure_manifest_sha256
+        or manifest.exclusion_manifest_sha256 != handoff.exclusion_manifest_sha256
         or manifest.segment_manifest_sha256 != handoff.segment_manifest_sha256
         or manifest.closure_count != handoff.closure_count
+        or manifest.exclusion_count != handoff.exclusion_count
         or manifest.segment_count != handoff.segment_count
         or manifest.closure_ids != handoff.closure_ids
+        or manifest.excluded_provider_row_sha256 != handoff.excluded_provider_row_sha256
     ):
-        raise StudyVerificationError("sealed closure and segment identity mismatch")
+        raise StudyVerificationError("sealed closure, exclusion, and segment identity mismatch")
 
     pre_final_boundaries = pre_final_manifest.get("segment_boundary_indices")
     if not isinstance(pre_final_boundaries, list):
@@ -153,6 +156,7 @@ def verify_sealed_evidence_chain(
         "pre_final_identity_verified",
         "single_final_access_verified",
         "closure_segment_identity_verified",
+        "closure_exclusion_segment_identity_verified",
     )
 
 

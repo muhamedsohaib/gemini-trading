@@ -7,7 +7,7 @@
 - Approval comment: Issue #22 comment `5085766649`
 - Diagnostic inventory comment: Issue #22 comment `5085746081`
 - Repository: `muhamedsohaib/gemini-trading`
-- Base commit: `cf8389f6b8964b5aee0563083f8bf362be33b1ab`
+- Base commit: `cf8389f6b8964b5aee0563083f8bf362be33b1ab` <!-- pragma: allowlist secret -->
 - Design branch: `design/verified-multi-closure-partial-candle-manifest`
 - Safety level: `RESEARCH_ONLY`
 - Execution authority: none
@@ -59,26 +59,26 @@ Any different value fails closed.
 
 | # | Closure ID | Partial open | Actual close | Resumed open | Missing | Unavailable | Boundary | Provider-row SHA-256 |
 |---:|---|---|---|---|---:|---:|---:|---|
-| 1 | `binance-spot-infrastructure-maintenance-2018-01-04` | `2018-01-04T00:00:00.000Z` | `2018-01-04T03:00:14.838Z` | `2018-01-04T04:00:00.000Z` | 0 | 1 | 18 | `ce5df946e724e509699e24166fcd96bd566c48de7090b3a092aaa324bd73c426` |
-| 2 | `binance-spot-system-upgrade-2018-02-08` | `2018-02-08T00:00:00.000Z` | `2018-02-08T00:28:14.788Z` | `2018-02-09T08:00:00.000Z` | 7 | 8 | 227 | `6d0ed02c75960a3acf11073a2b7276e0bdc04f217fc99a488b15a5ff68e70775` |
-| 3 | `binance-spot-system-upgrade-2018-06-26` | `2018-06-26T00:00:00.000Z` | `2018-06-26T01:59:59.999Z` | `2018-06-26T12:00:00.000Z` | 2 | 3 | 1047 | `31d7e347e1830772a39ab0bdf78e09af6ff3f3735cad745916fe32e6fe0fd557` |
-| 4 | `binance-spot-risk-control-suspension-2018-07-04` | `2018-07-04T00:00:00.000Z` | `2018-07-04T00:22:25.551Z` | `2018-07-04T08:00:00.000Z` | 1 | 2 | 1092 | `1202a2e967f8907eab3917a36f9b5bb440e4ca6647779fdebefd50bcce61b5b8` |
-| 5 | `binance-spot-emergency-maintenance-2018-10-19` | `2018-10-19T04:00:00.000Z` | `2018-10-19T05:59:59.999Z` | `2018-10-19T08:00:00.000Z` | 0 | 1 | 1733 | `3a06f4a8c191d42bebd2597f7c19932362f4d95f7fe7452f51c268209b629474` |
-| 6 | `binance-spot-system-upgrade-2018-11-14` | `2018-11-14T00:00:00.000Z` | `2018-11-14T01:59:59.999Z` | `2018-11-14T08:00:00.000Z` | 1 | 2 | 1887 | `dd328080cdc59124c3a0467faf719f055dc208a03a229d89dbe0ec403ebf3ee8` |
-| 7 | `binance-spot-system-upgrade-2019-03-12` | `2019-03-12T00:00:00.000Z` | `2019-03-12T01:59:59.999Z` | `2019-03-12T08:00:00.000Z` | 1 | 2 | 2593 | `455bc52eeca4bc7097498742c200d5ecc46019683ed37ea36ed2acb4f3d8478f` |
-| 8 | `binance-spot-security-upgrade-2019-05-15` | `2019-05-15T00:00:00.000Z` | `2019-05-15T02:59:59.999Z` | `2019-05-15T12:00:00.000Z` | 2 | 3 | 2975 | `1021733a2305723bc1dad0dd8ebd8523fdc36839ef52353018d987429508efad` |
-| 9 | `binance-spot-system-upgrade-2019-08-15` | `2019-08-15T00:00:00.000Z` | `2019-08-15T01:59:59.999Z` | `2019-08-15T08:00:00.000Z` | 1 | 2 | 3524 | `1f68a701351a2ae6917bf4a5d524885416dc7715a704af8e0db52d3938cff876` |
-| 10 | `binance-spot-system-upgrade-2019-11-13` | `2019-11-13T00:00:00.000Z` | `2019-11-13T01:59:59.999Z` | `2019-11-13T04:00:00.000Z` | 0 | 1 | 4062 | `aee4ed92909f4b8e8c957370da2499c928d304374c7db303ffd591a370c2e609` |
-| 11 | `binance-spot-system-upgrade-2019-11-25` | `2019-11-25T00:00:00.000Z` | `2019-11-25T01:59:59.999Z` | `2019-11-25T04:00:00.000Z` | 0 | 1 | 4133 | `2b11ed5d8fe5724c559ce91e5c922b0a98d3ae16a859eec895e128b5e1e9ac54` |
-| 12 | `binance-spot-market-data-maintenance-2020-02-19` | `2020-02-19T08:00:00.000Z` | `2020-02-19T11:35:32.286Z` | `2020-02-19T16:00:00.000Z` | 1 | 2 | 4650 | `a756811ac8139d621c6fde28980d8019fef535d7f1e17b2d4310b10370d2ac53` |
-| 13 | `binance-spot-system-upgrade-2020-04-25` | `2020-04-25T00:00:00.000Z` | `2020-04-25T01:59:59.999Z` | `2020-04-25T04:00:00.000Z` | 0 | 1 | 5042 | `7c11bd7bff7cd4815615ea6003cb3dbed08b214b78a2bbe722cfe22912592354` |
-| 14 | `binance-spot-system-upgrade-2020-06-28` | `2020-06-28T00:00:00.000Z` | `2020-06-28T01:59:59.999Z` | `2020-06-28T04:00:00.000Z` | 0 | 1 | 5425 | `bbca0d86447c44964449be1ae5bf5968e391cffad1fb16aee136f07369553a01` |
-| 15 | `binance-spot-matching-engine-maintenance-2020-12-21` | `2020-12-21T12:00:00.000Z` | `2020-12-21T13:47:20.521Z` | `2020-12-21T16:00:00.000Z` | 0 | 1 | 6483 | `b9208db0c003f68d77ffeeb7e9054c348f61ede5840db275f0d5baf84cfdd2c9` |
-| 16 | `binance-spot-matching-engine-maintenance-2021-02-11` | `2021-02-11T00:00:00.000Z` | `2021-02-11T03:40:54.773Z` | `2021-02-11T04:00:00.000Z` | 0 | 1 | 6791 | `6336454bf83a67e99118f3405c3926c444668028f1c65518d509bdf19eab6cb4` |
-| 17 | `binance-spot-system-upgrade-2021-04-20` | `2021-04-20T00:00:00.000Z` | `2021-04-20T01:59:59.999Z` | `2021-04-20T04:00:00.000Z` | 0 | 1 | 7198 | `bdf24e2e33ecdca4f2d6960f80dd62521e9588e72badd2497857fa4efc521393` |
-| 18 | `binance-spot-system-upgrade-2021-04-25` | `2021-04-25T04:00:00.000Z` | `2021-04-25T04:00:58.146Z` | `2021-04-25T08:00:00.000Z` | 0 | 1 | 7228 | `d033c7c18ec2bc9b3b545a93b7d886e5e3f8c70331ffb07f2cf04fb631108d49` |
-| 19 | `binance-spot-system-upgrade-2021-08-13` | `2021-08-13T00:00:00.000Z` | `2021-08-13T01:59:59.000Z` | `2021-08-13T04:00:00.000Z` | 0 | 1 | 7886 | `82ec6dfd6d5d034bd9dfa6c81a5fdcee87db14a998beb3d9dad6f3dbd860509d` |
-| 20 | `binance-spot-system-upgrade-2021-09-29` | `2021-09-29T04:00:00.000Z` | `2021-09-29T06:59:59.999Z` | `2021-09-29T08:00:00.000Z` | 0 | 1 | 8168 | `ae05924001aab056ea72c61061f0b75db9aab01ca04ca6db69c7a01f09a99924` |
+| 1 | `binance-spot-infrastructure-maintenance-2018-01-04` | `2018-01-04T00:00:00.000Z` | `2018-01-04T03:00:14.838Z` | `2018-01-04T04:00:00.000Z` | 0 | 1 | 18 | `ce5df946e724e509699e24166fcd96bd566c48de7090b3a092aaa324bd73c426` | <!-- pragma: allowlist secret -->
+| 2 | `binance-spot-system-upgrade-2018-02-08` | `2018-02-08T00:00:00.000Z` | `2018-02-08T00:28:14.788Z` | `2018-02-09T08:00:00.000Z` | 7 | 8 | 227 | `6d0ed02c75960a3acf11073a2b7276e0bdc04f217fc99a488b15a5ff68e70775` | <!-- pragma: allowlist secret -->
+| 3 | `binance-spot-system-upgrade-2018-06-26` | `2018-06-26T00:00:00.000Z` | `2018-06-26T01:59:59.999Z` | `2018-06-26T12:00:00.000Z` | 2 | 3 | 1047 | `31d7e347e1830772a39ab0bdf78e09af6ff3f3735cad745916fe32e6fe0fd557` | <!-- pragma: allowlist secret -->
+| 4 | `binance-spot-risk-control-suspension-2018-07-04` | `2018-07-04T00:00:00.000Z` | `2018-07-04T00:22:25.551Z` | `2018-07-04T08:00:00.000Z` | 1 | 2 | 1092 | `1202a2e967f8907eab3917a36f9b5bb440e4ca6647779fdebefd50bcce61b5b8` | <!-- pragma: allowlist secret -->
+| 5 | `binance-spot-emergency-maintenance-2018-10-19` | `2018-10-19T04:00:00.000Z` | `2018-10-19T05:59:59.999Z` | `2018-10-19T08:00:00.000Z` | 0 | 1 | 1733 | `3a06f4a8c191d42bebd2597f7c19932362f4d95f7fe7452f51c268209b629474` | <!-- pragma: allowlist secret -->
+| 6 | `binance-spot-system-upgrade-2018-11-14` | `2018-11-14T00:00:00.000Z` | `2018-11-14T01:59:59.999Z` | `2018-11-14T08:00:00.000Z` | 1 | 2 | 1887 | `dd328080cdc59124c3a0467faf719f055dc208a03a229d89dbe0ec403ebf3ee8` | <!-- pragma: allowlist secret -->
+| 7 | `binance-spot-system-upgrade-2019-03-12` | `2019-03-12T00:00:00.000Z` | `2019-03-12T01:59:59.999Z` | `2019-03-12T08:00:00.000Z` | 1 | 2 | 2593 | `455bc52eeca4bc7097498742c200d5ecc46019683ed37ea36ed2acb4f3d8478f` | <!-- pragma: allowlist secret -->
+| 8 | `binance-spot-security-upgrade-2019-05-15` | `2019-05-15T00:00:00.000Z` | `2019-05-15T02:59:59.999Z` | `2019-05-15T12:00:00.000Z` | 2 | 3 | 2975 | `1021733a2305723bc1dad0dd8ebd8523fdc36839ef52353018d987429508efad` | <!-- pragma: allowlist secret -->
+| 9 | `binance-spot-system-upgrade-2019-08-15` | `2019-08-15T00:00:00.000Z` | `2019-08-15T01:59:59.999Z` | `2019-08-15T08:00:00.000Z` | 1 | 2 | 3524 | `1f68a701351a2ae6917bf4a5d524885416dc7715a704af8e0db52d3938cff876` | <!-- pragma: allowlist secret -->
+| 10 | `binance-spot-system-upgrade-2019-11-13` | `2019-11-13T00:00:00.000Z` | `2019-11-13T01:59:59.999Z` | `2019-11-13T04:00:00.000Z` | 0 | 1 | 4062 | `aee4ed92909f4b8e8c957370da2499c928d304374c7db303ffd591a370c2e609` | <!-- pragma: allowlist secret -->
+| 11 | `binance-spot-system-upgrade-2019-11-25` | `2019-11-25T00:00:00.000Z` | `2019-11-25T01:59:59.999Z` | `2019-11-25T04:00:00.000Z` | 0 | 1 | 4133 | `2b11ed5d8fe5724c559ce91e5c922b0a98d3ae16a859eec895e128b5e1e9ac54` | <!-- pragma: allowlist secret -->
+| 12 | `binance-spot-market-data-maintenance-2020-02-19` | `2020-02-19T08:00:00.000Z` | `2020-02-19T11:35:32.286Z` | `2020-02-19T16:00:00.000Z` | 1 | 2 | 4650 | `a756811ac8139d621c6fde28980d8019fef535d7f1e17b2d4310b10370d2ac53` | <!-- pragma: allowlist secret -->
+| 13 | `binance-spot-system-upgrade-2020-04-25` | `2020-04-25T00:00:00.000Z` | `2020-04-25T01:59:59.999Z` | `2020-04-25T04:00:00.000Z` | 0 | 1 | 5042 | `7c11bd7bff7cd4815615ea6003cb3dbed08b214b78a2bbe722cfe22912592354` | <!-- pragma: allowlist secret -->
+| 14 | `binance-spot-system-upgrade-2020-06-28` | `2020-06-28T00:00:00.000Z` | `2020-06-28T01:59:59.999Z` | `2020-06-28T04:00:00.000Z` | 0 | 1 | 5425 | `bbca0d86447c44964449be1ae5bf5968e391cffad1fb16aee136f07369553a01` | <!-- pragma: allowlist secret -->
+| 15 | `binance-spot-matching-engine-maintenance-2020-12-21` | `2020-12-21T12:00:00.000Z` | `2020-12-21T13:47:20.521Z` | `2020-12-21T16:00:00.000Z` | 0 | 1 | 6483 | `b9208db0c003f68d77ffeeb7e9054c348f61ede5840db275f0d5baf84cfdd2c9` | <!-- pragma: allowlist secret -->
+| 16 | `binance-spot-matching-engine-maintenance-2021-02-11` | `2021-02-11T00:00:00.000Z` | `2021-02-11T03:40:54.773Z` | `2021-02-11T04:00:00.000Z` | 0 | 1 | 6791 | `6336454bf83a67e99118f3405c3926c444668028f1c65518d509bdf19eab6cb4` | <!-- pragma: allowlist secret -->
+| 17 | `binance-spot-system-upgrade-2021-04-20` | `2021-04-20T00:00:00.000Z` | `2021-04-20T01:59:59.999Z` | `2021-04-20T04:00:00.000Z` | 0 | 1 | 7198 | `bdf24e2e33ecdca4f2d6960f80dd62521e9588e72badd2497857fa4efc521393` | <!-- pragma: allowlist secret -->
+| 18 | `binance-spot-system-upgrade-2021-04-25` | `2021-04-25T04:00:00.000Z` | `2021-04-25T04:00:58.146Z` | `2021-04-25T08:00:00.000Z` | 0 | 1 | 7228 | `d033c7c18ec2bc9b3b545a93b7d886e5e3f8c70331ffb07f2cf04fb631108d49` | <!-- pragma: allowlist secret -->
+| 19 | `binance-spot-system-upgrade-2021-08-13` | `2021-08-13T00:00:00.000Z` | `2021-08-13T01:59:59.000Z` | `2021-08-13T04:00:00.000Z` | 0 | 1 | 7886 | `82ec6dfd6d5d034bd9dfa6c81a5fdcee87db14a998beb3d9dad6f3dbd860509d` | <!-- pragma: allowlist secret -->
+| 20 | `binance-spot-system-upgrade-2021-09-29` | `2021-09-29T04:00:00.000Z` | `2021-09-29T06:59:59.999Z` | `2021-09-29T08:00:00.000Z` | 0 | 1 | 8168 | `ae05924001aab056ea72c61061f0b75db9aab01ca04ca6db69c7a01f09a99924` | <!-- pragma: allowlist secret -->
 
 The February 2018 closure ID remains unchanged. New IDs are stable source-controlled identifiers. Reason codes classify evidence but never relax exact timestamp or digest matching.
 

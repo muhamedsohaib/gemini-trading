@@ -23,21 +23,19 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync --all-groups --frozen
-      - name: Format corrected Task 1 files exactly
-        run: >-
-          uv run ruff format
-          src/gemini_trading/data/exchange_closures.py
-          tests/unit/data/test_exchange_closures.py
-      - uses: actions/upload-artifact@v4
-        with:
-          name: corrected-task1-ruff-${{ github.sha }}
-          path: |
-            src/gemini_trading/data/exchange_closures.py
-            tests/unit/data/test_exchange_closures.py
-          if-no-files-found: error
-          retention-days: 1
+      - run: uv run ruff format --check .
       - run: uv run ruff check .
       - run: uv run pyright
+      - run: uv run pytest
+      - run: uv run python -m build
+      - run: uv run pip-audit
+      - name: Validate tracked-file policy
+        run: >-
+          uv run python -c "import subprocess;
+          from gemini_trading.safety.repository_policy import validate_tracked_paths;
+          validate_tracked_paths(subprocess.check_output(['git','ls-files'], text=True).splitlines())"
+      - name: Scan tracked files for secrets
+        run: uv run pre-commit run detect-secrets --all-files
 
   gitleaks:
     runs-on: ubuntu-latest

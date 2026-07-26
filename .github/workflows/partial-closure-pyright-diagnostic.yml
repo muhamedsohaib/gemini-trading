@@ -5,7 +5,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   pyright:
@@ -20,95 +20,65 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync --all-groups --frozen
-      - name: Build diagnostic fixture
+      - name: Update legacy sealed fixture
         shell: bash
         run: |
-          set +e
-          python - <<'PY' > /tmp/rewrite-status.txt 2>&1
+          python - <<'PY'
           from pathlib import Path
 
           path = Path("tests/integration/test_sealed_historical_validation.py")
           text = path.read_text()
           import_old = "    ExchangeClosureManifest,\n    serialize_exchange_closure_manifest,"
           import_new = "    ExchangeClosureManifest,\n    PartialCandleDeclaration,\n    serialize_exchange_closure_manifest,"
-          old = '''    closure_manifest = ExchangeClosureManifest(
-              schema_version="exchange-closure-manifest-v1",
-              provider="binance_spot",
-              instrument=candles[0].instrument,
-              timeframe=candles[0].timeframe,
-              start_time=candles[0].open_time,
-              end_time=candles[-1].close_time + timedelta(milliseconds=1),
-              closures=(
-                  ExchangeClosure(
-                      closure_id=_CLOSURE_ID,
-                      missing_start=candles[0].open_time + candles[0].timeframe.duration,
-                      resumed_open=candles[boundary].open_time,
-                      missing_candle_count=7,
-                      reason_code="exchange_system_upgrade",
-                      governance_reference="synthetic-sealed-test",
-                  ),
-              ),
-          )'''
-          new = '''    synthetic_gap_start = candles[0].open_time + candles[0].timeframe.duration
-          synthetic_expected_close = (
-              synthetic_gap_start
-              + candles[0].timeframe.duration
-              - timedelta(milliseconds=1)
-          )
-          closure_manifest = ExchangeClosureManifest(
-              schema_version="exchange-closure-manifest-v2",
-              provider="binance_spot",
-              instrument=candles[0].instrument,
-              timeframe=candles[0].timeframe,
-              start_time=candles[0].open_time,
-              end_time=candles[-1].close_time + timedelta(milliseconds=1),
-              closures=(
-                  ExchangeClosure(
-                      closure_id=_CLOSURE_ID,
-                      canonical_gap_start=synthetic_gap_start,
-                      resumed_open=candles[boundary].open_time,
-                      unavailable_candle_count=7,
-                      fully_missing_start=synthetic_gap_start
-                      + candles[0].timeframe.duration,
-                      fully_missing_candle_count=6,
-                      reason_code="exchange_system_upgrade",
-                      governance_reference="synthetic-sealed-test",
-                      partial_candle=PartialCandleDeclaration(
-                          open_time=synthetic_gap_start,
-                          actual_close_time=synthetic_gap_start + timedelta(minutes=28),
-                          expected_close_time=synthetic_expected_close,
-                          provider_row_sha256="0" * 64,
-                          exclusion_reason="synthetic_exchange_closed_mid_candle",
+          if import_old not in text:
+              raise SystemExit("legacy exchange-closure import block not found")
+          text = text.replace(import_old, import_new, 1)
+
+          start_marker = "    closure_manifest = ExchangeClosureManifest("
+          end_marker = "    closure_bytes = serialize_exchange_closure_manifest(closure_manifest)"
+          start = text.index(start_marker)
+          end = text.index(end_marker, start)
+          new_block = '''    synthetic_gap_start = candles[0].open_time + candles[0].timeframe.duration
+              synthetic_expected_close = (
+                  synthetic_gap_start
+                  + candles[0].timeframe.duration
+                  - timedelta(milliseconds=1)
+              )
+              closure_manifest = ExchangeClosureManifest(
+                  schema_version="exchange-closure-manifest-v2",
+                  provider="binance_spot",
+                  instrument=candles[0].instrument,
+                  timeframe=candles[0].timeframe,
+                  start_time=candles[0].open_time,
+                  end_time=candles[-1].close_time + timedelta(milliseconds=1),
+                  closures=(
+                      ExchangeClosure(
+                          closure_id=_CLOSURE_ID,
+                          canonical_gap_start=synthetic_gap_start,
+                          resumed_open=candles[boundary].open_time,
+                          unavailable_candle_count=7,
+                          fully_missing_start=synthetic_gap_start
+                          + candles[0].timeframe.duration,
+                          fully_missing_candle_count=6,
+                          reason_code="exchange_system_upgrade",
+                          governance_reference="synthetic-sealed-test",
+                          partial_candle=PartialCandleDeclaration(
+                              open_time=synthetic_gap_start,
+                              actual_close_time=synthetic_gap_start + timedelta(minutes=28),
+                              expected_close_time=synthetic_expected_close,
+                              provider_row_sha256="0" * 64,
+                              exclusion_reason="synthetic_exchange_closed_mid_candle",
+                          ),
                       ),
                   ),
-              ),
-          )'''
-          print(f"import_match={import_old in text}")
-          print(f"block_match={old in text}")
-          if import_old not in text or old not in text:
-              raise SystemExit(2)
-          path.write_text(text.replace(import_old, import_new).replace(old, new))
+              )
+          '''
+          path.write_text(text[:start] + new_block + text[end:])
           PY
-          rewrite_status=$?
-          uv run ruff format tests/integration/test_sealed_historical_validation.py \
-            > /tmp/ruff-status.txt 2>&1
-          ruff_status=$?
-          uv run pyright > /tmp/pyright-status.txt 2>&1
-          pyright_status=$?
-          printf 'rewrite=%s\nruff=%s\npyright=%s\n' \
-            "$rewrite_status" "$ruff_status" "$pyright_status" \
-            > /tmp/exit-status.txt
-          mkdir -p /tmp/partial-closure-diagnostic/tests/integration
-          cp tests/integration/test_sealed_historical_validation.py \
-            /tmp/partial-closure-diagnostic/tests/integration/
-          cp /tmp/rewrite-status.txt /tmp/partial-closure-diagnostic/
-          cp /tmp/ruff-status.txt /tmp/partial-closure-diagnostic/
-          cp /tmp/pyright-status.txt /tmp/partial-closure-diagnostic/
-          cp /tmp/exit-status.txt /tmp/partial-closure-diagnostic/
-          exit 0
-      - uses: actions/upload-artifact@v4
-        with:
-          name: partial-closure-fixture-diagnostic-${{ github.sha }}
-          path: /tmp/partial-closure-diagnostic
-          if-no-files-found: error
-          retention-days: 1
+          uv run ruff format tests/integration/test_sealed_historical_validation.py
+          uv run pyright
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/integration/test_sealed_historical_validation.py
+          git commit -m "test: migrate sealed fixture to closure manifest v2"
+          git push origin "HEAD:${{ github.head_ref }}"

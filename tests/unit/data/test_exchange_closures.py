@@ -26,8 +26,9 @@ def _fixed_mapping() -> dict[str, object]:
 def _closures(mapping: dict[str, object]) -> list[dict[str, object]]:
     value = mapping["closures"]
     assert isinstance(value, list)
-    assert all(isinstance(item, dict) for item in value)
-    return cast(list[dict[str, object]], value)
+    raw_items = cast(list[object], value)
+    assert all(isinstance(item, dict) for item in raw_items)
+    return cast(list[dict[str, object]], raw_items)
 
 
 def _canonical(mapping: dict[str, object]) -> bytes:

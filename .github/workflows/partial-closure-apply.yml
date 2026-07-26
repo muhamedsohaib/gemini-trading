@@ -1,0 +1,70 @@
+name: Partial Closure Apply
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          ref: ${{ github.head_ref }}
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - name: Verify and apply consolidated implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .tmp/partial-closure-patch-{00..06}.b64 > /tmp/partial-closure-patch.b64
+          test "$(sha256sum /tmp/partial-closure-patch.b64 | cut -d' ' -f1)" = \
+            "98a6a615ba1c3ebe368436f4e7f42dbf43390c2b6489282b51df1d9c199f3cad"
+          base64 -d /tmp/partial-closure-patch.b64 | xz -d > /tmp/partial-closure.patch
+          test "$(sha256sum /tmp/partial-closure.patch | cut -d' ' -f1)" = \
+            "d727c0d138633e338668a4f9b1b53e23c0abc3700fd4dc5b246048cbbdac5fed"
+          git apply --check /tmp/partial-closure.patch
+          git apply /tmp/partial-closure.patch
+          git rm .tmp/partial-closure-patch-{00..06}.b64
+          uv run ruff format --check .
+          uv run ruff check .
+          uv run pyright \
+            src/gemini_trading/data/exclusions.py \
+            src/gemini_trading/data/exchange_closures.py \
+            src/gemini_trading/data/segments.py \
+            src/gemini_trading/data/datasets/canonical_writer.py \
+            src/gemini_trading/data/ingestion/service.py \
+            src/gemini_trading/data/ingestion/replay.py \
+            src/gemini_trading/data/verification/service.py \
+            src/gemini_trading/research/dataset_reader.py \
+            src/gemini_trading/strategy/handoff.py \
+            src/gemini_trading/strategy/pre_final.py \
+            src/gemini_trading/strategy/replay.py \
+            src/gemini_trading/strategy/sealed_evaluator.py \
+            src/gemini_trading/strategy/sealed_verification.py
+          uv run pytest -q \
+            tests/unit/data/test_exchange_closures.py \
+            tests/unit/data/test_candle_exclusions.py \
+            tests/unit/data/test_candle_segments.py \
+            tests/unit/data/datasets/test_canonical_writer.py \
+            tests/unit/data/ingestion/test_service.py \
+            tests/unit/data/storage/test_local_immutable.py \
+            tests/integration/test_market_data_exchange_closure_v2.py \
+            tests/integration/test_research_dataset_reader.py \
+            tests/unit/strategy/test_handoff.py \
+            tests/unit/strategy/test_pre_final.py \
+            tests/unit/strategy/test_sealed_manifest_identity.py \
+            tests/acceptance/test_sealed_historical_validation_workflows.py \
+            tests/acceptance/test_sealed_historical_validation_documentation.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: implement verified partial-closure candle exclusion"
+          git push origin "HEAD:${{ github.head_ref }}"

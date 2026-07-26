@@ -87,5 +87,10 @@ def validate_candle_sequence(
     for candle in candles[1:]:
         expected_open_time = previous_open_time + request.timeframe.duration
         if candle.open_time != expected_open_time:
-            raise CandleGapError("candle sequence contains a timeframe gap")
+            raise CandleGapError(
+                "candle sequence contains a timeframe gap: "
+                f"previous_open_time={previous_open_time.isoformat()} "
+                f"expected_open_time={expected_open_time.isoformat()} "
+                f"actual_open_time={candle.open_time.isoformat()}"
+            )
         previous_open_time = candle.open_time

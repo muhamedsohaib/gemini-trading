@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -13,12 +14,8 @@ from gemini_trading.domain.instrument import Instrument
 from gemini_trading.domain.timeframe import Timeframe
 
 _SCHEMA_VERSION = "exchange-closure-manifest-v1"
-_PROVIDER = "binance_spot"
-_INSTRUMENT = Instrument("BTCUSDT", "BTC", "USDT")
-_TIMEFRAME = Timeframe("4h")
-_START_TIME = datetime(2018, 1, 1, tzinfo=UTC)
-_END_TIME = datetime(2026, 7, 1, tzinfo=UTC)
 _FIXED_PATH = Path("config/market-data/sealed-btcusdt-4h-exchange-closures.json")
+_FIXED_SHA256 = "ea1dcb5ec5c8bb6cdb16baa51a6a4f38af2bc9d5d5a9657f746d6411eb3975c1"
 _MANIFEST_FIELDS = {
     "schema_version",
     "provider",
@@ -92,6 +89,11 @@ def _aligned(value: datetime, timeframe: Timeframe) -> bool:
     return (value - epoch) % timeframe.duration == timedelta(0)
 
 
+def _require_utc(value: datetime, field_name: str) -> None:
+    if value.tzinfo is None or value.utcoffset() != timedelta(0):
+        _fail(f"exchange closure manifest {field_name} must be UTC")
+
+
 @dataclass(frozen=True, slots=True)
 class ExchangeClosure:
     """One exact interval where provider candles are absent because trading was closed."""
@@ -108,10 +110,8 @@ class ExchangeClosure:
             _fail("exchange closure ID must not be empty")
         if not self.reason_code.strip() or not self.governance_reference.strip():
             _fail("exchange closure governance fields must not be empty")
-        if self.missing_start.tzinfo is None or self.missing_start.utcoffset() is None:
-            _fail("exchange closure missing_start must be UTC")
-        if self.resumed_open.tzinfo is None or self.resumed_open.utcoffset() is None:
-            _fail("exchange closure resumed_open must be UTC")
+        _require_utc(self.missing_start, "missing_start")
+        _require_utc(self.resumed_open, "resumed_open")
         if self.resumed_open <= self.missing_start:
             _fail("exchange closure interval must be positive")
         if isinstance(self.missing_candle_count, bool) or self.missing_candle_count < 1:
@@ -120,7 +120,7 @@ class ExchangeClosure:
 
 @dataclass(frozen=True, slots=True)
 class ExchangeClosureManifest:
-    """Fixed-scope ordered exchange-closure declarations for one retrieval window."""
+    """Ordered exchange-closure declarations for one exact retrieval window."""
 
     schema_version: str
     provider: str
@@ -133,12 +133,12 @@ class ExchangeClosureManifest:
     def __post_init__(self) -> None:
         if self.schema_version != _SCHEMA_VERSION:
             _fail("unsupported exchange closure manifest schema")
-        if self.provider != _PROVIDER or self.instrument != _INSTRUMENT:
-            _fail("exchange closure market scope mismatch")
-        if self.timeframe != _TIMEFRAME:
-            _fail("exchange closure timeframe mismatch")
-        if (self.start_time, self.end_time) != (_START_TIME, _END_TIME):
-            _fail("exchange closure request window mismatch")
+        if not self.provider.strip():
+            _fail("exchange closure provider must not be empty")
+        _require_utc(self.start_time, "start_time")
+        _require_utc(self.end_time, "end_time")
+        if self.end_time <= self.start_time:
+            _fail("exchange closure request window must be positive")
         if not self.closures:
             _fail("exchange closure manifest must contain a closure")
 
@@ -261,13 +261,15 @@ def load_exchange_closure_manifest(raw: bytes) -> ExchangeClosureManifest:
 def load_fixed_btcusdt_closure_manifest(
     project_root: Path,
 ) -> tuple[ExchangeClosureManifest, bytes]:
-    """Load only the fixed source-controlled BTCUSDT closure declaration."""
+    """Load the single approved source-controlled closure declaration."""
 
     path = Path(project_root).resolve(strict=False) / _FIXED_PATH
     try:
         raw = path.read_bytes()
     except OSError:
         _fail("fixed exchange closure manifest is unavailable")
+    if hashlib.sha256(raw).hexdigest() != _FIXED_SHA256:
+        _fail("fixed exchange closure manifest identity mismatch")
     return load_exchange_closure_manifest(raw), raw
 
 

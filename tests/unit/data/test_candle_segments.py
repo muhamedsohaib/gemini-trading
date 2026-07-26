@@ -1,3 +1,5 @@
+"""Contracts for exact declared gaps and deterministic candle segments."""
+
 from dataclasses import replace
 from datetime import timedelta
 from pathlib import Path
@@ -42,9 +44,10 @@ def _shift_from(index: int, delta: timedelta) -> tuple[Candle, ...]:
 def test_declared_exchange_closure_produces_two_segments() -> None:
     segments = validate_and_segment_candle_sequence(CANDLES, REQUEST, _manifest())
 
-    assert [
-        (item.start_index, item.end_exclusive) for item in segments.segments
-    ] == [(0, 3), (3, 6)]
+    assert [(item.start_index, item.end_exclusive) for item in segments.segments] == [
+        (0, 3),
+        (3, 6),
+    ]
     assert segments.segments[0].preceding_closure_id is None
     assert (
         segments.segments[1].preceding_closure_id

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from datetime import timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -14,7 +15,11 @@ from gemini_trading.data.datasets.canonical_writer import (
     serialize_candles,
     serialize_dataset_manifest,
 )
-from gemini_trading.data.exchange_closures import load_fixed_btcusdt_closure_manifest
+from gemini_trading.data.exchange_closures import (
+    ExchangeClosure,
+    ExchangeClosureManifest,
+    serialize_exchange_closure_manifest,
+)
 from gemini_trading.data.segments import (
     CandleSegment,
     CandleSegmentManifest,
@@ -47,10 +52,40 @@ _CLOSURE_ID = "binance-spot-system-upgrade-2018-02-08"
 
 
 def _verified_dataset(root: Path) -> VerifiedDataset:
-    candles = synthetic_candidate_candles()
+    source_candles = synthetic_candidate_candles()
+    closure_duration = timedelta(hours=28)
+    candles = (
+        source_candles[0],
+        *(
+            replace(
+                candle,
+                open_time=candle.open_time + closure_duration,
+                close_time=candle.close_time + closure_duration,
+            )
+            for candle in source_candles[1:]
+        ),
+    )
     canonical_bytes = serialize_candles(candles)
-    closure_manifest, closure_bytes = load_fixed_btcusdt_closure_manifest(_PROJECT_ROOT)
     boundary = 1
+    closure_manifest = ExchangeClosureManifest(
+        schema_version="exchange-closure-manifest-v1",
+        provider="binance_spot",
+        instrument=candles[0].instrument,
+        timeframe=candles[0].timeframe,
+        start_time=candles[0].open_time,
+        end_time=candles[-1].close_time + timedelta(milliseconds=1),
+        closures=(
+            ExchangeClosure(
+                closure_id=_CLOSURE_ID,
+                missing_start=candles[0].open_time + candles[0].timeframe.duration,
+                resumed_open=candles[boundary].open_time,
+                missing_candle_count=7,
+                reason_code="exchange_system_upgrade",
+                governance_reference="synthetic-sealed-test",
+            ),
+        ),
+    )
+    closure_bytes = serialize_exchange_closure_manifest(closure_manifest)
     segment_manifest = CandleSegmentManifest(
         schema_version="candle-segment-manifest-v1",
         segments=(

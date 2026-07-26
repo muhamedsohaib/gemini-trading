@@ -35,8 +35,7 @@ def validate_candle(candle: Candle) -> None:
 
 
 def completed_candles(
-    candles: Sequence[Candle],
-    server_time: datetime,
+    candles: Sequence[Candle], server_time: datetime
 ) -> tuple[Candle, ...]:
     """Return only candles strictly closed before the shared server-time snapshot."""
 
@@ -48,8 +47,7 @@ def completed_candles(
 
 
 def validate_candle_sequence_structure(
-    candles: Sequence[Candle],
-    request: RetrievalRequest,
+    candles: Sequence[Candle], request: RetrievalRequest
 ) -> None:
     """Validate sequence content, identity, window, completion, uniqueness, and order."""
 
@@ -67,9 +65,7 @@ def validate_candle_sequence_structure(
 
     for candle in candles:
         if not request.start_time <= candle.open_time < request.end_time:
-            raise CandleValidationError(
-                "candle open_time is outside the request window"
-            )
+            raise CandleValidationError("candle open_time is outside the request window")
 
     for candle in candles:
         if not candle.completed:
@@ -84,15 +80,12 @@ def validate_candle_sequence_structure(
     previous_open_time = candles[0].open_time
     for candle in candles[1:]:
         if candle.open_time <= previous_open_time:
-            raise OutOfOrderCandleError(
-                "candle open_time must be strictly increasing"
-            )
+            raise OutOfOrderCandleError("candle open_time must be strictly increasing")
         previous_open_time = candle.open_time
 
 
 def validate_candle_sequence(
-    candles: Sequence[Candle],
-    request: RetrievalRequest,
+    candles: Sequence[Candle], request: RetrievalRequest
 ) -> None:
     """Validate one completed canonical sequence with strict no-gap semantics."""
 

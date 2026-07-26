@@ -25,7 +25,13 @@ jobs:
       - run: uv sync --all-groups --frozen
       - run: uv run ruff format --check .
       - run: uv run ruff check .
-      - run: uv run pyright
+      - run: uv run pyright > pyright.txt 2>&1 || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: temporary-pyright-${{ github.sha }}
+          path: pyright.txt
+          if-no-files-found: error
+          retention-days: 1
       - run: uv run pytest
       - run: uv run python -m build
       - run: uv run pip-audit

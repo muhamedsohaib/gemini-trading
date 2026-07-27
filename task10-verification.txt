@@ -1,3 +1,0 @@
-=== PATCH ===
-unexpected replay row parsing structure
-patch_status=1

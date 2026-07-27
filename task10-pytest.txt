@@ -1,0 +1,189 @@
+.F..............                                                         [100%]
+=================================== FAILURES ===================================
+________________ test_pre_final_rejects_reordered_row_identity _________________
+
+tmp_path = PosixPath('/tmp/pytest-of-runner/pytest-0/test_pre_final_rejects_reorder0')
+
+    def test_pre_final_rejects_reordered_row_identity(tmp_path: Path) -> None:
+        handoff = _handoff(tmp_path)
+>       reordered = replace(
+            handoff,
+            excluded_provider_rows=tuple(reversed(handoff.excluded_provider_rows)),
+        )
+
+tests/unit/strategy/test_pre_final.py:173: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/dataclasses.py:1588: in replace
+    return obj.__class__(**changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+<string>:39: in __init__
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DatasetHandoffManifest(schema_version='sealed-dataset-handoff-v4', repository='muhamedsohaib/gemini-trading', source_c...d9f73b6f39d681eafa66a31f5')), inventory_root_sha256='489b968f8aa25ee40bc4501818068abe39f2326c50af35d408c710b8b9ab30b6')
+
+    def __post_init__(self) -> None:
+        if self.schema_version != _SCHEMA_VERSION:
+            raise DatasetHandoffError("unsupported dataset handoff schema")
+        if self.repository != _REPOSITORY:
+            raise DatasetHandoffError("dataset handoff repository mismatch")
+        if _GIT_COMMIT_PATTERN.fullmatch(self.source_commit) is None:
+            raise DatasetHandoffError("invalid source commit")
+        if self.workflow_name != _WORKFLOW_NAME or self.job_name != _JOB_NAME:
+            raise DatasetHandoffError("dataset handoff workflow identity mismatch")
+        _require_positive_int(self.workflow_run_id, "workflow run ID")
+        _require_positive_int(self.workflow_run_attempt, "workflow run attempt")
+        if self.provider != _PROVIDER:
+            raise DatasetHandoffError("dataset handoff provider mismatch")
+        if (self.symbol, self.base_asset, self.quote_asset, self.interval) != (
+            _SYMBOL,
+            _BASE_ASSET,
+            _QUOTE_ASSET,
+            _INTERVAL,
+        ):
+            raise DatasetHandoffError("dataset handoff market scope mismatch")
+        if (self.start, self.end_exclusive) != (_START, _END_EXCLUSIVE):
+            raise DatasetHandoffError("dataset handoff historical window mismatch")
+        _require_identity(self.run_id, "retrieval run ID")
+        _require_sha256(self.dataset_id, "dataset ID")
+        if self.dataset_schema_version != "candle-dataset-v4":
+            raise DatasetHandoffError("dataset handoff requires candle-dataset-v4")
+        object.__setattr__(
+            self,
+            "closure_manifest_path",
+            validate_artifact_relative_path(self.closure_manifest_path),
+        )
+        object.__setattr__(
+            self,
+            "exclusion_manifest_path",
+            validate_artifact_relative_path(self.exclusion_manifest_path),
+        )
+        object.__setattr__(
+            self,
+            "segment_manifest_path",
+            validate_artifact_relative_path(self.segment_manifest_path),
+        )
+        _require_sha256(self.closure_manifest_sha256, "closure manifest SHA-256")
+        _require_sha256(self.exclusion_manifest_sha256, "exclusion manifest SHA-256")
+        _require_sha256(self.segment_manifest_sha256, "segment manifest SHA-256")
+        if (self.closure_count, self.exclusion_count, self.segment_count) != _EXPECTED_COUNTS:
+            raise DatasetHandoffError("dataset handoff evidence counts mismatch")
+        if len(self.closure_ids) != self.closure_count:
+            raise DatasetHandoffError("dataset handoff closure count mismatch")
+        if len(set(self.closure_ids)) != len(self.closure_ids):
+            raise DatasetHandoffError("duplicate dataset handoff closure ID")
+        for closure_id in self.closure_ids:
+            _require_identity(closure_id, "closure ID")
+        if len(self.excluded_provider_rows) != self.exclusion_count:
+            raise DatasetHandoffError("dataset handoff excluded row count mismatch")
+        excluded_closure_ids = tuple(item.closure_id for item in self.excluded_provider_rows)
+        excluded_digests = tuple(item.provider_row_sha256 for item in self.excluded_provider_rows)
+        if excluded_closure_ids != self.closure_ids:
+>           raise DatasetHandoffError("dataset handoff excluded row order mismatch")
+E           gemini_trading.strategy.errors.DatasetHandoffError: dataset handoff excluded row order mismatch
+
+src/gemini_trading/strategy/handoff.py:293: DatasetHandoffError
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.13-final-0 _______________
+
+Name                                                      Stmts   Miss  Cover   Missing
+---------------------------------------------------------------------------------------
+src/gemini_trading/__init__.py                                1      0   100%
+src/gemini_trading/cli/__init__.py                            0      0   100%
+src/gemini_trading/cli/historical_validation.py             223    223     0%   3-452
+src/gemini_trading/cli/main.py                              133    133     0%   3-232
+src/gemini_trading/cli/market_data.py                        80     80     0%   3-139
+src/gemini_trading/cli/research.py                          137    137     0%   3-292
+src/gemini_trading/cli/strategy.py                          157    157     0%   3-331
+src/gemini_trading/data/__init__.py                           0      0   100%
+src/gemini_trading/data/datasets/__init__.py                  0      0   100%
+src/gemini_trading/data/datasets/canonical_writer.py         85     61    28%   17, 21, 25-26, 30, 38-40, 60, 66-69, 85-98, 115-129, 146-160, 182-255, 279-312, 327, 341
+src/gemini_trading/data/errors.py                            28      9    68%   20-23, 33-37
+src/gemini_trading/data/exchange_closures.py                213     48    77%   54, 59, 62, 68, 74, 81, 87, 90-91, 93, 109, 127, 129, 131, 150, 152, 157, 159, 161, 167, 173, 190, 192, 196, 198, 202, 206, 212, 216, 225, 232, 234, 240, 242, 248, 253, 255, 257, 314-315, 323, 330, 381-382, 385, 397-398, 400
+src/gemini_trading/data/exclusions.py                       258    171    34%   39, 43, 47-52, 56-57, 61-64, 68-71, 75-83, 93, 98, 118, 120, 122, 127, 134, 136, 148, 150, 153, 156, 159, 162, 176-183, 215-251, 255-279, 288-309, 321-417
+src/gemini_trading/data/ingestion/__init__.py                 0      0   100%
+src/gemini_trading/data/ingestion/replay.py                 166    166     0%   3-377
+src/gemini_trading/data/ingestion/retry.py                   19     19     0%   3-34
+src/gemini_trading/data/ingestion/service.py                160    160     0%   3-405
+src/gemini_trading/data/normalization/__init__.py             0      0   100%
+src/gemini_trading/data/normalization/binance_klines.py      57     41    28%   19, 23-38, 42-48, 54-64, 74-105
+src/gemini_trading/data/providers/__init__.py                 0      0   100%
+src/gemini_trading/data/providers/base.py                    16     16     0%   3-34
+src/gemini_trading/data/providers/binance_spot.py            66     66     0%   3-125
+src/gemini_trading/data/providers/http.py                    19     19     0%   3-36
+src/gemini_trading/data/segments.py                         188     76    60%   34, 38-43, 47-48, 52-55, 59-62, 66-74, 95, 97, 99, 101, 103, 105, 107, 109, 114, 126, 128, 132, 134, 136, 143, 145, 147, 151, 186-223, 255, 261, 292, 299, 316, 332-337
+src/gemini_trading/data/storage/__init__.py                   0      0   100%
+src/gemini_trading/data/storage/base.py                       5      5     0%   3-23
+src/gemini_trading/data/storage/local_immutable.py          203    136    33%   42-50, 54-55, 59, 63-64, 68, 76-97, 103, 107, 118-127, 131-134, 138-143, 147-150, 154-160, 164-170, 174-189, 193-198, 233, 236, 239, 243-245, 248-254, 257-260, 263-264, 269-270, 275-276, 279-309, 317-323, 333-342, 347-348, 356-357, 362-363, 371-376, 379-380, 386-391
+src/gemini_trading/data/validation/__init__.py                0      0   100%
+src/gemini_trading/data/validation/candles.py                52     19    63%   27, 30, 32, 34, 40, 51, 58, 60, 64, 68, 73, 79, 86-98
+src/gemini_trading/data/verification/__init__.py              0      0   100%
+src/gemini_trading/data/verification/service.py             193    193     0%   3-447
+src/gemini_trading/domain/__init__.py                         0      0   100%
+src/gemini_trading/domain/account.py                         90     57    37%   8-9, 13-15, 19-24, 44-74, 80-83, 101-121
+src/gemini_trading/domain/candle.py                          35      5    86%   33, 35, 37, 47, 51
+src/gemini_trading/domain/dataset.py                        159     76    52%   16-17, 21-22, 29, 59-66, 96-111, 137-190, 208-214
+src/gemini_trading/domain/experiment.py                      62     30    52%   15-18, 22-23, 60-96
+src/gemini_trading/domain/fill.py                            45     22    51%   11-14, 18-19, 23-24, 46-59
+src/gemini_trading/domain/instrument.py                      22      2    91%   12, 34
+src/gemini_trading/domain/order.py                           87     38    56%   9-12, 16-17, 21-26, 73-74, 96-122, 128
+src/gemini_trading/domain/time.py                             4      1    75%   10
+src/gemini_trading/domain/timeframe.py                       14      0   100%
+src/gemini_trading/execution/__init__.py                      0      0   100%
+src/gemini_trading/execution/simulator/__init__.py            0      0   100%
+src/gemini_trading/execution/simulator/costs.py              32     17    47%   12-13, 17-18, 44-57
+src/gemini_trading/execution/simulator/fills.py              93     69    26%   29, 33-39, 47-55, 67-78, 82-85, 99-196
+src/gemini_trading/execution/simulator/liquidity.py          11      8    27%   7-8, 19-24
+src/gemini_trading/execution/simulator/precision.py          19     14    26%   9-10, 16-19, 25-32
+src/gemini_trading/research/__init__.py                       0      0   100%
+src/gemini_trading/research/accounting.py                    96     83    14%   16-18, 27-36, 47-110, 116-120, 135-170
+src/gemini_trading/research/artifacts.py                    123     74    40%   34, 44, 53, 72, 90, 104, 121, 138, 168-169, 176-184, 198-210, 215-219, 228-294, 310, 313-315, 320-331, 336-337, 346-349
+src/gemini_trading/research/config.py                        51     21    59%   14-15, 19-20, 44-84, 110, 132
+src/gemini_trading/research/contracts.py                     45     20    56%   24-27, 40-47, 67-74
+src/gemini_trading/research/dataset_reader.py               217    168    23%   100-105, 109-110, 114-117, 121-124, 128-131, 135-142, 146-155, 159-235, 246-302, 306-336, 340-343, 354-386, 399-491
+src/gemini_trading/research/engine.py                       209    165    21%   42-50, 78-100, 109-127, 133, 148, 163, 183-216, 219-223, 231-306, 311-389, 394-406, 417-421
+src/gemini_trading/research/errors.py                        22      0   100%
+src/gemini_trading/research/fixture_strategy.py              30     17    43%   20-25, 30-48, 53-58
+src/gemini_trading/research/identity.py                      16      5    69%   27-28, 49-50, 73
+src/gemini_trading/research/metrics.py                      150     95    37%   69-136, 140-148, 152-157, 163-239
+src/gemini_trading/research/replay.py                       204    160    22%   65-74, 78-81, 85-88, 92-95, 99-107, 113-166, 172-251, 255-279, 285-329, 335-356, 360, 375-418
+src/gemini_trading/research/serialization.py                 24     12    50%   12-14, 20-23, 27-31
+src/gemini_trading/research/verification.py                 121    121     0%   3-211
+src/gemini_trading/safety/__init__.py                         0      0   100%
+src/gemini_trading/safety/execution_mode.py                  21     21     0%   3-37
+src/gemini_trading/safety/regression_guards.py               63     63     0%   3-105
+src/gemini_trading/safety/repository_policy.py               30     30     0%   3-45
+src/gemini_trading/strategy/__init__.py                       4      0   100%
+src/gemini_trading/strategy/arbitration.py                  175    175     0%   3-415
+src/gemini_trading/strategy/artifacts.py                    114     74    35%   68, 79-97, 101-106, 110-115, 128-134, 140, 145-148, 160-198, 213, 216-218, 223-232, 237-239
+src/gemini_trading/strategy/baselines.py                    203    203     0%   3-373
+src/gemini_trading/strategy/calibration.py                  197    197     0%   3-346
+src/gemini_trading/strategy/candidate.py                     66     66     0%   3-110
+src/gemini_trading/strategy/contracts.py                     69     29    58%   9-12, 16-17, 53-56, 61, 75-88, 102-105
+src/gemini_trading/strategy/errors.py                         6      0   100%
+src/gemini_trading/strategy/evaluation.py                   234    136    42%   173-203, 221-227, 231-232, 245-291, 315, 325, 338, 351-355, 361-764
+src/gemini_trading/strategy/evaluator.py                     65     65     0%   3-266
+src/gemini_trading/strategy/features.py                     354    354     0%   3-661
+src/gemini_trading/strategy/final_access.py                 208    208     0%   3-406
+src/gemini_trading/strategy/handoff.py                      323    149    54%   79, 85, 91, 106, 108, 134, 146, 153-154, 159-160, 189, 191, 238, 240, 242, 244, 248, 255, 257, 261, 281, 283, 285, 289, 295, 297, 299, 301, 303, 307, 309, 311, 313, 317, 319, 322, 326, 378, 382-387, 391-392, 396-399, 403-406, 410-416, 420-426, 430-443, 449-509, 522-587
+src/gemini_trading/strategy/identity.py                      45     18    60%   16-19, 23-24, 30-37, 57-76, 82, 102
+src/gemini_trading/strategy/labels.py                       155    155     0%   3-277
+src/gemini_trading/strategy/models.py                       255    255     0%   3-587
+src/gemini_trading/strategy/policy.py                       117     32    73%   10-11, 15-16, 20-21, 101-206, 212, 218, 302
+src/gemini_trading/strategy/pre_final.py                    252     49    81%   49, 143, 167, 177, 197, 199, 201, 203, 284-285, 293-294, 296, 299, 313, 320, 329, 333, 336, 340, 356, 359-360, 386, 388, 390, 393, 398, 401, 404, 433, 435, 440, 442, 444, 448, 450, 454, 457, 459, 465, 489, 494, 496, 500, 502, 504, 506, 532
+src/gemini_trading/strategy/regimes.py                       47     28    40%   11-12, 28-41, 61-92
+src/gemini_trading/strategy/replay.py                       259    130    50%   84, 90-92, 98-99, 101, 104, 109-118, 124, 131, 137, 146, 149, 158, 163, 172, 176, 179, 183, 186-187, 230, 351, 353, 358, 375, 379, 386-449, 453-477, 488, 493-555
+src/gemini_trading/strategy/sealed_evaluator.py             173    173     0%   3-694
+src/gemini_trading/strategy/sealed_verification.py           76     76     0%   3-163
+src/gemini_trading/strategy/splits.py                       180    131    27%   36-59, 82-115, 127-263, 285-308, 315-322, 331, 350, 360, 364-366, 370-373, 377-381
+src/gemini_trading/strategy/study.py                        125     47    62%   56, 61, 68, 84, 105, 128, 131, 133, 135, 183, 193, 206-218, 237-239, 255-260, 277-291, 302-345
+src/gemini_trading/strategy/study_execution.py              157    157     0%   3-462
+src/gemini_trading/strategy/study_plans.py                   52     52     0%   3-311
+src/gemini_trading/strategy/study_predictions.py            157    157     0%   3-321
+src/gemini_trading/strategy/study_strategy.py               112    112     0%   3-195
+src/gemini_trading/strategy/verification.py                  91     91     0%   3-178
+---------------------------------------------------------------------------------------
+TOTAL                                                      8825   6648    25%
+=========================== short test summary info ============================
+FAILED tests/unit/strategy/test_pre_final.py::test_pre_final_rejects_reordered_row_identity - gemini_trading.strategy.errors.DatasetHandoffError: dataset handoff excluded row order mismatch
+1 failed, 15 passed in 5.07s

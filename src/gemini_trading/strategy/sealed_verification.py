@@ -91,7 +91,7 @@ def verify_sealed_evidence_chain(
         or manifest.exclusion_count != handoff.exclusion_count
         or manifest.segment_count != handoff.segment_count
         or manifest.closure_ids != handoff.closure_ids
-        or manifest.excluded_provider_row_sha256 != handoff.excluded_provider_row_sha256
+        or manifest.excluded_provider_rows != handoff.excluded_provider_rows
     ):
         raise StudyVerificationError("sealed closure, exclusion, and segment identity mismatch")
 

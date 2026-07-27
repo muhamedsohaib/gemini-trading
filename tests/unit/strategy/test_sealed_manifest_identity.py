@@ -61,12 +61,8 @@ def test_sealed_manifest_binds_closure_exclusion_and_segment_identity() -> None:
     ) == (20, 20, 21)
     assert manifest.closure_ids == tuple(item.closure_id for item in MANIFEST.closures)
     assert tuple(
-        (item.closure_id, item.provider_row_sha256)
-        for item in manifest.excluded_provider_rows
-    ) == tuple(
-        (item["closure_id"], item["provider_row_sha256"])
-        for item in _EXPECTED_ROWS
-    )
+        (item.closure_id, item.provider_row_sha256) for item in manifest.excluded_provider_rows
+    ) == tuple((item["closure_id"], item["provider_row_sha256"]) for item in _EXPECTED_ROWS)
     assert manifest.segment_boundary_indices == EXPECTED_BOUNDARIES
 
 

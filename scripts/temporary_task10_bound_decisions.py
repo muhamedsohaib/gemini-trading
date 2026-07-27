@@ -67,7 +67,7 @@ replacement = anchor + '''def _bounded_split_plan(
     policy: CandidatePolicy,
     segment_manifest: CandleSegmentManifest | None = None,
 ) -> tuple[ChronologicalSplitPlan, bool]:
-    """Retain exact boundaries while bounding integration decision windows."""
+    """Retain exact boundaries while bounding integration decision work."""
 
     plan, history_requirement_met = build_split_plan_unbounded(
         candles,
@@ -80,7 +80,7 @@ replacement = anchor + '''def _bounded_split_plan(
             fold,
             development_test_indices=fold.development_test_indices[:_MAX_DECISION_ROWS],
         )
-        for fold in plan.folds
+        for fold in plan.folds[: policy.minimum_development_folds]
     )
     return (
         replace(

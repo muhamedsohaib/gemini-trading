@@ -9,79 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  task10-static:
-    if: >-
-      github.event_name == 'pull_request' &&
-      github.head_ref == 'research/verified-multi-closure-partial-candle-manifest' &&
-      github.actor != 'github-actions[bot]'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6.0.2
-        with:
-          ref: ${{ github.head_ref }}
-          fetch-depth: 0
-      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
-        with:
-          version: "0.11.25"
-      - uses: actions/setup-python@v6.2.0
-        with:
-          python-version: "3.12"
-      - run: uv sync --all-groups --frozen
-      - run: uv run python scripts/temporary_task10_fix_prepare_call.py
-      - run: uv run ruff check tests/integration/test_sealed_historical_validation.py --fix
-      - run: uv run ruff format tests/integration/test_sealed_historical_validation.py
-      - run: uv run ruff check src/gemini_trading/strategy/pre_final.py src/gemini_trading/strategy/replay.py src/gemini_trading/strategy/sealed_evaluator.py src/gemini_trading/strategy/sealed_verification.py tests/candidate_strategy_e2e_worker.py tests/unit/strategy/test_pre_final.py tests/unit/strategy/test_sealed_manifest_identity.py tests/integration/test_sealed_historical_validation.py
-      - run: uv run pyright src/gemini_trading/strategy/pre_final.py src/gemini_trading/strategy/replay.py src/gemini_trading/strategy/sealed_evaluator.py src/gemini_trading/strategy/sealed_verification.py tests/candidate_strategy_e2e_worker.py tests/unit/strategy/test_pre_final.py tests/unit/strategy/test_sealed_manifest_identity.py tests/integration/test_sealed_historical_validation.py
-      - run: uv run pytest tests/unit/strategy/test_pre_final.py tests/unit/strategy/test_sealed_manifest_identity.py -q
-
-  task10-prepare:
-    if: >-
-      github.event_name == 'pull_request' &&
-      github.head_ref == 'research/verified-multi-closure-partial-candle-manifest' &&
-      github.actor != 'github-actions[bot]'
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v6.0.2
-        with:
-          ref: ${{ github.head_ref }}
-          fetch-depth: 0
-      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
-        with:
-          version: "0.11.25"
-      - uses: actions/setup-python@v6.2.0
-        with:
-          python-version: "3.12"
-      - run: uv sync --all-groups --frozen
-      - run: uv run python scripts/temporary_task10_fix_prepare_call.py
-      - run: uv run ruff format tests/integration/test_sealed_historical_validation.py
-      - run: uv run pytest tests/integration/test_sealed_historical_validation.py::test_prepare_does_not_materialize_final_phase -q
-
-  task10-complete:
-    if: >-
-      github.event_name == 'pull_request' &&
-      github.head_ref == 'research/verified-multi-closure-partial-candle-manifest' &&
-      github.actor != 'github-actions[bot]'
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v6.0.2
-        with:
-          ref: ${{ github.head_ref }}
-          fetch-depth: 0
-      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
-        with:
-          version: "0.11.25"
-      - uses: actions/setup-python@v6.2.0
-        with:
-          python-version: "3.12"
-      - run: uv sync --all-groups --frozen
-      - run: uv run python scripts/temporary_task10_fix_prepare_call.py
-      - run: uv run ruff format tests/integration/test_sealed_historical_validation.py
-      - run: uv run pytest tests/integration/test_sealed_historical_validation.py::test_complete_requires_matching_durable_receipt -q
-
-  task10-finalize:
-    needs: [task10-static, task10-prepare, task10-complete]
+  task10:
     if: >-
       github.event_name == 'pull_request' &&
       github.head_ref == 'research/verified-multi-closure-partial-candle-manifest' &&
@@ -102,16 +30,26 @@ jobs:
           python-version: "3.12"
       - run: uv sync --all-groups --frozen
       - run: uv run python scripts/temporary_task10_fix_prepare_call.py
-      - run: uv run ruff check tests/integration/test_sealed_historical_validation.py --fix
       - run: uv run ruff format tests/integration/test_sealed_historical_validation.py
-      - name: Commit verified Task 10 and restore normal CI
+      - name: Capture complete-path traceback
+        run: |
+          set +e
+          uv run pytest tests/integration/test_sealed_historical_validation.py::test_complete_requires_matching_durable_receipt -vv -s > task10-complete-failure.txt 2>&1
+          pytest_status=$?
+          printf 'pytest_status=%s\n' "$pytest_status" > task10-complete-status.txt
+          exit 0
+      - name: Persist traceback and restore normal CI
         run: |
           git checkout origin/main -- .github/workflows/ci.yml
           git rm -f --ignore-unmatch scripts/temporary_task10_*.py task10-*.txt
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add tests/integration/test_sealed_historical_validation.py .github/workflows/ci.yml
-          git commit -m "feat: complete sealed study handoff v4 propagation"
+          git add \
+            tests/integration/test_sealed_historical_validation.py \
+            .github/workflows/ci.yml \
+            task10-complete-failure.txt \
+            task10-complete-status.txt
+          git commit -m "test: persist Task 10 complete-path failure"
           git push origin HEAD:${{ github.head_ref }}
 
   quality:

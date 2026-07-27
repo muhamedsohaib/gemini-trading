@@ -199,8 +199,7 @@ def _parse_manifest(manifest_bytes: bytes) -> DatasetManifest:
             canonical_sha256=_string(mapping, "canonical_sha256", "manifest"),
             closure_manifest_sha256=(
                 _string(mapping, "closure_manifest_sha256", "manifest")
-                if schema_version
-                in {"candle-dataset-v2", "candle-dataset-v3", "candle-dataset-v4"}
+                if schema_version in {"candle-dataset-v2", "candle-dataset-v3", "candle-dataset-v4"}
                 else None
             ),
             exclusion_manifest_sha256=(
@@ -210,14 +209,12 @@ def _parse_manifest(manifest_bytes: bytes) -> DatasetManifest:
             ),
             segment_manifest_sha256=(
                 _string(mapping, "segment_manifest_sha256", "manifest")
-                if schema_version
-                in {"candle-dataset-v2", "candle-dataset-v3", "candle-dataset-v4"}
+                if schema_version in {"candle-dataset-v2", "candle-dataset-v3", "candle-dataset-v4"}
                 else None
             ),
             closure_count=(
                 _integer(mapping, "closure_count", "manifest")
-                if schema_version
-                in {"candle-dataset-v2", "candle-dataset-v3", "candle-dataset-v4"}
+                if schema_version in {"candle-dataset-v2", "candle-dataset-v3", "candle-dataset-v4"}
                 else 0
             ),
             exclusion_count=(
@@ -227,8 +224,7 @@ def _parse_manifest(manifest_bytes: bytes) -> DatasetManifest:
             ),
             segment_count=(
                 _integer(mapping, "segment_count", "manifest")
-                if schema_version
-                in {"candle-dataset-v2", "candle-dataset-v3", "candle-dataset-v4"}
+                if schema_version in {"candle-dataset-v2", "candle-dataset-v3", "candle-dataset-v4"}
                 else 1
             ),
         )

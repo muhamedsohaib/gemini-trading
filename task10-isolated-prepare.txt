@@ -1,0 +1,123 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.13, pytest-9.1.1, pluggy-1.6.0 -- /home/runner/work/gemini-trading/gemini-trading/.venv/bin/python
+cachedir: .pytest_cache
+hypothesis profile 'ci' -> database=None, deadline=None, print_blob=True, derandomize=True, suppress_health_check=(HealthCheck.too_slow,)
+rootdir: /home/runner/work/gemini-trading/gemini-trading
+configfile: pyproject.toml
+plugins: cov-7.1.0, hypothesis-6.160.0
+collecting ... collected 1 item
+
+tests/integration/test_sealed_historical_validation.py::test_prepare_does_not_materialize_final_phase PASSED
+
+=============================== warnings summary ===============================
+tests/integration/test_sealed_historical_validation.py: 10 warnings
+  /home/runner/work/gemini-trading/gemini-trading/.venv/lib/python3.12/site-packages/sklearn/linear_model/_logistic.py:1403: FutureWarning: 'penalty' was deprecated in version 1.8 and will be removed in 1.10. To avoid this warning, leave 'penalty' set to its default value and use 'l1_ratio' or 'C' instead. Use l1_ratio=0 instead of penalty='l2', l1_ratio=1 instead of penalty='l1', l1_ratio set to a float between 0 and 1 instead of penalty='elasticnet', and C=np.inf instead of penalty=None.
+    warnings.warn(
+
+tests/integration/test_sealed_historical_validation.py: 10 warnings
+  /home/runner/work/gemini-trading/gemini-trading/.venv/lib/python3.12/site-packages/sklearn/linear_model/_logistic.py:1457: FutureWarning: 'n_jobs' has no effect since 1.8 and will be removed in 1.10. You provided 'n_jobs=1', please leave it unspecified.
+    warnings.warn(msg, category=FutureWarning)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.13-final-0 _______________
+
+Name                                                      Stmts   Miss  Cover   Missing
+---------------------------------------------------------------------------------------
+src/gemini_trading/__init__.py                                1      0   100%
+src/gemini_trading/cli/__init__.py                            0      0   100%
+src/gemini_trading/cli/historical_validation.py             223    167    25%   56-59, 63-70, 74-77, 81-84, 88-91, 95, 99-103, 107-111, 115, 119-122, 126-135, 139-142, 148-151, 155, 166-183, 187-191, 195-200, 210-313, 322-343, 347-365, 373-395, 405-419, 431-449
+src/gemini_trading/cli/main.py                              133    114    14%   23, 27-166, 170-176, 180, 192-232
+src/gemini_trading/cli/market_data.py                        80     57    29%   24-27, 31-39, 46-54, 58, 69, 79-106, 110-114, 118-126, 132-139
+src/gemini_trading/cli/research.py                          137    100    27%   51-56, 60-61, 65-68, 72-75, 79-82, 86-94, 98-208, 217-219, 223-225, 231-289
+src/gemini_trading/cli/strategy.py                          157    108    31%   70-75, 79-80, 84-87, 91-94, 98-101, 105-114, 120-229, 239-242, 246-249, 253, 266-268, 278, 290-328
+src/gemini_trading/data/__init__.py                           0      0   100%
+src/gemini_trading/data/datasets/__init__.py                  0      0   100%
+src/gemini_trading/data/datasets/canonical_writer.py         85     30    65%   39, 66-69, 85-98, 115-129, 147, 184, 193, 198, 200, 225-253, 327, 341
+src/gemini_trading/data/errors.py                            28      9    68%   20-23, 33-37
+src/gemini_trading/data/exchange_closures.py                213     48    77%   54, 59, 62, 68, 74, 81, 87, 90-91, 93, 109, 127, 129, 131, 150, 152, 157, 159, 161, 167, 173, 190, 192, 196, 198, 202, 206, 212, 216, 225, 232, 234, 240, 242, 248, 253, 255, 257, 314-315, 323, 330, 381-382, 385, 397-398, 400
+src/gemini_trading/data/exclusions.py                       258    171    34%   39, 43, 47-52, 56-57, 61-64, 68-71, 75-83, 93, 98, 118, 120, 122, 127, 134, 136, 148, 150, 153, 156, 159, 162, 176-183, 215-251, 255-279, 288-309, 321-417
+src/gemini_trading/data/ingestion/__init__.py                 0      0   100%
+src/gemini_trading/data/ingestion/replay.py                 166    126    24%   95, 99, 107-134, 141-179, 189-256, 266, 280-377
+src/gemini_trading/data/ingestion/retry.py                   19     10    47%   17-20, 29-34
+src/gemini_trading/data/ingestion/service.py                160    113    29%   66, 70, 74-76, 80-82, 114-134, 141-154, 167, 195-405
+src/gemini_trading/data/normalization/__init__.py             0      0   100%
+src/gemini_trading/data/normalization/binance_klines.py      57     41    28%   19, 23-38, 42-48, 54-64, 74-105
+src/gemini_trading/data/providers/__init__.py                 0      0   100%
+src/gemini_trading/data/providers/base.py                    16      0   100%
+src/gemini_trading/data/providers/binance_spot.py            66     45    32%   28, 32-33, 37-47, 51-55, 62-77, 92-95, 98-103, 111-125
+src/gemini_trading/data/providers/http.py                    19     11    42%   12-14, 21-36
+src/gemini_trading/data/segments.py                         188     72    62%   34, 38-43, 47-48, 52-55, 59-62, 66-74, 95, 97, 99, 101, 103, 105, 107, 109, 114, 126, 128, 132, 134, 136, 143, 145, 147, 151, 186-223, 255, 261, 292, 299, 316, 333, 337
+src/gemini_trading/data/storage/__init__.py                   0      0   100%
+src/gemini_trading/data/storage/base.py                       5      0   100%
+src/gemini_trading/data/storage/local_immutable.py          203    125    38%   33-35, 49, 54-55, 59, 63-64, 68, 76-97, 103, 107, 118-127, 131-134, 138-143, 147-150, 154-160, 164-170, 174-189, 193-198, 236, 243-245, 248-254, 257-260, 263-264, 269-270, 275-276, 279-309, 347-348, 362-363, 371-376, 379-380, 386-391
+src/gemini_trading/data/validation/__init__.py                0      0   100%
+src/gemini_trading/data/validation/candles.py                52     19    63%   27, 30, 32, 34, 40, 51, 58, 60, 64, 68, 73, 79, 86-98
+src/gemini_trading/data/verification/__init__.py              0      0   100%
+src/gemini_trading/data/verification/service.py             193    145    25%   90-99, 103-106, 110-113, 117-120, 124-130, 134-140, 144-147, 151-159, 163-192, 196-269, 273-288, 311-447
+src/gemini_trading/domain/__init__.py                         0      0   100%
+src/gemini_trading/domain/account.py                         90     17    81%   9, 15, 20, 23, 57, 60, 62, 65, 67-70, 72, 74, 81, 102, 105
+src/gemini_trading/domain/candle.py                          35      5    86%   33, 35, 37, 47, 51
+src/gemini_trading/domain/dataset.py                        159     52    67%   17, 22, 29, 59-66, 96-111, 144, 146, 156, 158, 162, 164, 167, 172-190, 208-214
+src/gemini_trading/domain/experiment.py                      62      7    89%   17, 23, 79, 81, 83, 85, 93
+src/gemini_trading/domain/fill.py                            45      5    89%   13, 19, 24, 49, 59
+src/gemini_trading/domain/instrument.py                      22      2    91%   12, 34
+src/gemini_trading/domain/order.py                           87     15    83%   11, 17, 22, 24, 26, 98, 100, 102, 104, 106, 110, 112, 116, 120, 122
+src/gemini_trading/domain/time.py                             4      1    75%   10
+src/gemini_trading/domain/timeframe.py                       14      0   100%
+src/gemini_trading/execution/__init__.py                      0      0   100%
+src/gemini_trading/execution/simulator/__init__.py            0      0   100%
+src/gemini_trading/execution/simulator/costs.py              32      3    91%   13, 18, 55
+src/gemini_trading/execution/simulator/fills.py              93     30    68%   29, 33-39, 100, 102, 104, 106, 109-115, 122, 134-144, 148, 151, 154-157
+src/gemini_trading/execution/simulator/liquidity.py          11      2    82%   8, 22
+src/gemini_trading/execution/simulator/precision.py          19      2    89%   10, 31
+src/gemini_trading/research/__init__.py                       0      0   100%
+src/gemini_trading/research/accounting.py                    96     24    75%   17, 28, 30, 32, 34, 36, 52, 61, 70-74, 80, 117, 136, 140, 144, 154, 156, 158, 161, 163, 165, 168, 170
+src/gemini_trading/research/artifacts.py                    123     23    81%   183, 199, 201, 203, 206, 210, 215-219, 231, 233, 235, 240, 242, 314, 326-327, 346-349
+src/gemini_trading/research/config.py                        51      7    86%   15, 20, 59, 61, 65, 74, 84
+src/gemini_trading/research/contracts.py                     45      9    80%   25, 27, 41, 43, 46-47, 69, 71, 73
+src/gemini_trading/research/dataset_reader.py               217    168    23%   100-105, 109-110, 114-117, 121-124, 128-131, 135-142, 146-155, 159-235, 246-302, 306-336, 340-343, 354-386, 399-491
+src/gemini_trading/research/engine.py                       209     45    78%   43, 48, 110, 112, 114, 116, 118, 120, 122, 124, 127, 163, 186, 213-214, 222, 233-241, 248, 253, 255, 257-260, 263-270, 277, 279, 312, 314-315, 317, 319, 321, 323, 325, 327, 334, 373-385, 395, 399
+src/gemini_trading/research/errors.py                        22      0   100%
+src/gemini_trading/research/fixture_strategy.py              30     17    43%   20-25, 30-48, 53-58
+src/gemini_trading/research/identity.py                      16      0   100%
+src/gemini_trading/research/metrics.py                      150      5    97%   84, 101, 108, 145, 153
+src/gemini_trading/research/replay.py                       204    160    22%   65-74, 78-81, 85-88, 92-95, 99-107, 113-166, 172-251, 255-279, 285-329, 335-356, 360, 375-418
+src/gemini_trading/research/serialization.py                 24      3    88%   13, 22, 31
+src/gemini_trading/research/verification.py                 121     87    28%   37, 41-53, 57-60, 64-82, 105, 110-202
+src/gemini_trading/safety/__init__.py                         0      0   100%
+src/gemini_trading/safety/execution_mode.py                  21      8    62%   26-37
+src/gemini_trading/safety/regression_guards.py               63     63     0%   3-105
+src/gemini_trading/safety/repository_policy.py               30     30     0%   3-45
+src/gemini_trading/strategy/__init__.py                       4      0   100%
+src/gemini_trading/strategy/arbitration.py                  175     22    87%   14, 20, 26, 55, 59, 72, 82, 85, 91, 93, 96, 98, 107, 133, 135, 138, 140, 142, 225, 261, 282, 290
+src/gemini_trading/strategy/artifacts.py                    114     74    35%   68, 79-97, 101-106, 110-115, 128-134, 140, 145-148, 160-198, 213, 216-218, 223-232, 237-239
+src/gemini_trading/strategy/baselines.py                    203     39    81%   35, 40-42, 59, 64, 77-84, 87-98, 109-111, 164, 182-183, 229, 328, 332-335, 338, 352, 357, 359
+src/gemini_trading/strategy/calibration.py                  197     60    70%   27, 30-31, 33, 39, 58, 71, 75, 77, 93, 96, 98, 100, 124, 126, 130, 134, 138, 161, 171, 176, 195, 200, 207, 230, 232, 237, 239, 246, 273, 282-284, 293-298, 307-330, 337-346
+src/gemini_trading/strategy/candidate.py                     66     66     0%   3-110
+src/gemini_trading/strategy/contracts.py                     69     26    62%   9-12, 16-17, 54, 56, 75-88, 102-105
+src/gemini_trading/strategy/errors.py                         6      0   100%
+src/gemini_trading/strategy/evaluation.py                   234    136    42%   173-203, 221-227, 231-232, 245-291, 315, 325, 338, 351-355, 361-764
+src/gemini_trading/strategy/evaluator.py                     65     40    38%   52-58, 71-263
+src/gemini_trading/strategy/features.py                     354     43    88%   44, 46, 48, 50, 53, 55, 68, 70, 72, 85, 88, 91, 93, 107, 114-115, 132, 135, 144, 146, 148, 153, 381, 387, 401-402, 424, 429, 431, 433, 439, 441, 445, 499, 564, 570, 609, 621, 625, 631, 637, 640, 654
+src/gemini_trading/strategy/final_access.py                 208    133    36%   46-48, 52-54, 71-79, 92-101, 120, 133, 148, 160, 168, 174, 187, 198-203, 207-210, 214-217, 223-251, 255-272, 282, 285, 288-289, 292, 295, 298, 303-329, 334-346, 355-358, 368-369, 381-400
+src/gemini_trading/strategy/handoff.py                      323    148    54%   79, 85, 91, 106, 108, 134, 146, 153-154, 159-160, 189, 191, 238, 240, 242, 244, 248, 255, 257, 261, 281, 283, 285, 289, 293, 295, 297, 299, 301, 303, 307, 309, 311, 313, 317, 319, 322, 382-387, 391-392, 396-399, 403-406, 410-416, 420-426, 430-443, 449-509, 522-587
+src/gemini_trading/strategy/identity.py                      45     18    60%   16-19, 23-24, 30-37, 57-76, 82, 102
+src/gemini_trading/strategy/labels.py                       155     29    81%   38, 40, 42, 51, 55, 57, 71, 73, 75, 78, 80, 85, 93, 107, 109, 111, 113, 115, 117, 156, 158, 169, 235, 256, 261, 263, 265, 275, 277
+src/gemini_trading/strategy/models.py                       255     44    83%   31, 39-40, 42, 69, 72, 91, 93, 110, 131, 158, 173, 175, 177, 199, 201, 203, 209, 219, 223-224, 231-232, 238, 246, 251, 269, 311, 435, 453-454, 456, 490-535, 541-587
+src/gemini_trading/strategy/policy.py                       117      9    92%   11, 16, 21, 111, 198, 200, 202, 204, 206
+src/gemini_trading/strategy/pre_final.py                    252    153    39%   49, 143, 147, 154, 167, 171, 177, 197, 199, 201, 203, 271-272, 279-287, 291-300, 304-307, 311-314, 318-321, 327-342, 346-371, 383-533
+src/gemini_trading/strategy/regimes.py                       47      7    85%   12, 29, 37, 39, 41, 74-75
+src/gemini_trading/strategy/replay.py                       259    194    25%   84, 91, 96-105, 109-118, 122-125, 129-132, 136-138, 144-150, 156-164, 170-188, 220-380, 386-449, 453-477, 488, 493-555
+src/gemini_trading/strategy/sealed_evaluator.py             173     71    59%   81-87, 92, 94, 104, 120, 189-204, 221, 227, 231, 316-339, 354, 356, 397, 416-424, 446-538, 551-599, 620-691
+src/gemini_trading/strategy/sealed_verification.py           76     62    18%   27-36, 40-43, 54-152
+src/gemini_trading/strategy/splits.py                       180     35    81%   37, 39, 41, 43, 54, 59, 83, 85, 87, 89, 91, 93, 95, 97, 103, 115, 129, 134, 139, 144, 169, 229, 261, 286, 294, 297, 299, 303, 305, 316, 318, 321, 365, 372-373
+src/gemini_trading/strategy/study.py                        125     44    65%   56, 128, 131-133, 135, 183, 193, 206-218, 237-239, 255-260, 277-291, 302-345
+src/gemini_trading/strategy/study_execution.py              157     95    39%   76, 78, 82-83, 86, 113-118, 122, 129-133, 140-159, 184-194, 206-210, 230-387, 391-394, 407-459
+src/gemini_trading/strategy/study_plans.py                   52     11    79%   46-65, 89, 115, 208, 296, 298
+src/gemini_trading/strategy/study_predictions.py            157      0   100%
+src/gemini_trading/strategy/study_strategy.py               112     52    54%   43, 46, 49, 51, 58, 94, 98, 101, 104, 106, 119, 135-192
+src/gemini_trading/strategy/verification.py                  91     54    41%   43-52, 56-59, 63-85, 109, 112-114, 123-169
+---------------------------------------------------------------------------------------
+TOTAL                                                      8825   3966    55%
+================== 1 passed, 20 warnings in 533.75s (0:08:53) ==================

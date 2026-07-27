@@ -36,9 +36,11 @@ from gemini_trading.data.exclusions import (
     serialize_candle_exclusion_manifest,
 )
 from gemini_trading.data.segments import (
+    CandleSegmentManifest,
     serialize_candle_segment_manifest,
     validate_and_segment_candle_sequence,
 )
+from gemini_trading.domain.candle import Candle
 from gemini_trading.data.storage.local_immutable import LocalImmutableStore, write_immutable
 from gemini_trading.research.artifacts import LocalResearchStore
 from gemini_trading.research.dataset_reader import VerifiedDataset
@@ -62,7 +64,11 @@ from gemini_trading.strategy.sealed_evaluator import (
     final_access_identity,
     prepare_candidate_strategy_study,
 )
+from gemini_trading.strategy.splits import ChronologicalSplitPlan
 from gemini_trading.strategy.study import StudyPhase
+from gemini_trading.strategy.study_plans import (
+    build_split_plan as build_split_plan_unbounded,
+)
 from gemini_trading.strategy.study_predictions import (
     PredictionBundle,
 )
@@ -76,6 +82,7 @@ _CODE_COMMIT = "a" * 40
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _MAX_TRAINING_ROWS = 1_000
 _MAX_CALIBRATION_ROWS = 500
+_MAX_DECISION_ROWS = 64
 
 
 def _bounded_prediction_bundle(
@@ -103,12 +110,48 @@ def _bounded_prediction_bundle(
     )
 
 
+def _bounded_split_plan(
+    candles: tuple[Candle, ...],
+    eligible_indices: tuple[int, ...],
+    policy: CandidatePolicy,
+    segment_manifest: CandleSegmentManifest | None = None,
+) -> tuple[ChronologicalSplitPlan, bool]:
+    """Retain exact boundaries while bounding integration decision work."""
+
+    plan, history_requirement_met = build_split_plan_unbounded(
+        candles,
+        eligible_indices,
+        policy,
+        segment_manifest,
+    )
+    folds = tuple(
+        replace(
+            fold,
+            development_test_indices=fold.development_test_indices[:_MAX_DECISION_ROWS],
+        )
+        for fold in plan.folds[: policy.minimum_development_folds]
+    )
+    return (
+        replace(
+            plan,
+            folds=folds,
+            final_test_indices=plan.final_test_indices[:_MAX_DECISION_ROWS],
+        ),
+        history_requirement_met,
+    )
+
+
 @pytest.fixture(autouse=True)
-def _bound_integration_training(monkeypatch: pytest.MonkeyPatch) -> None:
+def bound_integration_training(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         sealed_evaluator,
         "fit_prediction_bundle",
         _bounded_prediction_bundle,
+    )
+    monkeypatch.setattr(
+        sealed_evaluator,
+        "build_split_plan",
+        _bounded_split_plan,
     )
 
 

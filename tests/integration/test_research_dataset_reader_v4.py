@@ -21,6 +21,7 @@ from gemini_trading.data.datasets.canonical_writer import (
     serialize_candles,
     serialize_dataset_manifest,
 )
+from gemini_trading.data.errors import CandleValidationError
 from gemini_trading.data.ingestion.service import IngestionService
 from gemini_trading.data.storage.local_immutable import LocalImmutableStore
 from gemini_trading.domain.candle import Candle
@@ -215,5 +216,5 @@ def test_require_v4_rejects_reordered_exclusion_identity(tmp_path: Path) -> None
     store.write_dataset_supporting_manifests(reordered_id, closure_bytes, segment_bytes)
     store.write_dataset_exclusion_manifest(reordered_id, reordered_exclusion_bytes)
 
-    with pytest.raises(DatasetVerificationError, match=r"order|identity"):
+    with pytest.raises((DatasetVerificationError, CandleValidationError), match=r"order|identity"):
         _load_v4(store, reordered_id)

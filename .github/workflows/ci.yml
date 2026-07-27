@@ -30,6 +30,7 @@ jobs:
           python-version: "3.12"
       - run: uv sync --all-groups --frozen
       - run: uv run python scripts/temporary_task10_bound_training.py
+      - run: uv run ruff check tests/integration/test_sealed_historical_validation.py --fix
       - run: uv run ruff format tests/integration/test_sealed_historical_validation.py
       - run: uv run ruff check src/gemini_trading/strategy/pre_final.py src/gemini_trading/strategy/replay.py src/gemini_trading/strategy/sealed_evaluator.py src/gemini_trading/strategy/sealed_verification.py tests/candidate_strategy_e2e_worker.py tests/unit/strategy/test_pre_final.py tests/unit/strategy/test_sealed_manifest_identity.py tests/integration/test_sealed_historical_validation.py
       - run: uv run pyright src/gemini_trading/strategy/pre_final.py src/gemini_trading/strategy/replay.py src/gemini_trading/strategy/sealed_evaluator.py src/gemini_trading/strategy/sealed_verification.py tests/candidate_strategy_e2e_worker.py tests/unit/strategy/test_pre_final.py tests/unit/strategy/test_sealed_manifest_identity.py tests/integration/test_sealed_historical_validation.py

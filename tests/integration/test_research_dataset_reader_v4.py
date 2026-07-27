@@ -215,5 +215,5 @@ def test_require_v4_rejects_reordered_exclusion_identity(tmp_path: Path) -> None
     store.write_dataset_supporting_manifests(reordered_id, closure_bytes, segment_bytes)
     store.write_dataset_exclusion_manifest(reordered_id, reordered_exclusion_bytes)
 
-    with pytest.raises(DatasetVerificationError, match="order|identity"):
+    with pytest.raises(DatasetVerificationError, match=r"order|identity"):
         _load_v4(store, reordered_id)

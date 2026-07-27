@@ -1,2 +1,0 @@
-tests/integration/test_research_dataset_reader_v4.py:218:56: RUF043 Pattern passed to `match=` contains metacharacters but is neither escaped nor raw
-Found 1 error.

@@ -91,8 +91,7 @@ def write_fixed_supporting_evidence(root: Path) -> FixedSupportFields:
         segment_count=len(segment_manifest.segments),
         closure_ids=tuple(item.closure_id for item in MANIFEST.closures),
         excluded_provider_rows=tuple(
-            (item.closure_id, item.provider_row_sha256)
-            for item in exclusion_manifest.exclusions
+            (item.closure_id, item.provider_row_sha256) for item in exclusion_manifest.exclusions
         ),
         segment_boundary_indices=segment_manifest.boundary_indices,
         candle_count=EXPECTED_CANDLE_COUNT,

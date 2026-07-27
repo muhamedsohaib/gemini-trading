@@ -285,9 +285,7 @@ def _strategy_handoff(arguments: argparse.Namespace) -> dict[str, object]:
             canonical_root / "candle-exclusions.json", output_root
         ),
         exclusion_manifest_sha256=dataset.manifest.exclusion_manifest_sha256,
-        segment_manifest_path=_safe_relative(
-            canonical_root / "candle-segments.json", output_root
-        ),
+        segment_manifest_path=_safe_relative(canonical_root / "candle-segments.json", output_root),
         segment_manifest_sha256=dataset.manifest.segment_manifest_sha256,
         closure_count=dataset.manifest.closure_count,
         exclusion_count=dataset.manifest.exclusion_count,
@@ -356,13 +354,9 @@ def _strategy_authorize_final(arguments: argparse.Namespace) -> dict[str, object
     identity = FinalAccessIdentity(
         code_commit=resolve_clean_git_commit(project_root),
         dataset_id=_required_str(manifest, "dataset_id", "pre-final manifest"),
-        configuration_sha256=_required_str(
-            manifest, "configuration_sha256", "pre-final manifest"
-        ),
+        configuration_sha256=_required_str(manifest, "configuration_sha256", "pre-final manifest"),
         policy_sha256=_required_str(manifest, "policy_sha256", "pre-final manifest"),
-        split_plan_sha256=_required_str(
-            manifest, "split_plan_sha256", "pre-final manifest"
-        ),
+        split_plan_sha256=_required_str(manifest, "split_plan_sha256", "pre-final manifest"),
         pre_final_id=pre_final_id,
         workflow_run_id=workflow_run_id,
         workflow_run_attempt=workflow_run_attempt,
@@ -387,9 +381,7 @@ def _strategy_finalize(arguments: argparse.Namespace) -> dict[str, object]:
     code_commit = resolve_clean_git_commit(project_root)
     receipt = FinalAccessStore(output_root).load(receipt_id)
     config = load_candidate_strategy_config(project_root / _FIXED_CONFIG)
-    dataset = load_verified_dataset(
-        LocalImmutableStore(output_root), dataset_id, require_v4=True
-    )
+    dataset = load_verified_dataset(LocalImmutableStore(output_root), dataset_id, require_v4=True)
     artifacts = complete_candidate_strategy_study(
         pre_final=pre_final,
         receipt=receipt,

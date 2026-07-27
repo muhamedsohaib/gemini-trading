@@ -165,7 +165,9 @@ def test_handoff_rejects_extra_field(tmp_path: Path) -> None:
 
 def test_handoff_rejects_legacy_scalar_excluded_row_field(tmp_path: Path) -> None:
     (tmp_path / "data.txt").write_bytes(b"evidence\n")
-    payload = cast(dict[str, object], json.loads(serialize_dataset_handoff(_manifest(tmp_path, ("data.txt",)))))
+    payload = cast(
+        dict[str, object], json.loads(serialize_dataset_handoff(_manifest(tmp_path, ("data.txt",))))
+    )
     rows = cast(list[dict[str, object]], payload.pop("excluded_provider_rows"))
     payload["excluded_provider_row_sha256"] = rows[0]["provider_row_sha256"]
     altered = (json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n").encode()

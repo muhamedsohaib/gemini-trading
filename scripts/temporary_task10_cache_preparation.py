@@ -84,13 +84,16 @@ text = text.replace(
 ''',
     1,
 )
-if text.count("    preparation = build_candidate_preparation(\n") != 1:
-    raise SystemExit("unexpected explicit preparation call")
-path.write_text(
-    text.replace(
-        "    preparation = build_candidate_preparation(\n",
-        "    preparation = sealed_evaluator.build_candidate_preparation(\n",
-        1,
-    ),
-    encoding="utf-8",
+test_anchor = "def test_complete_requires_matching_durable_receipt(tmp_path: Path) -> None:\n"
+if text.count(test_anchor) != 1:
+    raise SystemExit("unexpected complete-test anchor")
+before, after = text.split(test_anchor, 1)
+call = "    preparation = build_candidate_preparation(\n"
+if call not in after:
+    raise SystemExit("complete test preparation call is missing")
+after = after.replace(
+    call,
+    "    preparation = sealed_evaluator.build_candidate_preparation(\n",
+    1,
 )
+path.write_text(before + test_anchor + after, encoding="utf-8")

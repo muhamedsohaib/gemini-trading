@@ -14,10 +14,10 @@ from gemini_trading.data.errors import CandleValidationError
 from gemini_trading.domain.instrument import Instrument
 from gemini_trading.domain.timeframe import Timeframe
 
-_SCHEMA_VERSION = "exchange-closure-manifest-v2"
+_SCHEMA_VERSION = "exchange-closure-manifest-v3"
 _FIXED_PATH = Path("config/market-data/sealed-btcusdt-4h-exchange-closures.json")
 _FIXED_SHA256 = (
-    "cdd89840b30b4877d07c7be05cbc4f7615dd974f865ee0e922c933b675dfe599"  # pragma: allowlist secret
+    "a028bd367ac51b85cca3fab24a28b794fc35ea2d9f73b6f39d681eafa66a31f5"  # pragma: allowlist secret
 )
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 _MANIFEST_FIELDS = {
@@ -157,8 +157,8 @@ class ExchangeClosure:
             _fail("exchange closure interval must be positive")
         if isinstance(self.unavailable_candle_count, bool) or self.unavailable_candle_count < 1:
             _fail("exchange closure unavailable-candle count must be positive")
-        if isinstance(self.fully_missing_candle_count, bool) or self.fully_missing_candle_count < 1:
-            _fail("exchange closure fully-missing candle count must be positive")
+        if isinstance(self.fully_missing_candle_count, bool) or self.fully_missing_candle_count < 0:
+            _fail("exchange closure fully-missing candle count must be nonnegative")
 
     @property
     def missing_start(self) -> datetime:
@@ -200,6 +200,16 @@ class ExchangeClosureManifest:
         closure_ids = tuple(item.closure_id for item in self.closures)
         if len(closure_ids) != len(set(closure_ids)):
             _fail("duplicate exchange closure ID")
+
+        partial_opens = tuple(item.partial_candle.open_time for item in self.closures)
+        if len(partial_opens) != len(set(partial_opens)):
+            _fail("duplicate exchange closure partial candle open")
+
+        provider_row_digests = tuple(
+            item.partial_candle.provider_row_sha256 for item in self.closures
+        )
+        if len(provider_row_digests) != len(set(provider_row_digests)):
+            _fail("duplicate exchange closure provider-row SHA-256")
 
         starts = tuple(item.canonical_gap_start for item in self.closures)
         if starts != tuple(sorted(starts)):
@@ -297,7 +307,7 @@ def serialize_exchange_closure_manifest(manifest: ExchangeClosureManifest) -> by
 
 
 def load_exchange_closure_manifest(raw: bytes) -> ExchangeClosureManifest:
-    """Parse canonical v2 closure bytes and reject unsupported fields or encodings."""
+    """Parse canonical v3 closure bytes and reject unsupported fields or encodings."""
 
     try:
         loaded: object = json.loads(raw.decode("utf-8"))
@@ -379,7 +389,7 @@ def load_exchange_closure_manifest(raw: bytes) -> ExchangeClosureManifest:
 def load_fixed_btcusdt_closure_manifest(
     project_root: Path,
 ) -> tuple[ExchangeClosureManifest, bytes]:
-    """Load the single approved source-controlled closure declaration."""
+    """Load the approved source-controlled closure declarations."""
 
     path = Path(project_root).resolve(strict=False) / _FIXED_PATH
     try:

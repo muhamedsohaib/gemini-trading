@@ -11,40 +11,35 @@ text = text.replace(
     "from gemini_trading.research.dataset_reader import VerifiedDataset\n",
     1,
 )
-old_import = '''from gemini_trading.strategy.sealed_evaluator import (
-    build_candidate_preparation,
-    complete_candidate_strategy_study,
-    final_access_identity,
-    prepare_candidate_strategy_study,
+if text.count("    build_candidate_preparation,\n") != 1:
+    raise SystemExit("unexpected build preparation import")
+text = text.replace(
+    "    build_candidate_preparation,\n",
+    "    CandidatePreparation,\n",
+    1,
 )
-'''
-new_import = '''from gemini_trading.strategy.sealed_evaluator import (
+import_anchor = '''from gemini_trading.strategy.sealed_evaluator import (
     CandidatePreparation,
     complete_candidate_strategy_study,
     final_access_identity,
     prepare_candidate_strategy_study,
 )
-from gemini_trading.strategy.sealed_evaluator import (
+'''
+if text.count(import_anchor) != 1:
+    raise SystemExit("unexpected sealed evaluator import anchor")
+text = text.replace(
+    import_anchor,
+    import_anchor
+    + '''from gemini_trading.strategy.sealed_evaluator import (
     build_candidate_preparation as build_candidate_preparation_unbounded,
 )
-'''
-if text.count(old_import) != 1:
-    raise SystemExit("unexpected sealed evaluator import block")
-text = text.replace(old_import, new_import, 1)
-old_fixture = '''@pytest.fixture(autouse=True)
+''',
+    1,
+)
+fixture_anchor = '''@pytest.fixture(autouse=True)
 def bound_integration_training(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        sealed_evaluator,
-        "fit_prediction_bundle",
-        _bounded_prediction_bundle,
-    )
-    monkeypatch.setattr(
-        sealed_evaluator,
-        "build_split_plan",
-        _bounded_split_plan,
-    )
 '''
-new_fixture = '''@pytest.fixture(autouse=True)
+cache_block = '''@pytest.fixture(autouse=True)
 def bound_integration_training(monkeypatch: pytest.MonkeyPatch) -> None:
     preparation_cache: dict[bool, CandidatePreparation] = {}
 
@@ -66,39 +61,36 @@ def bound_integration_training(monkeypatch: pytest.MonkeyPatch) -> None:
             preparation_cache[include_final] = cached
         return cached
 
-    monkeypatch.setattr(
-        sealed_evaluator,
-        "fit_prediction_bundle",
-        _bounded_prediction_bundle,
-    )
-    monkeypatch.setattr(
+'''
+if text.count(fixture_anchor) != 1:
+    raise SystemExit("unexpected bounded integration fixture anchor")
+text = text.replace(fixture_anchor, cache_block, 1)
+monkeypatch_anchor = '''    monkeypatch.setattr(
         sealed_evaluator,
         "build_split_plan",
         _bounded_split_plan,
     )
-    monkeypatch.setattr(
+'''
+if text.count(monkeypatch_anchor) != 1:
+    raise SystemExit("unexpected split-plan monkeypatch anchor")
+text = text.replace(
+    monkeypatch_anchor,
+    monkeypatch_anchor
+    + '''    monkeypatch.setattr(
         sealed_evaluator,
         "build_candidate_preparation",
         cached_candidate_preparation,
     )
-'''
-if text.count(old_fixture) != 1:
-    raise SystemExit("unexpected bounded integration fixture")
-text = text.replace(old_fixture, new_fixture, 1)
-old_call = '''    preparation = build_candidate_preparation(
-        dataset=dataset,
-        simulation=simulation,
-        initial_cash=Decimal("10000"),
-        include_final=False,
-    )
-'''
-new_call = '''    preparation = sealed_evaluator.build_candidate_preparation(
-        dataset=dataset,
-        simulation=simulation,
-        initial_cash=Decimal("10000"),
-        include_final=False,
-    )
-'''
-if text.count(old_call) != 1:
+''',
+    1,
+)
+if text.count("    preparation = build_candidate_preparation(\n") != 1:
     raise SystemExit("unexpected explicit preparation call")
-path.write_text(text.replace(old_call, new_call, 1), encoding="utf-8")
+path.write_text(
+    text.replace(
+        "    preparation = build_candidate_preparation(\n",
+        "    preparation = sealed_evaluator.build_candidate_preparation(\n",
+        1,
+    ),
+    encoding="utf-8",
+)

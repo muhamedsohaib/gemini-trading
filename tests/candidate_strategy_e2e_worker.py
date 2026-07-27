@@ -285,7 +285,7 @@ if __name__ == "__main__":
     raise SystemExit(main_worker())
 
 
-def synthetic_candidate_candles(count: int = 2250) -> tuple[Candle, ...]:
-    """Return deterministic synthetic Candidate acceptance candles."""
+def synthetic_candidate_candles() -> tuple[Candle, ...]:
+    """Return the deterministic synthetic Candidate acceptance candles."""
 
-    return _synthetic_candles(count)
+    return _synthetic_candles()

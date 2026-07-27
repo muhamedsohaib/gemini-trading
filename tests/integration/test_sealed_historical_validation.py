@@ -386,7 +386,7 @@ def test_prepare_does_not_materialize_final_phase(tmp_path: Path) -> None:
     simulation = base_simulation()
     full_count = len(dataset.candles)
 
-    preparation = build_candidate_preparation(
+    preparation = sealed_evaluator.build_candidate_preparation(
         dataset=dataset,
         simulation=simulation,
         initial_cash=Decimal("10000"),

@@ -1,5 +1,0 @@
-cache_status=0
-verifier_status=0
-fix_status=1
-format_status=0
-ruff_status=1

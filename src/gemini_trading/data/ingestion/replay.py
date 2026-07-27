@@ -44,7 +44,7 @@ _RETRIEVAL_SCHEMA_VERSION = "retrieval-manifest-v1"
 _RETRIEVAL_SCHEMA_VERSION_V2 = "retrieval-manifest-v2"
 _DATASET_SCHEMA_VERSION = "candle-dataset-v1"
 _DATASET_SCHEMA_VERSION_V2 = "candle-dataset-v2"
-_DATASET_SCHEMA_VERSION_V3 = "candle-dataset-v3"
+_DATASET_SCHEMA_VERSION_V4 = "candle-dataset-v4"
 _PROVENANCE_SCHEMA_VERSION = "dataset-provenance-v1"
 _PROVIDER = "binance_spot"
 _EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
@@ -320,7 +320,7 @@ class ReplayService:
         canonical_bytes = serialize_candles(candles)
         dataset_manifest = build_dataset_manifest(
             schema_version=(
-                _DATASET_SCHEMA_VERSION_V3
+                _DATASET_SCHEMA_VERSION_V4
                 if closure_manifest is not None
                 else _DATASET_SCHEMA_VERSION
             ),

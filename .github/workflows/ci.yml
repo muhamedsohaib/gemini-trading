@@ -30,19 +30,28 @@ jobs:
           python-version: "3.12"
       - run: uv sync --all-groups --frozen
       - run: uv run python scripts/temporary_task10_fixture_upgrade.py
+      - run: uv run ruff check tests/unit/strategy/test_pre_final.py tests/integration/test_sealed_historical_validation.py --fix
       - run: uv run ruff format tests/unit/strategy/test_pre_final.py tests/integration/test_sealed_historical_validation.py
-      - run: uv run ruff check src/gemini_trading/strategy/pre_final.py src/gemini_trading/strategy/replay.py src/gemini_trading/strategy/sealed_evaluator.py src/gemini_trading/strategy/sealed_verification.py tests/unit/strategy/test_pre_final.py tests/unit/strategy/test_sealed_manifest_identity.py tests/integration/test_sealed_historical_validation.py
-      - run: uv run pyright src/gemini_trading/strategy/pre_final.py src/gemini_trading/strategy/replay.py src/gemini_trading/strategy/sealed_evaluator.py src/gemini_trading/strategy/sealed_verification.py tests/unit/strategy/test_pre_final.py tests/unit/strategy/test_sealed_manifest_identity.py tests/integration/test_sealed_historical_validation.py
-      - run: uv run pytest tests/unit/strategy/test_pre_final.py tests/unit/strategy/test_sealed_manifest_identity.py tests/integration/test_sealed_historical_validation.py -q
-      - run: uv run pytest tests/integration -q
-      - name: Commit verified Task 10 and restore CI
+      - name: Capture Task 10 fixture diagnostics
+        run: |
+          set +e
+          uv run ruff check src/gemini_trading/strategy/pre_final.py src/gemini_trading/strategy/replay.py src/gemini_trading/strategy/sealed_evaluator.py src/gemini_trading/strategy/sealed_verification.py tests/unit/strategy/test_pre_final.py tests/unit/strategy/test_sealed_manifest_identity.py tests/integration/test_sealed_historical_validation.py > task10-fixture-ruff.txt 2>&1
+          echo "ruff_status=$?" > task10-fixture-status.txt
+          uv run pyright src/gemini_trading/strategy/pre_final.py src/gemini_trading/strategy/replay.py src/gemini_trading/strategy/sealed_evaluator.py src/gemini_trading/strategy/sealed_verification.py tests/unit/strategy/test_pre_final.py tests/unit/strategy/test_sealed_manifest_identity.py tests/integration/test_sealed_historical_validation.py > task10-fixture-pyright.txt 2>&1
+          echo "pyright_status=$?" >> task10-fixture-status.txt
+          uv run pytest tests/unit/strategy/test_pre_final.py tests/unit/strategy/test_sealed_manifest_identity.py tests/integration/test_sealed_historical_validation.py -q > task10-fixture-pytest.txt 2>&1
+          echo "pytest_status=$?" >> task10-fixture-status.txt
+          uv run pytest tests/integration -q > task10-fixture-integration.txt 2>&1
+          echo "integration_status=$?" >> task10-fixture-status.txt
+          exit 0
+      - name: Commit Task 10 fixture diagnostic and restore CI
         run: |
           git checkout origin/main -- .github/workflows/ci.yml
           git rm -f scripts/temporary_task10_fixture_upgrade.py task10-final-ruff.txt task10-final-pyright.txt task10-final-pytest.txt task10-final-integration.txt task10-final-status.txt
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add tests/unit/strategy/test_pre_final.py tests/integration/test_sealed_historical_validation.py .github/workflows/ci.yml
-          git commit -m "feat: complete sealed study handoff v4 propagation"
+          git add tests/unit/strategy/test_pre_final.py tests/integration/test_sealed_historical_validation.py .github/workflows/ci.yml task10-fixture-ruff.txt task10-fixture-pyright.txt task10-fixture-pytest.txt task10-fixture-integration.txt task10-fixture-status.txt
+          git commit -m "test: persist Task 10 fixture diagnostics"
           git push origin HEAD:${{ github.head_ref }}
 
   quality:

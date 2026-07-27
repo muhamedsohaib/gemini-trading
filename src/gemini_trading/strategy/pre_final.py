@@ -15,7 +15,7 @@ from gemini_trading.data.errors import RawStorageConflictError
 from gemini_trading.data.storage.local_immutable import write_immutable
 from gemini_trading.research.serialization import canonical_json_bytes, canonical_jsonl_bytes
 from gemini_trading.strategy.errors import PreFinalArtifactError
-from gemini_trading.strategy.handoff import DatasetHandoffManifest
+from gemini_trading.strategy.handoff import DatasetHandoffManifest, ExcludedProviderRow
 from gemini_trading.strategy.study import (
     REQUIRED_DEVELOPMENT_CASE_IDS,
     StudyCaseEvidence,
@@ -63,7 +63,7 @@ def _case_payload(record: StudyCaseEvidence) -> dict[str, object]:
 
 def _handoff_reference(handoff: DatasetHandoffManifest) -> dict[str, object]:
     return {
-        "schema_version": "dataset-handoff-reference-v3",
+        "schema_version": "dataset-handoff-reference-v4",
         "dataset_id": handoff.dataset_id,
         "dataset_schema_version": handoff.dataset_schema_version,
         "inventory_root_sha256": handoff.inventory_root_sha256,
@@ -78,7 +78,13 @@ def _handoff_reference(handoff: DatasetHandoffManifest) -> dict[str, object]:
         "exclusion_count": handoff.exclusion_count,
         "segment_count": handoff.segment_count,
         "closure_ids": list(handoff.closure_ids),
-        "excluded_provider_row_sha256": handoff.excluded_provider_row_sha256,
+        "excluded_provider_rows": [
+            {
+                "closure_id": item.closure_id,
+                "provider_row_sha256": item.provider_row_sha256,
+            }
+            for item in handoff.excluded_provider_rows
+        ],
         "segment_boundary_indices": list(handoff.segment_boundary_indices),
     }
 
@@ -99,7 +105,7 @@ def _identity_payload(
     exclusion_count: int,
     segment_count: int,
     closure_ids: tuple[str, ...],
-    excluded_provider_row_sha256: str,
+    excluded_provider_rows: tuple[ExcludedProviderRow, ...],
     segment_boundary_indices: tuple[int, ...],
     development_records: tuple[StudyCaseEvidence, ...],
 ) -> dict[str, object]:
@@ -119,7 +125,13 @@ def _identity_payload(
         "exclusion_count": exclusion_count,
         "segment_count": segment_count,
         "closure_ids": list(closure_ids),
-        "excluded_provider_row_sha256": excluded_provider_row_sha256,
+        "excluded_provider_rows": [
+            {
+                "closure_id": item.closure_id,
+                "provider_row_sha256": item.provider_row_sha256,
+            }
+            for item in excluded_provider_rows
+        ],
         "segment_boundary_indices": list(segment_boundary_indices),
         "required_development_case_ids": list(REQUIRED_DEVELOPMENT_CASE_IDS),
         "development_experiments": [_case_payload(item) for item in development_records],
@@ -207,7 +219,7 @@ def build_pre_final_artifacts(
         exclusion_count=handoff.exclusion_count,
         segment_count=handoff.segment_count,
         closure_ids=handoff.closure_ids,
-        excluded_provider_row_sha256=handoff.excluded_provider_row_sha256,
+        excluded_provider_rows=handoff.excluded_provider_rows,
         segment_boundary_indices=segment_boundary_indices,
         development_records=development_records,
     )
@@ -309,6 +321,27 @@ def _required_int(mapping: Mapping[str, object], key: str) -> int:
     return value
 
 
+def _required_excluded_rows(
+    mapping: Mapping[str, object], key: str
+) -> tuple[ExcludedProviderRow, ...]:
+    value = mapping.get(key)
+    if not isinstance(value, list):
+        raise PreFinalArtifactError(f"invalid pre-final field: {key}")
+    rows: list[ExcludedProviderRow] = []
+    for raw_row in cast(list[object], value):
+        if not isinstance(raw_row, dict):
+            raise PreFinalArtifactError(f"invalid pre-final field: {key}")
+        row = cast(dict[object, object], raw_row)
+        if set(row) != {"closure_id", "provider_row_sha256"}:
+            raise PreFinalArtifactError(f"invalid pre-final field: {key}")
+        closure_id = row.get("closure_id")
+        provider_row_sha256 = row.get("provider_row_sha256")
+        if not isinstance(closure_id, str) or not isinstance(provider_row_sha256, str):
+            raise PreFinalArtifactError(f"invalid pre-final field: {key}")
+        rows.append(ExcludedProviderRow(closure_id, provider_row_sha256))
+    return tuple(rows)
+
+
 def _records_from_bytes(raw: bytes) -> tuple[StudyCaseEvidence, ...]:
     records: list[StudyCaseEvidence] = []
     for row in _jsonl_mappings(raw, "development experiment"):
@@ -390,7 +423,7 @@ def verify_pre_final_artifacts(
         "exclusion_count",
         "segment_count",
         "closure_ids",
-        "excluded_provider_row_sha256",
+        "excluded_provider_rows",
         "segment_boundary_indices",
         "required_development_case_ids",
         "development_experiments",
@@ -442,7 +475,13 @@ def verify_pre_final_artifacts(
             "exclusion_count": expected_handoff.exclusion_count,
             "segment_count": expected_handoff.segment_count,
             "closure_ids": list(expected_handoff.closure_ids),
-            "excluded_provider_row_sha256": expected_handoff.excluded_provider_row_sha256,
+            "excluded_provider_rows": [
+                {
+                    "closure_id": item.closure_id,
+                    "provider_row_sha256": item.provider_row_sha256,
+                }
+                for item in expected_handoff.excluded_provider_rows
+            ],
             "segment_boundary_indices": list(expected_handoff.segment_boundary_indices),
         }
         for key, expected in expected_fields.items():
@@ -481,7 +520,7 @@ def verify_pre_final_artifacts(
         exclusion_count=_required_int(manifest, "exclusion_count"),
         segment_count=_required_int(manifest, "segment_count"),
         closure_ids=closure_ids,
-        excluded_provider_row_sha256=_required_str(manifest, "excluded_provider_row_sha256"),
+        excluded_provider_rows=_required_excluded_rows(manifest, "excluded_provider_rows"),
         segment_boundary_indices=segment_boundaries,
         development_records=records,
     )

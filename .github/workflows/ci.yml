@@ -9,59 +9,6 @@ permissions:
   contents: read
 
 jobs:
-  task10:
-    if: >-
-      github.event_name == 'pull_request' &&
-      github.head_ref == 'research/verified-multi-closure-partial-candle-manifest' &&
-      github.actor != 'github-actions[bot]'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v6.0.2
-        with:
-          ref: ${{ github.head_ref }}
-          fetch-depth: 0
-      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
-        with:
-          version: "0.11.25"
-      - uses: actions/setup-python@v6.2.0
-        with:
-          python-version: "3.12"
-      - run: uv sync --all-groups --frozen
-      - name: Apply fixture and capture Ruff diagnostic
-        run: |
-          set +e
-          uv run python scripts/temporary_task10_cache_preparation.py > task10-final-patch.txt 2>&1
-          cache_status=$?
-          uv run python scripts/temporary_task10_lightweight_verifier.py >> task10-final-patch.txt 2>&1
-          verifier_status=$?
-          uv run ruff check tests/integration/test_sealed_historical_validation.py --fix > task10-final-ruff-fix.txt 2>&1
-          fix_status=$?
-          uv run ruff format tests/integration/test_sealed_historical_validation.py >> task10-final-patch.txt 2>&1
-          format_status=$?
-          uv run ruff check tests/integration/test_sealed_historical_validation.py > task10-final-ruff.txt 2>&1
-          ruff_status=$?
-          printf 'cache_status=%s\nverifier_status=%s\nfix_status=%s\nformat_status=%s\nruff_status=%s\n' \
-            "$cache_status" "$verifier_status" "$fix_status" "$format_status" "$ruff_status" \
-            > task10-final-status.txt
-          exit 0
-      - name: Persist patched test and restore normal CI
-        run: |
-          git checkout origin/main -- .github/workflows/ci.yml
-          git rm -f --ignore-unmatch scripts/temporary_task10_*.py task10-*.txt
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add \
-            tests/integration/test_sealed_historical_validation.py \
-            .github/workflows/ci.yml \
-            task10-final-patch.txt \
-            task10-final-ruff-fix.txt \
-            task10-final-ruff.txt \
-            task10-final-status.txt
-          git commit -m "test: persist final Task 10 lint diagnostic"
-          git push origin HEAD:${{ github.head_ref }}
-
   quality:
     runs-on: ubuntu-latest
     steps:

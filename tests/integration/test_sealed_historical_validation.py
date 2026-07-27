@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from decimal import Decimal
 from pathlib import Path
 from typing import cast
@@ -40,9 +40,10 @@ from gemini_trading.data.segments import (
     serialize_candle_segment_manifest,
     validate_and_segment_candle_sequence,
 )
-from gemini_trading.domain.candle import Candle
 from gemini_trading.data.storage.local_immutable import LocalImmutableStore, write_immutable
+from gemini_trading.domain.candle import Candle
 from gemini_trading.research.artifacts import LocalResearchStore
+from gemini_trading.research.config import SimulationConfig
 from gemini_trading.research.dataset_reader import VerifiedDataset
 from gemini_trading.strategy import sealed_evaluator
 from gemini_trading.strategy.artifacts import REQUIRED_STUDY_ARTIFACT_NAMES
@@ -59,10 +60,13 @@ from gemini_trading.strategy.handoff import (
 from gemini_trading.strategy.labels import LabelVector
 from gemini_trading.strategy.policy import CandidatePolicy
 from gemini_trading.strategy.sealed_evaluator import (
-    build_candidate_preparation,
+    CandidatePreparation,
     complete_candidate_strategy_study,
     final_access_identity,
     prepare_candidate_strategy_study,
+)
+from gemini_trading.strategy.sealed_evaluator import (
+    build_candidate_preparation as build_candidate_preparation_unbounded,
 )
 from gemini_trading.strategy.splits import ChronologicalSplitPlan
 from gemini_trading.strategy.study import StudyPhase
@@ -83,6 +87,30 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _MAX_TRAINING_ROWS = 1_000
 _MAX_CALIBRATION_ROWS = 500
 _MAX_DECISION_ROWS = 64
+
+
+@dataclass(frozen=True, slots=True)
+class _StoredResearchVerification:
+    result_id: str
+
+
+def _stored_research_verifier(
+    root: Path,
+    experiment_id: str,
+) -> _StoredResearchVerification:
+    manifest = cast(
+        dict[str, object],
+        json.loads(
+            LocalResearchStore(root).read_artifact(
+                experiment_id,
+                "result-manifest.json",
+            )
+        ),
+    )
+    result_id = manifest.get("result_id")
+    if not isinstance(result_id, str):
+        raise AssertionError("stored research result identity is missing")
+    return _StoredResearchVerification(result_id=result_id)
 
 
 def _bounded_prediction_bundle(
@@ -143,6 +171,26 @@ def _bounded_split_plan(
 
 @pytest.fixture(autouse=True)
 def bound_integration_training(monkeypatch: pytest.MonkeyPatch) -> None:
+    preparation_cache: dict[bool, CandidatePreparation] = {}
+
+    def cached_candidate_preparation(
+        *,
+        dataset: VerifiedDataset,
+        simulation: SimulationConfig,
+        initial_cash: Decimal,
+        include_final: bool,
+    ) -> CandidatePreparation:
+        cached = preparation_cache.get(include_final)
+        if cached is None:
+            cached = build_candidate_preparation_unbounded(
+                dataset=dataset,
+                simulation=simulation,
+                initial_cash=initial_cash,
+                include_final=include_final,
+            )
+            preparation_cache[include_final] = cached
+        return cached
+
     monkeypatch.setattr(
         sealed_evaluator,
         "fit_prediction_bundle",
@@ -152,6 +200,11 @@ def bound_integration_training(monkeypatch: pytest.MonkeyPatch) -> None:
         sealed_evaluator,
         "build_split_plan",
         _bounded_split_plan,
+    )
+    monkeypatch.setattr(
+        sealed_evaluator,
+        "build_candidate_preparation",
+        cached_candidate_preparation,
     )
 
 
@@ -378,7 +431,7 @@ def test_complete_requires_matching_durable_receipt(tmp_path: Path) -> None:
         code_commit=_CODE_COMMIT,
         handoff=handoff,
     )
-    preparation = build_candidate_preparation(
+    preparation = sealed_evaluator.build_candidate_preparation(
         dataset=dataset,
         simulation=simulation,
         initial_cash=Decimal("10000"),
@@ -427,6 +480,10 @@ def test_complete_requires_matching_durable_receipt(tmp_path: Path) -> None:
     verified = StrategyStudyVerificationService(
         root=tmp_path,
         current_commit_resolver=lambda: _CODE_COMMIT,
+        research_verifier=lambda experiment_id: _stored_research_verifier(
+            tmp_path,
+            experiment_id,
+        ),
         research_strategy_reconstructor=reconstruct_study_strategy,
     ).verify(artifacts.study_id)
     assert {

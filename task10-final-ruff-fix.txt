@@ -1,0 +1,12 @@
+F821 Undefined name `build_candidate_preparation`
+   --> tests/integration/test_sealed_historical_validation.py:389:19
+    |
+387 |     full_count = len(dataset.candles)
+388 |
+389 |     preparation = build_candidate_preparation(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+390 |         dataset=dataset,
+391 |         simulation=simulation,
+    |
+
+Found 2 errors (1 fixed, 1 remaining).

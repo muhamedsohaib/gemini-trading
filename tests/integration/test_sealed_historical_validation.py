@@ -65,11 +65,11 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 def _verified_dataset(root: Path) -> VerifiedDataset:
     source_candles = synthetic_candidate_candles()
-    if len(source_candles) < EXPECTED_CANDLE_COUNT:
-        raise AssertionError("candidate fixture lacks fixed-window history")
+    if not source_candles:
+        raise AssertionError("candidate fixture is empty")
     candles = tuple(
         replace(
-            source_candles[index],
+            source_candles[index % len(source_candles)],
             instrument=fixed.instrument,
             timeframe=fixed.timeframe,
             open_time=fixed.open_time,

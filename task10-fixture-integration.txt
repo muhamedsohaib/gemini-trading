@@ -8,23 +8,18 @@ tmp_path = PosixPath('/tmp/pytest-of-runner/pytest-1/test_prepare_does_not_mater
 >       dataset = _verified_dataset(tmp_path)
                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-tests/integration/test_sealed_historical_validation.py:254: 
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
-tests/integration/test_sealed_historical_validation.py:83: in _verified_dataset
-    closure_manifest = ExchangeClosureManifest(
-<string>:10: in __init__
-    ???
-src/gemini_trading/data/exchange_closures.py:190: in __post_init__
-    _fail("unsupported exchange closure manifest schema")
+tests/integration/test_sealed_historical_validation.py:222: 
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
 
-message = 'unsupported exchange closure manifest schema'
+root = PosixPath('/tmp/pytest-of-runner/pytest-1/test_prepare_does_not_material0')
 
-    def _fail(message: str) -> Never:
->       raise CandleValidationError(message)
-E       gemini_trading.data.errors.CandleValidationError: unsupported exchange closure manifest schema
+    def _verified_dataset(root: Path) -> VerifiedDataset:
+        source_candles = synthetic_candidate_candles()
+        if len(source_candles) < EXPECTED_CANDLE_COUNT:
+>           raise AssertionError("candidate fixture lacks fixed-window history")
+E           AssertionError: candidate fixture lacks fixed-window history
 
-src/gemini_trading/data/exchange_closures.py:54: CandleValidationError
+tests/integration/test_sealed_historical_validation.py:69: AssertionError
 _______________ test_complete_requires_matching_durable_receipt ________________
 
 tmp_path = PosixPath('/tmp/pytest-of-runner/pytest-1/test_complete_requires_matchin0')
@@ -33,23 +28,18 @@ tmp_path = PosixPath('/tmp/pytest-of-runner/pytest-1/test_complete_requires_matc
 >       dataset = _verified_dataset(tmp_path)
                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-tests/integration/test_sealed_historical_validation.py:293: 
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
-tests/integration/test_sealed_historical_validation.py:83: in _verified_dataset
-    closure_manifest = ExchangeClosureManifest(
-<string>:10: in __init__
-    ???
-src/gemini_trading/data/exchange_closures.py:190: in __post_init__
-    _fail("unsupported exchange closure manifest schema")
+tests/integration/test_sealed_historical_validation.py:261: 
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
 
-message = 'unsupported exchange closure manifest schema'
+root = PosixPath('/tmp/pytest-of-runner/pytest-1/test_complete_requires_matchin0')
 
-    def _fail(message: str) -> Never:
->       raise CandleValidationError(message)
-E       gemini_trading.data.errors.CandleValidationError: unsupported exchange closure manifest schema
+    def _verified_dataset(root: Path) -> VerifiedDataset:
+        source_candles = synthetic_candidate_candles()
+        if len(source_candles) < EXPECTED_CANDLE_COUNT:
+>           raise AssertionError("candidate fixture lacks fixed-window history")
+E           AssertionError: candidate fixture lacks fixed-window history
 
-src/gemini_trading/data/exchange_closures.py:54: CandleValidationError
+tests/integration/test_sealed_historical_validation.py:69: AssertionError
 ================================ tests coverage ================================
 _______________ coverage: platform linux, python 3.12.13-final-0 _______________
 
@@ -66,7 +56,7 @@ src/gemini_trading/data/__init__.py                           0      0   100%
 src/gemini_trading/data/datasets/__init__.py                  0      0   100%
 src/gemini_trading/data/datasets/canonical_writer.py         85     10    88%   39, 67, 86, 116, 147, 184, 193, 198, 226, 249
 src/gemini_trading/data/errors.py                            28      9    68%   20-23, 33-37
-src/gemini_trading/data/exchange_closures.py                213     51    76%   59, 62, 68, 74, 81, 87, 90-91, 93, 109, 127, 129, 131, 150, 152, 157, 159, 161, 167, 173, 192, 196, 198, 202, 206, 212, 216, 225, 232, 234, 240, 242, 248, 253, 255, 257, 314-315, 323, 330, 381-382, 385, 394-401
+src/gemini_trading/data/exchange_closures.py                213     48    77%   54, 59, 62, 68, 74, 81, 87, 90-91, 93, 109, 127, 129, 131, 150, 152, 157, 159, 161, 167, 173, 190, 192, 196, 198, 202, 206, 212, 216, 225, 232, 234, 240, 242, 248, 253, 255, 257, 314-315, 323, 330, 381-382, 385, 397-398, 400
 src/gemini_trading/data/exclusions.py                       258     60    77%   43, 48, 51, 57, 63, 70, 76, 79-80, 82, 93, 98, 118, 120, 122, 127, 134, 136, 148, 150, 153, 156, 159, 177, 180, 182, 217-218, 223, 250, 257, 259, 266-267, 269, 273, 276, 290, 292, 295, 298, 300, 307, 309, 340, 344, 346, 348, 350, 352, 364, 366, 368, 370, 372, 389, 395, 402, 410, 412
 src/gemini_trading/data/ingestion/__init__.py                 0      0   100%
 src/gemini_trading/data/ingestion/replay.py                 166     34    80%   95, 109, 112, 117-118, 120, 134, 144-145, 148, 153, 155, 157, 159, 161, 163, 170, 172, 174, 177, 190, 200, 202, 212, 214, 216, 220, 225, 232, 266, 291-292, 294, 303
@@ -150,8 +140,8 @@ src/gemini_trading/strategy/study_predictions.py            157    112    29%   
 src/gemini_trading/strategy/study_strategy.py               112     79    29%   41-58, 62, 67-74, 93-129, 135-192
 src/gemini_trading/strategy/verification.py                  91     54    41%   43-52, 56-59, 63-85, 109, 112-114, 123-169
 ---------------------------------------------------------------------------------------
-TOTAL                                                      8825   3925    56%
+TOTAL                                                      8825   3922    56%
 =========================== short test summary info ============================
-FAILED tests/integration/test_sealed_historical_validation.py::test_prepare_does_not_materialize_final_phase - gemini_trading.data.errors.CandleValidationError: unsupported exchange closure manifest schema
-FAILED tests/integration/test_sealed_historical_validation.py::test_complete_requires_matching_durable_receipt - gemini_trading.data.errors.CandleValidationError: unsupported exchange closure manifest schema
-2 failed, 21 passed in 14.38s
+FAILED tests/integration/test_sealed_historical_validation.py::test_prepare_does_not_materialize_final_phase - AssertionError: candidate fixture lacks fixed-window history
+FAILED tests/integration/test_sealed_historical_validation.py::test_complete_requires_matching_durable_receipt - AssertionError: candidate fixture lacks fixed-window history
+2 failed, 21 passed in 16.15s

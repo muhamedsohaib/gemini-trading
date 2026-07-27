@@ -4,22 +4,29 @@ from __future__ import annotations
 
 import json
 from dataclasses import replace
-from datetime import timedelta
 from decimal import Decimal
 from pathlib import Path
 from typing import cast
 
 from candidate_strategy_e2e_worker import synthetic_candidate_candles
+from fixtures.market_data.multi_closure_btcusdt_4h import (
+    CANDLES as FIXED_CANDLES,
+)
+from fixtures.market_data.multi_closure_btcusdt_4h import (
+    EXPECTED_BOUNDARIES,
+    EXPECTED_CANDLE_COUNT,
+    REQUEST,
+)
+from fixtures.market_data.multi_closure_btcusdt_4h import (
+    MANIFEST as CLOSURE_MANIFEST,
+)
+from fixtures.market_data.multi_closure_btcusdt_4h import (
+    MANIFEST_BYTES as CLOSURE_MANIFEST_BYTES,
+)
 from gemini_trading.data.datasets.canonical_writer import (
     build_dataset_manifest,
     serialize_candles,
     serialize_dataset_manifest,
-)
-from gemini_trading.data.exchange_closures import (
-    ExchangeClosure,
-    ExchangeClosureManifest,
-    PartialCandleDeclaration,
-    serialize_exchange_closure_manifest,
 )
 from gemini_trading.data.exclusions import (
     CandleExclusion,
@@ -27,9 +34,8 @@ from gemini_trading.data.exclusions import (
     serialize_candle_exclusion_manifest,
 )
 from gemini_trading.data.segments import (
-    CandleSegment,
-    CandleSegmentManifest,
     serialize_candle_segment_manifest,
+    validate_and_segment_candle_sequence,
 )
 from gemini_trading.data.storage.local_immutable import LocalImmutableStore, write_immutable
 from gemini_trading.research.artifacts import LocalResearchStore
@@ -39,6 +45,7 @@ from gemini_trading.strategy.evaluator import reconstruct_study_strategy
 from gemini_trading.strategy.final_access import FinalAccessStore
 from gemini_trading.strategy.handoff import (
     DatasetHandoffManifest,
+    ExcludedProviderRow,
     build_artifact_inventory,
     inventory_root_sha256,
     serialize_dataset_handoff,
@@ -54,117 +61,66 @@ from strategy_fixture_support import base_simulation
 
 _CODE_COMMIT = "a" * 40
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
-_CLOSURE_ID = "binance-spot-system-upgrade-2018-02-08"
-_APPROVED_ROW_SHA256 = (
-    "6d0ed02c75960a3acf11073a2b7276e0bdc04f217fc99a488b15a5ff68e70775"  # pragma: allowlist secret
-)
 
 
 def _verified_dataset(root: Path) -> VerifiedDataset:
     source_candles = synthetic_candidate_candles()
-    closure_duration = timedelta(hours=28)
-    candles = (
-        source_candles[0],
-        *(
-            replace(
-                candle,
-                open_time=candle.open_time + closure_duration,
-                close_time=candle.close_time + closure_duration,
-            )
-            for candle in source_candles[1:]
-        ),
+    if len(source_candles) < EXPECTED_CANDLE_COUNT:
+        raise AssertionError("candidate fixture lacks fixed-window history")
+    candles = tuple(
+        replace(
+            source_candles[index],
+            instrument=fixed.instrument,
+            timeframe=fixed.timeframe,
+            open_time=fixed.open_time,
+            close_time=fixed.close_time,
+            source_provider=fixed.source_provider,
+        )
+        for index, fixed in enumerate(FIXED_CANDLES)
     )
+    if len(candles) != EXPECTED_CANDLE_COUNT:
+        raise AssertionError("fixed dataset candle count mismatch")
     canonical_bytes = serialize_candles(candles)
-    boundary = 1
-    synthetic_gap_start = candles[0].open_time + candles[0].timeframe.duration
-    synthetic_expected_close = (
-        synthetic_gap_start + candles[0].timeframe.duration - timedelta(milliseconds=1)
-    )
-    closure_manifest = ExchangeClosureManifest(
-        schema_version="exchange-closure-manifest-v2",
-        provider="binance_spot",
-        instrument=candles[0].instrument,
-        timeframe=candles[0].timeframe,
-        start_time=candles[0].open_time,
-        end_time=candles[-1].close_time + timedelta(milliseconds=1),
-        closures=(
-            ExchangeClosure(
-                closure_id=_CLOSURE_ID,
-                canonical_gap_start=synthetic_gap_start,
-                resumed_open=candles[boundary].open_time,
-                unavailable_candle_count=7,
-                fully_missing_start=synthetic_gap_start + candles[0].timeframe.duration,
-                fully_missing_candle_count=6,
-                reason_code="exchange_system_upgrade",
-                governance_reference="synthetic-sealed-test",
-                partial_candle=PartialCandleDeclaration(
-                    open_time=synthetic_gap_start,
-                    actual_close_time=synthetic_gap_start + timedelta(minutes=28),
-                    expected_close_time=synthetic_expected_close,
-                    provider_row_sha256=_APPROVED_ROW_SHA256,
-                    exclusion_reason="synthetic_exchange_closed_mid_candle",
-                ),
-            ),
-        ),
-    )
-    closure_bytes = serialize_exchange_closure_manifest(closure_manifest)
     exclusion_manifest = CandleExclusionManifest(
         schema_version="candle-exclusion-manifest-v1",
-        exclusions=(
+        exclusions=tuple(
             CandleExclusion(
-                closure_id=_CLOSURE_ID,
-                raw_page_sequence=1,
-                raw_page_sha256="1" * 64,
-                row_index=boundary,
-                provider_row_sha256=_APPROVED_ROW_SHA256,
-                open_time=synthetic_gap_start,
-                actual_close_time=synthetic_gap_start + timedelta(minutes=28),
-                expected_close_time=synthetic_expected_close,
-                exclusion_reason="synthetic_exchange_closed_mid_candle",
-                canonical_index_before_removal=boundary,
-            ),
+                closure_id=closure.closure_id,
+                raw_page_sequence=index + 1,
+                raw_page_sha256=f"{index + 1:064x}",
+                row_index=index,
+                provider_row_sha256=closure.partial_candle.provider_row_sha256,
+                open_time=closure.partial_candle.open_time,
+                actual_close_time=closure.partial_candle.actual_close_time,
+                expected_close_time=closure.partial_candle.expected_close_time,
+                exclusion_reason=closure.partial_candle.exclusion_reason,
+                canonical_index_before_removal=EXPECTED_BOUNDARIES[index] + index,
+            )
+            for index, closure in enumerate(CLOSURE_MANIFEST.closures)
         ),
     )
     exclusion_bytes = serialize_candle_exclusion_manifest(exclusion_manifest)
-    segment_manifest = CandleSegmentManifest(
-        schema_version="candle-segment-manifest-v1",
-        segments=(
-            CandleSegment(
-                segment_number=1,
-                start_index=0,
-                end_exclusive=boundary,
-                first_open_time=candles[0].open_time,
-                last_open_time=candles[boundary - 1].open_time,
-                candle_count=boundary,
-                preceding_closure_id=None,
-            ),
-            CandleSegment(
-                segment_number=2,
-                start_index=boundary,
-                end_exclusive=len(candles),
-                first_open_time=candles[boundary].open_time,
-                last_open_time=candles[-1].open_time,
-                candle_count=len(candles) - boundary,
-                preceding_closure_id=_CLOSURE_ID,
-            ),
-        ),
+    segment_manifest = validate_and_segment_candle_sequence(
+        candles,
+        REQUEST,
+        CLOSURE_MANIFEST,
     )
     segment_bytes = serialize_candle_segment_manifest(segment_manifest)
     manifest = build_dataset_manifest(
-        schema_version="candle-dataset-v3",
-        provider="binance_spot",
-        instrument=candles[0].instrument,
-        timeframe=candles[0].timeframe,
-        start_time=candles[0].open_time,
-        end_time=candles[-1].close_time + timedelta(milliseconds=1),
+        schema_version="candle-dataset-v4",
+        provider=CLOSURE_MANIFEST.provider,
+        instrument=CLOSURE_MANIFEST.instrument,
+        timeframe=CLOSURE_MANIFEST.timeframe,
+        start_time=REQUEST.start_time,
+        end_time=REQUEST.end_time,
         candles=candles,
         canonical_bytes=canonical_bytes,
-        closure_manifest_bytes=closure_bytes,
+        closure_manifest_bytes=CLOSURE_MANIFEST_BYTES,
         exclusion_manifest_bytes=exclusion_bytes,
         segment_manifest_bytes=segment_bytes,
-        closure_count=1,
-        exclusion_count=1,
-        segment_count=2,
+        closure_count=len(CLOSURE_MANIFEST.closures),
+        exclusion_count=len(exclusion_manifest.exclusions),
+        segment_count=len(segment_manifest.segments),
     )
     store = LocalImmutableStore(root)
     store.write_dataset(
@@ -174,7 +130,7 @@ def _verified_dataset(root: Path) -> VerifiedDataset:
     )
     store.write_dataset_supporting_manifests(
         manifest.dataset_id,
-        closure_bytes,
+        CLOSURE_MANIFEST_BYTES,
         segment_bytes,
     )
     store.write_dataset_exclusion_manifest(manifest.dataset_id, exclusion_bytes)
@@ -182,10 +138,10 @@ def _verified_dataset(root: Path) -> VerifiedDataset:
         manifest=manifest,
         candles=candles,
         canonical_bytes=canonical_bytes,
-        closure_manifest=closure_manifest,
+        closure_manifest=CLOSURE_MANIFEST,
         exclusion_manifest=exclusion_manifest,
         segment_manifest=segment_manifest,
-        closure_manifest_bytes=closure_bytes,
+        closure_manifest_bytes=CLOSURE_MANIFEST_BYTES,
         exclusion_manifest_bytes=exclusion_bytes,
         segment_manifest_bytes=segment_bytes,
     )
@@ -206,7 +162,7 @@ def _handoff(root: Path, dataset: VerifiedDataset) -> DatasetHandoffManifest:
     exclusion_path = (canonical_root / "candle-exclusions.json").relative_to(root).as_posix()
     segment_path = (canonical_root / "candle-segments.json").relative_to(root).as_posix()
     handoff = DatasetHandoffManifest(
-        schema_version="sealed-dataset-handoff-v3",
+        schema_version="sealed-dataset-handoff-v4",
         repository="muhamedsohaib/gemini-trading",
         source_commit=_CODE_COMMIT,
         workflow_name="sealed-btcusdt-dataset",
@@ -222,7 +178,7 @@ def _handoff(root: Path, dataset: VerifiedDataset) -> DatasetHandoffManifest:
         end_exclusive="2026-07-01T00:00:00Z",
         run_id="diagnostic-run",
         dataset_id=dataset_id,
-        dataset_schema_version="candle-dataset-v3",
+        dataset_schema_version=dataset.manifest.schema_version,
         closure_manifest_path=closure_path,
         closure_manifest_sha256=dataset.manifest.closure_manifest_sha256 or "",
         exclusion_manifest_path=exclusion_path,
@@ -235,9 +191,21 @@ def _handoff(root: Path, dataset: VerifiedDataset) -> DatasetHandoffManifest:
         closure_ids=tuple(item.closure_id for item in dataset.closure_manifest.closures)
         if dataset.closure_manifest is not None
         else (),
-        excluded_provider_row_sha256=_APPROVED_ROW_SHA256,
-        segment_boundary_indices=(1,),
-        candle_count=18_618,
+        excluded_provider_rows=tuple(
+            ExcludedProviderRow(
+                closure_id=item.closure_id,
+                provider_row_sha256=item.provider_row_sha256,
+            )
+            for item in dataset.exclusion_manifest.exclusions
+        )
+        if dataset.exclusion_manifest is not None
+        else (),
+        segment_boundary_indices=(
+            dataset.segment_manifest.boundary_indices
+            if dataset.segment_manifest is not None
+            else ()
+        ),
+        candle_count=len(dataset.candles),
         first_open_time="2018-01-01T00:00:00Z",
         last_open_time="2026-06-30T20:00:00Z",
         replay_status="completed",
@@ -337,6 +305,15 @@ def test_complete_requires_matching_durable_receipt(tmp_path: Path) -> None:
     assert manifest["pre_final_id"] == pre_final.pre_final_id
     assert manifest["dataset_handoff_inventory_root"] == handoff.inventory_root_sha256
     assert manifest["durable_final_access_receipt_id"] == receipt.receipt_id
+    assert manifest["dataset_schema_version"] == "candle-dataset-v4"
+    assert manifest["excluded_provider_rows"] == [
+        {
+            "closure_id": item.closure_id,
+            "provider_row_sha256": item.provider_row_sha256,
+        }
+        for item in handoff.excluded_provider_rows
+    ]
+    assert "excluded_provider_row_sha256" not in manifest
 
     verified = StrategyStudyVerificationService(
         root=tmp_path,

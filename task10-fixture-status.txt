@@ -1,4 +1,4 @@
 ruff_status=0
-pyright_status=1
-pytest_status=0
+pyright_status=0
+pytest_status=1
 integration_status=1

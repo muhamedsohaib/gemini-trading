@@ -3,6 +3,7 @@
 import hashlib
 import json
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -171,13 +172,20 @@ def test_pre_final_rejects_reordered_row_identity(tmp_path: Path) -> None:
     handoff = _handoff(tmp_path)
     artifacts = _artifacts(tmp_path, handoff)
     files = dict(artifacts.files)
-    manifest = json.loads(files["pre-final-manifest.json"])
-    rows = manifest["excluded_provider_rows"]
-    assert isinstance(rows, list)
+    manifest = cast(
+        dict[str, object],
+        json.loads(files["pre-final-manifest.json"]),
+    )
+    rows_value = manifest.get("excluded_provider_rows")
+    assert isinstance(rows_value, list)
+    rows = cast(list[object], rows_value)
     manifest["excluded_provider_rows"] = list(reversed(rows))
     files["pre-final-manifest.json"] = canonical_json_bytes(manifest)
 
-    result = json.loads(files["pre-final-result-manifest.json"])
+    result = cast(
+        dict[str, object],
+        json.loads(files["pre-final-result-manifest.json"]),
+    )
     core_names = tuple(
         name for name in REQUIRED_PRE_FINAL_NAMES if name != "pre-final-result-manifest.json"
     )

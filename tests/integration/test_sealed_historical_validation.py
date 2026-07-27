@@ -64,12 +64,10 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _verified_dataset(root: Path) -> VerifiedDataset:
-    source_candles = synthetic_candidate_candles()
-    if not source_candles:
-        raise AssertionError("candidate fixture is empty")
+    source_candles = synthetic_candidate_candles(EXPECTED_CANDLE_COUNT)
     candles = tuple(
         replace(
-            source_candles[index % len(source_candles)],
+            source_candles[index],
             instrument=fixed.instrument,
             timeframe=fixed.timeframe,
             open_time=fixed.open_time,

@@ -9,49 +9,6 @@ permissions:
   contents: read
 
 jobs:
-  task10:
-    if: >-
-      github.event_name == 'pull_request' &&
-      github.head_ref == 'research/verified-multi-closure-partial-candle-manifest' &&
-      github.actor != 'github-actions[bot]'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v6.0.2
-        with:
-          ref: ${{ github.head_ref }}
-          fetch-depth: 0
-      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
-        with:
-          version: "0.11.25"
-      - uses: actions/setup-python@v6.2.0
-        with:
-          python-version: "3.12"
-      - run: uv sync --all-groups --frozen
-      - run: uv run python scripts/temporary_task10_continuous_prices.py
-      - run: uv run ruff format tests/candidate_strategy_e2e_worker.py tests/integration/test_sealed_historical_validation.py
-      - run: uv run ruff check src/gemini_trading/strategy/pre_final.py src/gemini_trading/strategy/replay.py src/gemini_trading/strategy/sealed_evaluator.py src/gemini_trading/strategy/sealed_verification.py tests/candidate_strategy_e2e_worker.py tests/unit/strategy/test_pre_final.py tests/unit/strategy/test_sealed_manifest_identity.py tests/integration/test_sealed_historical_validation.py
-      - run: uv run pyright src/gemini_trading/strategy/pre_final.py src/gemini_trading/strategy/replay.py src/gemini_trading/strategy/sealed_evaluator.py src/gemini_trading/strategy/sealed_verification.py tests/candidate_strategy_e2e_worker.py tests/unit/strategy/test_pre_final.py tests/unit/strategy/test_sealed_manifest_identity.py tests/integration/test_sealed_historical_validation.py
-      - name: Capture continuous fixture runtime
-        run: |
-          set +e
-          uv run pytest tests/unit/strategy/test_pre_final.py tests/unit/strategy/test_sealed_manifest_identity.py tests/integration/test_sealed_historical_validation.py -q > task10-continuous-pytest.txt 2>&1
-          echo "pytest_status=$?" > task10-continuous-status.txt
-          exit 0
-      - name: Commit diagnostic and restore CI
-        run: |
-          git checkout origin/main -- .github/workflows/ci.yml
-          git rm -f --ignore-unmatch \
-            scripts/temporary_task10_continuous_prices.py \
-            task10-cycle-pytest.txt \
-            task10-cycle-status.txt
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add tests/candidate_strategy_e2e_worker.py tests/integration/test_sealed_historical_validation.py .github/workflows/ci.yml task10-continuous-pytest.txt task10-continuous-status.txt
-          git commit -m "test: persist continuous Task 10 failure"
-          git push origin HEAD:${{ github.head_ref }}
-
   quality:
     runs-on: ubuntu-latest
     steps:

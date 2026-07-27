@@ -1,0 +1,36 @@
+name: Temporary Task 9 formatting
+
+on:
+  push:
+    branches:
+      - research/verified-multi-closure-partial-candle-manifest
+
+permissions:
+  contents: write
+
+jobs:
+  format-and-remove:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          ref: research/verified-multi-closure-partial-candle-manifest
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.11.25"
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - run: uv run ruff format src/gemini_trading/strategy/handoff.py src/gemini_trading/cli/historical_validation.py tests/sealed_dataset_support.py tests/unit/strategy/test_handoff.py
+      - run: uv run ruff format --check src/gemini_trading/strategy/handoff.py src/gemini_trading/cli/historical_validation.py tests/sealed_dataset_support.py tests/unit/strategy/test_handoff.py
+      - name: Commit formatting
+        run: |
+          git rm .github/workflows/temporary-task9-format.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/gemini_trading/strategy/handoff.py src/gemini_trading/cli/historical_validation.py tests/sealed_dataset_support.py tests/unit/strategy/test_handoff.py
+          git commit -m "style: format Task 9 handoff v4"
+          git push origin HEAD:research/verified-multi-closure-partial-candle-manifest

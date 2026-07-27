@@ -38,7 +38,7 @@ def _candle() -> Candle:
 
 
 def _dataset_id_v4(**kwargs: Any) -> str:
-    function = cast(Any, getattr(canonical_writer, "dataset_id_v4"))
+    function = cast(Any, canonical_writer.__dict__["dataset_id_v4"])
     return cast(str, function(**kwargs))
 
 

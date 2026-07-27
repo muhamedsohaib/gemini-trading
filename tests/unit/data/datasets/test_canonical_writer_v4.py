@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any, cast
+from typing import Protocol, cast
 
 import pytest
 
@@ -19,6 +19,25 @@ from gemini_trading.domain.timeframe import Timeframe
 _INSTRUMENT = Instrument("ETHUSDT", "ETH", "USDT")
 _START = datetime(2025, 1, 1, tzinfo=UTC)
 _END = datetime(2025, 1, 2, tzinfo=UTC)
+_CLOSURE_BYTES = b'{"closures":[1,2]}\n'
+_EXCLUSION_BYTES = b'{"exclusions":[1,2]}\n'
+_SEGMENT_BYTES = b'{"segments":[1,2,3]}\n'
+
+
+class _DatasetIdV4(Protocol):
+    def __call__(
+        self,
+        *,
+        provider: str,
+        instrument: Instrument,
+        timeframe: Timeframe,
+        start_time: datetime,
+        end_time: datetime,
+        canonical_bytes: bytes,
+        closure_manifest_bytes: bytes,
+        exclusion_manifest_bytes: bytes,
+        segment_manifest_bytes: bytes,
+    ) -> str: ...
 
 
 def _candle() -> Candle:
@@ -37,49 +56,58 @@ def _candle() -> Candle:
     )
 
 
-def _dataset_id_v4(**kwargs: Any) -> str:
-    function = cast(Any, canonical_writer.__dict__["dataset_id_v4"])
-    return cast(str, function(**kwargs))
-
-
-def _identity_inputs() -> dict[str, Any]:
-    return {
-        "provider": "binance_spot",
-        "instrument": _INSTRUMENT,
-        "timeframe": Timeframe.H4,
-        "start_time": _START,
-        "end_time": _END,
-        "canonical_bytes": serialize_candles((_candle(),)),
-        "closure_manifest_bytes": b'{"closures":[1,2]}\n',
-        "exclusion_manifest_bytes": b'{"exclusions":[1,2]}\n',
-        "segment_manifest_bytes": b'{"segments":[1,2,3]}\n',
-    }
+def _dataset_id_v4(
+    *,
+    canonical_bytes: bytes,
+    closure_manifest_bytes: bytes = _CLOSURE_BYTES,
+    exclusion_manifest_bytes: bytes = _EXCLUSION_BYTES,
+    segment_manifest_bytes: bytes = _SEGMENT_BYTES,
+) -> str:
+    function = cast(_DatasetIdV4, canonical_writer.__dict__["dataset_id_v4"])
+    return function(
+        provider="binance_spot",
+        instrument=_INSTRUMENT,
+        timeframe=Timeframe.H4,
+        start_time=_START,
+        end_time=_END,
+        canonical_bytes=canonical_bytes,
+        closure_manifest_bytes=closure_manifest_bytes,
+        exclusion_manifest_bytes=exclusion_manifest_bytes,
+        segment_manifest_bytes=segment_manifest_bytes,
+    )
 
 
 def test_v4_dataset_identity_binds_every_supporting_byte_stream() -> None:
-    inputs = _identity_inputs()
-    identity = _dataset_id_v4(**inputs)
+    canonical = serialize_candles((_candle(),))
+    identity = _dataset_id_v4(canonical_bytes=canonical)
 
-    assert _dataset_id_v4(**inputs) == identity
-    for field in (
-        "canonical_bytes",
-        "closure_manifest_bytes",
-        "exclusion_manifest_bytes",
-        "segment_manifest_bytes",
-    ):
-        changed = dict(inputs)
-        value = changed[field]
-        assert isinstance(value, bytes)
-        changed[field] = value + b" "
-        assert _dataset_id_v4(**changed) != identity
+    assert _dataset_id_v4(canonical_bytes=canonical) == identity
+    assert _dataset_id_v4(canonical_bytes=canonical + b" ") != identity
+    assert (
+        _dataset_id_v4(
+            canonical_bytes=canonical,
+            closure_manifest_bytes=_CLOSURE_BYTES + b" ",
+        )
+        != identity
+    )
+    assert (
+        _dataset_id_v4(
+            canonical_bytes=canonical,
+            exclusion_manifest_bytes=_EXCLUSION_BYTES + b" ",
+        )
+        != identity
+    )
+    assert (
+        _dataset_id_v4(
+            canonical_bytes=canonical,
+            segment_manifest_bytes=_SEGMENT_BYTES + b" ",
+        )
+        != identity
+    )
 
 
 def test_build_and_serialize_v4_manifest_binds_all_evidence() -> None:
-    inputs = _identity_inputs()
-    canonical = cast(bytes, inputs["canonical_bytes"])
-    closure = cast(bytes, inputs["closure_manifest_bytes"])
-    exclusions = cast(bytes, inputs["exclusion_manifest_bytes"])
-    segments = cast(bytes, inputs["segment_manifest_bytes"])
+    canonical = serialize_candles((_candle(),))
     manifest = build_dataset_manifest(
         schema_version="candle-dataset-v4",
         provider="binance_spot",
@@ -89,15 +117,15 @@ def test_build_and_serialize_v4_manifest_binds_all_evidence() -> None:
         end_time=_END,
         candles=(_candle(),),
         canonical_bytes=canonical,
-        closure_manifest_bytes=closure,
-        exclusion_manifest_bytes=exclusions,
-        segment_manifest_bytes=segments,
+        closure_manifest_bytes=_CLOSURE_BYTES,
+        exclusion_manifest_bytes=_EXCLUSION_BYTES,
+        segment_manifest_bytes=_SEGMENT_BYTES,
         closure_count=2,
         exclusion_count=2,
         segment_count=3,
     )
 
-    assert manifest.dataset_id == _dataset_id_v4(**inputs)
+    assert manifest.dataset_id == _dataset_id_v4(canonical_bytes=canonical)
     encoded = serialize_dataset_manifest(manifest)
     assert b'"schema_version":"candle-dataset-v4"' in encoded
     assert b'"closure_manifest_sha256":"' in encoded

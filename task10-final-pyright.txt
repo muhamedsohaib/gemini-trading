@@ -1,0 +1,8 @@
+/home/runner/work/gemini-trading/gemini-trading/tests/unit/strategy/test_pre_final.py
+  /home/runner/work/gemini-trading/gemini-trading/tests/unit/strategy/test_pre_final.py:177:47 - error: Argument type is partially unknown
+    Argument corresponds to parameter "iterable" in function "__init__"
+    Argument type is "Iterator[Unknown]" (reportUnknownArgumentType)
+  /home/runner/work/gemini-trading/gemini-trading/tests/unit/strategy/test_pre_final.py:177:56 - error: Argument type is partially unknown
+    Argument corresponds to parameter "sequence" in function "__new__"
+    Argument type is "list[Unknown]" (reportUnknownArgumentType)
+2 errors, 0 warnings, 0 informations

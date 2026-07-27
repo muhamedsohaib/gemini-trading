@@ -16,8 +16,8 @@ from gemini_trading.strategy.artifacts import (
     StrategyStudyArtifacts,
 )
 from gemini_trading.strategy.errors import StudyReplayMismatchError
-from gemini_trading.strategy.handoff import ExcludedProviderRow
 from gemini_trading.strategy.evaluation import PromotionClassification
+from gemini_trading.strategy.handoff import ExcludedProviderRow
 from gemini_trading.strategy.study import (
     REQUIRED_DEVELOPMENT_CASE_IDS,
     REQUIRED_FINAL_CASE_IDS,

@@ -1,3 +1,0 @@
-ruff_status=1
-pyright_status=0
-pytest_status=1

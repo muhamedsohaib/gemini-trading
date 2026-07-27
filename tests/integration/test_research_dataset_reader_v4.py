@@ -67,36 +67,48 @@ def _candle() -> Candle:
 def _write_legacy_dataset(root: Path, schema_version: str) -> str:
     candle = _candle()
     canonical_bytes = serialize_candles((candle,))
-    common = {
-        "provider": "binance_spot",
-        "instrument": candle.instrument,
-        "timeframe": candle.timeframe,
-        "start_time": candle.open_time,
-        "end_time": candle.open_time + candle.timeframe.duration,
-        "candles": (candle,),
-        "canonical_bytes": canonical_bytes,
-    }
     if schema_version == "candle-dataset-v1":
-        manifest = build_dataset_manifest(schema_version=schema_version, **common)
+        manifest = build_dataset_manifest(
+            schema_version=schema_version,
+            provider="binance_spot",
+            instrument=candle.instrument,
+            timeframe=candle.timeframe,
+            start_time=candle.open_time,
+            end_time=candle.open_time + candle.timeframe.duration,
+            candles=(candle,),
+            canonical_bytes=canonical_bytes,
+        )
     elif schema_version == "candle-dataset-v2":
         manifest = build_dataset_manifest(
             schema_version=schema_version,
+            provider="binance_spot",
+            instrument=candle.instrument,
+            timeframe=candle.timeframe,
+            start_time=candle.open_time,
+            end_time=candle.open_time + candle.timeframe.duration,
+            candles=(candle,),
+            canonical_bytes=canonical_bytes,
             closure_manifest_bytes=b"{}\n",
             segment_manifest_bytes=b"{}\n",
             closure_count=1,
             segment_count=2,
-            **common,
         )
     elif schema_version == "candle-dataset-v3":
         manifest = build_dataset_manifest(
             schema_version=schema_version,
+            provider="binance_spot",
+            instrument=candle.instrument,
+            timeframe=candle.timeframe,
+            start_time=candle.open_time,
+            end_time=candle.open_time + candle.timeframe.duration,
+            candles=(candle,),
+            canonical_bytes=canonical_bytes,
             closure_manifest_bytes=b"{}\n",
             exclusion_manifest_bytes=b"{}\n",
             segment_manifest_bytes=b"{}\n",
             closure_count=1,
             exclusion_count=1,
             segment_count=2,
-            **common,
         )
     else:
         raise AssertionError("unsupported legacy fixture schema")

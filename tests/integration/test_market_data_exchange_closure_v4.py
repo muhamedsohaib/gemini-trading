@@ -4,8 +4,8 @@ import json
 from pathlib import Path
 
 from fixtures.market_data.multi_closure_ingestion import (
-    MultiClosureProvider,
     SERVER_TIME,
+    MultiClosureProvider,
     manifest_and_rows,
     retrieval_request,
 )

@@ -235,7 +235,7 @@ def test_handoff_rejects_exclusion_linked_to_different_closure(tmp_path: Path) -
         inventory_root_sha256=inventory_root_sha256(rebuilt_files),
     )
 
-    with pytest.raises(DatasetHandoffError, match="excluded provider row|closure ID"):
+    with pytest.raises(DatasetHandoffError, match=r"excluded provider row|closure ID"):
         verify_dataset_handoff(altered_manifest, tmp_path)
 
 
@@ -272,7 +272,7 @@ def test_handoff_rejects_duplicate_excluded_ids_and_digests(tmp_path: Path) -> N
     rows = list(manifest.excluded_provider_rows)
 
     rows[1] = replace(rows[1], closure_id=rows[0].closure_id)
-    with pytest.raises(DatasetHandoffError, match="order|duplicate"):
+    with pytest.raises(DatasetHandoffError, match=r"order|duplicate"):
         replace(manifest, excluded_provider_rows=tuple(rows))
 
     rows = list(manifest.excluded_provider_rows)

@@ -29,22 +29,39 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync --all-groups --frozen
-      - run: uv run python scripts/temporary_task10_fixture_name.py
+      - run: uv run python scripts/temporary_task10_bound_decisions.py
       - run: uv run ruff format tests/integration/test_sealed_historical_validation.py
-      - run: uv run ruff check src/gemini_trading/strategy/pre_final.py src/gemini_trading/strategy/replay.py src/gemini_trading/strategy/sealed_evaluator.py src/gemini_trading/strategy/sealed_verification.py tests/candidate_strategy_e2e_worker.py tests/unit/strategy/test_pre_final.py tests/unit/strategy/test_sealed_manifest_identity.py tests/integration/test_sealed_historical_validation.py
-      - run: uv run pyright src/gemini_trading/strategy/pre_final.py src/gemini_trading/strategy/replay.py src/gemini_trading/strategy/sealed_evaluator.py src/gemini_trading/strategy/sealed_verification.py tests/candidate_strategy_e2e_worker.py tests/unit/strategy/test_pre_final.py tests/unit/strategy/test_sealed_manifest_identity.py tests/integration/test_sealed_historical_validation.py
-      - run: uv run pytest tests/unit/strategy/test_pre_final.py tests/unit/strategy/test_sealed_manifest_identity.py tests/integration/test_sealed_historical_validation.py -q
-      - name: Commit verified Task 10 and restore CI
+      - name: Capture bounded Task 10 verification
+        run: |
+          set +e
+          uv run ruff check src/gemini_trading/strategy/pre_final.py src/gemini_trading/strategy/replay.py src/gemini_trading/strategy/sealed_evaluator.py src/gemini_trading/strategy/sealed_verification.py tests/candidate_strategy_e2e_worker.py tests/unit/strategy/test_pre_final.py tests/unit/strategy/test_sealed_manifest_identity.py tests/integration/test_sealed_historical_validation.py > task10-decision-ruff.txt 2>&1
+          ruff_status=$?
+          uv run pyright src/gemini_trading/strategy/pre_final.py src/gemini_trading/strategy/replay.py src/gemini_trading/strategy/sealed_evaluator.py src/gemini_trading/strategy/sealed_verification.py tests/candidate_strategy_e2e_worker.py tests/unit/strategy/test_pre_final.py tests/unit/strategy/test_sealed_manifest_identity.py tests/integration/test_sealed_historical_validation.py > task10-decision-pyright.txt 2>&1
+          pyright_status=$?
+          uv run pytest tests/unit/strategy/test_pre_final.py tests/unit/strategy/test_sealed_manifest_identity.py tests/integration/test_sealed_historical_validation.py -q > task10-decision-pytest.txt 2>&1
+          pytest_status=$?
+          printf 'ruff_status=%s\npyright_status=%s\npytest_status=%s\n' \
+            "$ruff_status" "$pyright_status" "$pytest_status" \
+            > task10-decision-status.txt
+          exit 0
+      - name: Persist result and restore normal CI
         run: |
           git checkout origin/main -- .github/workflows/ci.yml
           git rm -f --ignore-unmatch \
             scripts/temporary_task10_fixture_name.py \
+            scripts/temporary_task10_bound_decisions.py \
             task10-pyright-diagnostic.txt \
             task10-pyright-status.txt
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add tests/integration/test_sealed_historical_validation.py .github/workflows/ci.yml
-          git commit -m "feat: complete sealed study handoff v4 propagation"
+          git add \
+            tests/integration/test_sealed_historical_validation.py \
+            .github/workflows/ci.yml \
+            task10-decision-ruff.txt \
+            task10-decision-pyright.txt \
+            task10-decision-pytest.txt \
+            task10-decision-status.txt
+          git commit -m "test: persist bounded Task 10 verification"
           git push origin HEAD:${{ github.head_ref }}
 
   quality:

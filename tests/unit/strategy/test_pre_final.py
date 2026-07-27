@@ -1,6 +1,8 @@
 """Unit tests for immutable pre-final Candidate evidence."""
 
 import hashlib
+import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -9,6 +11,7 @@ from gemini_trading.research.serialization import canonical_json_bytes
 from gemini_trading.strategy.errors import PreFinalArtifactError
 from gemini_trading.strategy.handoff import (
     DatasetHandoffManifest,
+    ExcludedProviderRow,
     build_artifact_inventory,
     inventory_root_sha256,
 )
@@ -41,7 +44,7 @@ def _handoff(tmp_path: Path) -> DatasetHandoffManifest:
         ),
     )
     return DatasetHandoffManifest(
-        schema_version="sealed-dataset-handoff-v3",
+        schema_version="sealed-dataset-handoff-v4",
         repository="muhamedsohaib/gemini-trading",
         source_commit="a" * 40,
         workflow_name="sealed-btcusdt-dataset",
@@ -68,9 +71,12 @@ def _handoff(tmp_path: Path) -> DatasetHandoffManifest:
         exclusion_count=support.exclusion_count,
         segment_count=support.segment_count,
         closure_ids=support.closure_ids,
-        excluded_provider_row_sha256=support.excluded_provider_row_sha256,
+        excluded_provider_rows=tuple(
+            ExcludedProviderRow(closure_id=closure_id, provider_row_sha256=row_sha256)
+            for closure_id, row_sha256 in support.excluded_provider_rows
+        ),
         segment_boundary_indices=support.segment_boundary_indices,
-        candle_count=18_617,
+        candle_count=support.candle_count,
         first_open_time="2018-01-01T00:00:00Z",
         last_open_time="2026-06-30T20:00:00Z",
         replay_status="completed",
@@ -97,19 +103,20 @@ def _records() -> tuple[StudyCaseEvidence, ...]:
     return tuple(records)
 
 
-def _artifacts(tmp_path: Path) -> PreFinalArtifacts:
+def _artifacts(tmp_path: Path, handoff: DatasetHandoffManifest | None = None) -> PreFinalArtifacts:
+    resolved_handoff = _handoff(tmp_path) if handoff is None else handoff
     split_plan_bytes = canonical_json_bytes(
         {"schema_version": "strategy-split-plan-v1", "final_test_indices": [9, 10]}
     )
     return build_pre_final_artifacts(
         dataset_id="b" * 64,
-        handoff=_handoff(tmp_path),
+        handoff=resolved_handoff,
         code_commit="a" * 40,
         policy_bytes=canonical_json_bytes({"policy_version": "candidate-multi-model-v0.1"}),
         configuration_bytes=canonical_json_bytes({"configuration": "locked"}),
         split_plan_bytes=split_plan_bytes,
         split_plan_sha256=hashlib.sha256(split_plan_bytes).hexdigest(),
-        segment_boundary_indices=(228,),
+        segment_boundary_indices=resolved_handoff.segment_boundary_indices,
         development_records=_records(),
     )
 
@@ -122,16 +129,31 @@ def test_pre_final_contract_is_exact_and_deterministic(tmp_path: Path) -> None:
     assert first == second
     assert len(first.pre_final_id) == 64
     handoff = _handoff(tmp_path)
-    manifest = __import__("json").loads(first.artifact_bytes("pre-final-manifest.json"))
-    assert manifest["dataset_schema_version"] == "candle-dataset-v3"
+    manifest = json.loads(first.artifact_bytes("pre-final-manifest.json"))
+    reference = json.loads(first.artifact_bytes("handoff-reference.json"))
+    expected_rows = [
+        {
+            "closure_id": item.closure_id,
+            "provider_row_sha256": item.provider_row_sha256,
+        }
+        for item in handoff.excluded_provider_rows
+    ]
+    assert manifest["dataset_schema_version"] == "candle-dataset-v4"
     assert manifest["closure_manifest_sha256"] == handoff.closure_manifest_sha256
     assert manifest["exclusion_manifest_sha256"] == handoff.exclusion_manifest_sha256
     assert manifest["segment_manifest_sha256"] == handoff.segment_manifest_sha256
-    assert manifest["closure_count"] == 1
-    assert manifest["exclusion_count"] == 1
-    assert manifest["segment_count"] == 2
+    assert (
+        manifest["closure_count"],
+        manifest["exclusion_count"],
+        manifest["segment_count"],
+    ) == (20, 20, 21)
     assert manifest["closure_ids"] == list(handoff.closure_ids)
-    assert manifest["segment_boundary_indices"] == [228]
+    assert manifest["excluded_provider_rows"] == expected_rows
+    assert "excluded_provider_row_sha256" not in manifest
+    assert manifest["segment_boundary_indices"] == list(handoff.segment_boundary_indices)
+    assert reference["schema_version"] == "dataset-handoff-reference-v4"
+    assert reference["excluded_provider_rows"] == expected_rows
+    assert "excluded_provider_row_sha256" not in reference
 
     assert verify_pre_final_artifacts(
         first,
@@ -144,6 +166,17 @@ def test_pre_final_contract_is_exact_and_deterministic(tmp_path: Path) -> None:
         "pre_final_development_only_verified",
         "pre_final_identity_verified",
     )
+
+
+def test_pre_final_rejects_reordered_row_identity(tmp_path: Path) -> None:
+    handoff = _handoff(tmp_path)
+    reordered = replace(
+        handoff,
+        excluded_provider_rows=tuple(reversed(handoff.excluded_provider_rows)),
+    )
+
+    with pytest.raises((PreFinalArtifactError, ValueError), match=r"order|identity"):
+        _artifacts(tmp_path, reordered)
 
 
 def test_pre_final_store_accepts_only_identical_bytes(tmp_path: Path) -> None:
@@ -179,34 +212,36 @@ def test_pre_final_rejects_final_phase_record(tmp_path: Path) -> None:
         experiment_id="c" * 64,
         evidence_sha256="d" * 64,
     )
+    handoff = _handoff(tmp_path)
 
     with pytest.raises(PreFinalArtifactError, match="final-phase"):
         build_pre_final_artifacts(
             dataset_id="b" * 64,
-            handoff=_handoff(tmp_path),
+            handoff=handoff,
             code_commit="a" * 40,
             policy_bytes=canonical_json_bytes({"policy": "locked"}),
             configuration_bytes=canonical_json_bytes({"configuration": "locked"}),
             split_plan_bytes=split_plan_bytes,
             split_plan_sha256=hashlib.sha256(split_plan_bytes).hexdigest(),
-            segment_boundary_indices=(228,),
+            segment_boundary_indices=handoff.segment_boundary_indices,
             development_records=(final_record,),
         )
 
 
 def test_pre_final_rejects_incomplete_fold(tmp_path: Path) -> None:
     split_plan_bytes = canonical_json_bytes({"schema_version": "strategy-split-plan-v1"})
+    handoff = _handoff(tmp_path)
 
     with pytest.raises(PreFinalArtifactError, match="incomplete development"):
         build_pre_final_artifacts(
             dataset_id="b" * 64,
-            handoff=_handoff(tmp_path),
+            handoff=handoff,
             code_commit="a" * 40,
             policy_bytes=canonical_json_bytes({"policy": "locked"}),
             configuration_bytes=canonical_json_bytes({"configuration": "locked"}),
             split_plan_bytes=split_plan_bytes,
             split_plan_sha256=hashlib.sha256(split_plan_bytes).hexdigest(),
-            segment_boundary_indices=(228,),
+            segment_boundary_indices=handoff.segment_boundary_indices,
             development_records=_records()[:1],
         )
 

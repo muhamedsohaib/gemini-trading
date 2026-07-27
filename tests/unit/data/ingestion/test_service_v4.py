@@ -3,24 +3,17 @@
 import json
 from pathlib import Path
 
-from tests.integration.test_market_data_exchange_closure_v3 import (
+from fixtures.market_data.multi_closure_ingestion import (
     MultiClosureProvider,
-    _manifest_and_rows,
+    manifest_and_rows,
+    retrieval_request,
 )
-
 from gemini_trading.data.ingestion.service import IngestionService
 from gemini_trading.data.storage.local_immutable import LocalImmutableStore
-from gemini_trading.domain.dataset import RetrievalRequest
 
 
 def test_sealed_ingestion_publishes_v4_with_supporting_evidence(tmp_path: Path) -> None:
-    closure_manifest, closure_bytes, partial_rows = _manifest_and_rows()
-    request = RetrievalRequest(
-        instrument=closure_manifest.instrument,
-        timeframe=closure_manifest.timeframe,
-        start_time=closure_manifest.start_time,
-        end_time=closure_manifest.end_time,
-    )
+    closure_manifest, closure_bytes, partial_rows = manifest_and_rows()
     store = LocalImmutableStore(tmp_path)
     result = IngestionService(
         provider=MultiClosureProvider(closure_manifest, partial_rows),
@@ -30,7 +23,7 @@ def test_sealed_ingestion_publishes_v4_with_supporting_evidence(tmp_path: Path) 
         page_limit=3,
         closure_manifest=closure_manifest,
         closure_manifest_bytes=closure_bytes,
-    ).ingest(request)
+    ).ingest(retrieval_request(closure_manifest))
 
     canonical_bytes, manifest_bytes = store.read_dataset(result.dataset_id)
     payload = json.loads(manifest_bytes)

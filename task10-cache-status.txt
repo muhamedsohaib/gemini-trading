@@ -1,0 +1,4 @@
+script_status=1
+ruff_status=99
+pyright_status=99
+pytest_status=99

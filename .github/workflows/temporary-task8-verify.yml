@@ -1,0 +1,38 @@
+name: Temporary verify Task 8
+
+on:
+  push:
+    branches:
+      - research/verified-multi-closure-partial-candle-manifest
+
+permissions:
+  contents: write
+
+jobs:
+  verify-and-remove:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          ref: research/verified-multi-closure-partial-candle-manifest
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.11.25"
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - run: uv run ruff format src/gemini_trading/research/dataset_reader.py tests/integration/test_research_dataset_reader_v4.py
+      - run: uv run ruff check src/gemini_trading/research/dataset_reader.py tests/integration/test_research_dataset_reader.py tests/integration/test_research_dataset_reader_v4.py tests/integration/test_market_data_exchange_closure_v4.py
+      - run: uv run pyright src/gemini_trading/research/dataset_reader.py tests/integration/test_research_dataset_reader.py tests/integration/test_research_dataset_reader_v4.py tests/integration/test_market_data_exchange_closure_v4.py
+      - run: uv run pytest tests/integration/test_research_dataset_reader.py tests/integration/test_research_dataset_reader_v4.py tests/integration/test_market_data_exchange_closure_v4.py -q
+      - name: Commit verified formatting
+        run: |
+          git rm .github/workflows/temporary-task8-verify.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/gemini_trading/research/dataset_reader.py tests/integration/test_research_dataset_reader_v4.py
+          git commit -m "test: verify strict candle dataset v4 loading"
+          git push origin HEAD:research/verified-multi-closure-partial-candle-manifest

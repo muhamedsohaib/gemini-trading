@@ -8,6 +8,8 @@ from decimal import Decimal
 from pathlib import Path
 from typing import cast
 
+import pytest
+
 from candidate_strategy_e2e_worker import synthetic_candidate_candles
 from fixtures.market_data.multi_closure_btcusdt_4h import (
     CANDLES as FIXED_CANDLES,
@@ -40,8 +42,10 @@ from gemini_trading.data.segments import (
 from gemini_trading.data.storage.local_immutable import LocalImmutableStore, write_immutable
 from gemini_trading.research.artifacts import LocalResearchStore
 from gemini_trading.research.dataset_reader import VerifiedDataset
+from gemini_trading.strategy import sealed_evaluator
 from gemini_trading.strategy.artifacts import REQUIRED_STUDY_ARTIFACT_NAMES
 from gemini_trading.strategy.evaluator import reconstruct_study_strategy
+from gemini_trading.strategy.features import FeatureMatrix
 from gemini_trading.strategy.final_access import FinalAccessStore
 from gemini_trading.strategy.handoff import (
     DatasetHandoffManifest,
@@ -50,17 +54,62 @@ from gemini_trading.strategy.handoff import (
     inventory_root_sha256,
     serialize_dataset_handoff,
 )
+from gemini_trading.strategy.labels import LabelVector
+from gemini_trading.strategy.policy import CandidatePolicy
 from gemini_trading.strategy.sealed_evaluator import (
     build_candidate_preparation,
     complete_candidate_strategy_study,
     final_access_identity,
     prepare_candidate_strategy_study,
 )
+from gemini_trading.strategy.study import StudyPhase
+from gemini_trading.strategy.study_predictions import (
+    PredictionBundle,
+)
+from gemini_trading.strategy.study_predictions import (
+    fit_prediction_bundle as fit_prediction_bundle_unbounded,
+)
 from gemini_trading.strategy.verification import StrategyStudyVerificationService
 from strategy_fixture_support import base_simulation
 
 _CODE_COMMIT = "a" * 40
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
+_MAX_TRAINING_ROWS = 1_000
+_MAX_CALIBRATION_ROWS = 500
+
+
+def _bounded_prediction_bundle(
+    *,
+    phase: StudyPhase,
+    fold_number: int | None,
+    matrix: FeatureMatrix,
+    labels: LabelVector,
+    policy: CandidatePolicy,
+    training_indices: tuple[int, ...],
+    calibration_indices: tuple[int, ...],
+    prediction_indices: tuple[int, ...],
+) -> PredictionBundle:
+    """Fit real deterministic specialists on bounded integration-only windows."""
+
+    return fit_prediction_bundle_unbounded(
+        phase=phase,
+        fold_number=fold_number,
+        matrix=matrix,
+        labels=labels,
+        policy=policy,
+        training_indices=training_indices[:_MAX_TRAINING_ROWS],
+        calibration_indices=calibration_indices[:_MAX_CALIBRATION_ROWS],
+        prediction_indices=prediction_indices,
+    )
+
+
+@pytest.fixture(autouse=True)
+def _bound_integration_training(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        sealed_evaluator,
+        "fit_prediction_bundle",
+        _bounded_prediction_bundle,
+    )
 
 
 def _verified_dataset(root: Path) -> VerifiedDataset:

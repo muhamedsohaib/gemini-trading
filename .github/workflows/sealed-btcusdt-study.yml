@@ -88,6 +88,9 @@ jobs:
           import os
           from pathlib import Path
           from gemini_trading.strategy.handoff import load_dataset_handoff, verify_dataset_handoff
+          from gemini_trading.strategy.sealed_dataset_identity import (
+              assert_fixed_sealed_dataset_identity,
+          )
 
           root = Path(os.environ["OUTPUT_ROOT"])
           dataset_id = os.environ["EXPECTED_DATASET_ID"]
@@ -100,18 +103,7 @@ jobs:
               expected_dataset_id=dataset_id,
               expected_run_id=int(os.environ["EXPECTED_RUN_ID"]),
           )
-          if handoff.dataset_schema_version != "candle-dataset-v3":
-              raise SystemExit("Stage 2 requires candle-dataset-v3")
-          if (handoff.closure_count, handoff.exclusion_count, handoff.segment_count) != (1, 1, 2):
-              raise SystemExit("Stage 2 closure, exclusion, and segment count mismatch")
-          if handoff.closure_ids != ("binance-spot-system-upgrade-2018-02-08",):
-              raise SystemExit("Stage 2 closure identity mismatch")
-          if handoff.excluded_provider_row_sha256 != "6d0ed02c75960a3acf11073a2b7276e0bdc04f217fc99a488b15a5ff68e70775":
-              raise SystemExit("Stage 2 excluded provider row mismatch")
-          if handoff.segment_boundary_indices != (228,):
-              raise SystemExit("Stage 2 segment boundary mismatch")
-          if handoff.candle_count != 18617:
-              raise SystemExit("Stage 2 candle count mismatch")
+          assert_fixed_sealed_dataset_identity(handoff)
           PY
       - uses: actions/upload-artifact@v4
         with:

@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from gemini_trading.data.providers.binance_spot import BinanceSpotProvider
+from integration.test_sealed_historical_validation import bound_integration_training
 from integration.test_sealed_historical_validation import (
     test_complete_requires_matching_durable_receipt as _run_complete_sealed_path,
 )
@@ -13,7 +14,10 @@ from integration.test_sealed_historical_validation import (
 def test_complete_sealed_path_is_provider_free_and_non_promotional(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    bound_integration_training: None,
 ) -> None:
+    del bound_integration_training
+
     def deny_provider(
         self: object,
         *args: object,

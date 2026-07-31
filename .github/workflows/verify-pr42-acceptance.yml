@@ -1,4 +1,4 @@
-name: Verify PR42 Acceptance Fixture
+name: Verify PR42 Reusable Acceptance Fixture
 
 on:
   pull_request:
@@ -24,6 +24,153 @@ jobs:
           python-version: "3.12"
       - run: uv sync --all-groups --frozen
       - run: test "$(git rev-parse HEAD)" = "046941d84221896a71212e562e17081c0004a184"
+      - name: Extract reusable bounded-training helper
+        run: |
+          uv run python - <<'PY'
+          from pathlib import Path
+
+          integration_path = Path("tests/integration/test_sealed_historical_validation.py")
+          integration = integration_path.read_text(encoding="utf-8")
+          old = '''@pytest.fixture(autouse=True)
+def bound_integration_training(monkeypatch: pytest.MonkeyPatch) -> None:
+    preparation_cache: dict[bool, CandidatePreparation] = {}
+
+    def cached_candidate_preparation(
+        *,
+        dataset: VerifiedDataset,
+        simulation: SimulationConfig,
+        initial_cash: Decimal,
+        include_final: bool,
+    ) -> CandidatePreparation:
+        cached = preparation_cache.get(include_final)
+        if cached is None:
+            cached = build_candidate_preparation_unbounded(
+                dataset=dataset,
+                simulation=simulation,
+                initial_cash=initial_cash,
+                include_final=include_final,
+            )
+            preparation_cache[include_final] = cached
+        return cached
+
+    monkeypatch.setattr(
+        sealed_evaluator,
+        "fit_prediction_bundle",
+        _bounded_prediction_bundle,
+    )
+    monkeypatch.setattr(
+        sealed_evaluator,
+        "build_split_plan",
+        _bounded_split_plan,
+    )
+    monkeypatch.setattr(
+        sealed_evaluator,
+        "build_candidate_preparation",
+        cached_candidate_preparation,
+    )
+
+
+'''
+          new = '''def apply_bounded_integration_training(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Install the deterministic bounded trainer used by sealed integration tests."""
+
+    preparation_cache: dict[bool, CandidatePreparation] = {}
+
+    def cached_candidate_preparation(
+        *,
+        dataset: VerifiedDataset,
+        simulation: SimulationConfig,
+        initial_cash: Decimal,
+        include_final: bool,
+    ) -> CandidatePreparation:
+        cached = preparation_cache.get(include_final)
+        if cached is None:
+            cached = build_candidate_preparation_unbounded(
+                dataset=dataset,
+                simulation=simulation,
+                initial_cash=initial_cash,
+                include_final=include_final,
+            )
+            preparation_cache[include_final] = cached
+        return cached
+
+    monkeypatch.setattr(
+        sealed_evaluator,
+        "fit_prediction_bundle",
+        _bounded_prediction_bundle,
+    )
+    monkeypatch.setattr(
+        sealed_evaluator,
+        "build_split_plan",
+        _bounded_split_plan,
+    )
+    monkeypatch.setattr(
+        sealed_evaluator,
+        "build_candidate_preparation",
+        cached_candidate_preparation,
+    )
+
+
+@pytest.fixture(autouse=True)
+def bound_integration_training(monkeypatch: pytest.MonkeyPatch) -> None:
+    apply_bounded_integration_training(monkeypatch)
+
+
+'''
+          if integration.count(old) != 1:
+              raise SystemExit("unexpected sealed integration fixture block")
+          integration_path.write_text(integration.replace(old, new, 1), encoding="utf-8")
+
+          acceptance_path = Path("tests/acceptance/test_sealed_historical_validation_end_to_end.py")
+          acceptance = acceptance_path.read_text(encoding="utf-8")
+          import_old = '''from integration.test_sealed_historical_validation import bound_integration_training
+from integration.test_sealed_historical_validation import (
+    test_complete_requires_matching_durable_receipt as _run_complete_sealed_path,
+)
+'''
+          import_new = '''from integration.test_sealed_historical_validation import (
+    apply_bounded_integration_training,
+)
+from integration.test_sealed_historical_validation import (
+    test_complete_requires_matching_durable_receipt as _run_complete_sealed_path,
+)
+'''
+          if acceptance.count(import_old) != 1:
+              raise SystemExit("unexpected acceptance fixture import")
+          acceptance = acceptance.replace(import_old, import_new, 1)
+          signature_old = '''def test_complete_sealed_path_is_provider_free_and_non_promotional(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    bound_integration_training: None,
+) -> None:
+    del bound_integration_training
+
+'''
+          signature_new = '''def test_complete_sealed_path_is_provider_free_and_non_promotional(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+'''
+          if acceptance.count(signature_old) != 1:
+              raise SystemExit("unexpected acceptance fixture signature")
+          acceptance = acceptance.replace(signature_old, signature_new, 1)
+          call_old = '''    monkeypatch.setattr(BinanceSpotProvider, "__init__", deny_provider)
+
+    _run_complete_sealed_path(tmp_path)
+'''
+          call_new = '''    monkeypatch.setattr(BinanceSpotProvider, "__init__", deny_provider)
+    apply_bounded_integration_training(monkeypatch)
+
+    _run_complete_sealed_path(tmp_path)
+'''
+          if acceptance.count(call_old) != 1:
+              raise SystemExit("unexpected acceptance sealed-path call")
+          acceptance_path.write_text(acceptance.replace(call_old, call_new, 1), encoding="utf-8")
+          PY
+      - run: >-
+          uv run ruff format
+          tests/integration/test_sealed_historical_validation.py
+          tests/acceptance/test_sealed_historical_validation_end_to_end.py
       - run: >-
           uv run ruff check
           tests/integration/test_sealed_historical_validation.py
@@ -37,3 +184,15 @@ jobs:
           tests/integration/test_sealed_historical_validation.py::test_complete_requires_matching_durable_receipt
           tests/acceptance/test_sealed_historical_validation_end_to_end.py::test_complete_sealed_path_is_provider_free_and_non_promotional
           -q
+      - name: Package verified files
+        run: |
+          mkdir -p acceptance-fixture/tests/integration
+          mkdir -p acceptance-fixture/tests/acceptance
+          cp tests/integration/test_sealed_historical_validation.py acceptance-fixture/tests/integration/
+          cp tests/acceptance/test_sealed_historical_validation_end_to_end.py acceptance-fixture/tests/acceptance/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verified-reusable-acceptance-fixture-${{ github.sha }}-${{ github.run_id }}
+          path: acceptance-fixture/
+          if-no-files-found: error
+          retention-days: 7

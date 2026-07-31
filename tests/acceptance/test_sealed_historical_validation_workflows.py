@@ -5,9 +5,6 @@ from pathlib import Path
 _ROOT = Path(__file__).resolve().parents[2]
 _DATASET = _ROOT / ".github" / "workflows" / "sealed-btcusdt-dataset.yml"
 _STUDY = _ROOT / ".github" / "workflows" / "sealed-btcusdt-study.yml"
-_APPROVED_ROW_SHA256 = (
-    "6d0ed02c75960a3acf11073a2b7276e0bdc04f217fc99a488b15a5ff68e70775"  # pragma: allowlist secret
-)
 
 
 def _text(path: Path) -> str:
@@ -47,6 +44,10 @@ def test_dataset_workflow_is_manual_fixed_scope_and_least_privilege() -> None:
     assert "retention-days: 90" in text
     assert "secrets." not in text
     assert "workflow_dispatch:\n    inputs:" not in text
+    assert "Assert exact v4 handoff identity" in text
+    assert "assert_fixed_sealed_dataset_identity(handoff)" in text
+    assert "candle-dataset-v3" not in text
+    assert "excluded_provider_row_sha256" not in text
 
 
 def test_study_workflow_has_exact_narrow_inputs_and_cross_run_barriers() -> None:
@@ -105,13 +106,9 @@ def test_study_workflow_has_exact_narrow_inputs_and_cross_run_barriers() -> None
     assert "overwrite: false" in text
     assert "retention-days: 90" in text
     assert "secrets.GITHUB_TOKEN" in text
-    assert 'handoff.dataset_schema_version != "candle-dataset-v3"' in text
-    assert "handoff.closure_count, handoff.exclusion_count, handoff.segment_count" in text
-    assert "(1, 1, 2)" in text
-    assert "binance-spot-system-upgrade-2018-02-08" in text
-    assert _APPROVED_ROW_SHA256 in text
-    assert "handoff.segment_boundary_indices != (228,)" in text
-    assert "handoff.candle_count != 18617" in text
+    assert "assert_fixed_sealed_dataset_identity(handoff)" in text
+    assert "candle-dataset-v3" not in text
+    assert "excluded_provider_row_sha256" not in text
     assert text.count("OUTPUT_ROOT: /tmp/sealed-output") == 4
     assert "api.binance.com" not in text
     assert "GITHUB_ENV" not in text

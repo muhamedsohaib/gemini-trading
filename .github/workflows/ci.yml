@@ -9,36 +9,33 @@ permissions:
   contents: read
 
 jobs:
-  export-stage2-workflow:
-    if: >-
-      github.event_name == 'pull_request' &&
-      github.head_ref == 'research/verified-multi-closure-partial-candle-manifest' &&
-      github.actor != 'github-actions[bot]'
+  quality:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2
         with:
-          ref: ${{ github.head_ref }}
           fetch-depth: 0
-      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
           version: "0.11.25"
+          enable-cache: true
       - uses: actions/setup-python@v6.2.0
         with:
           python-version: "3.12"
       - run: uv sync --all-groups --frozen
-      - run: uv run python scripts/temporary_task11_apply.py
-      - run: >-
-          uv run pytest
-          tests/acceptance/test_sealed_historical_validation_workflows.py
-          -q
-      - run: cp .github/workflows/sealed-btcusdt-study.yml verified-sealed-btcusdt-study.yml
-      - uses: actions/upload-artifact@v4
-        with:
-          name: verified-stage2-workflow-${{ github.sha }}-${{ github.run_id }}
-          path: verified-sealed-btcusdt-study.yml
-          if-no-files-found: error
-          retention-days: 7
+      - run: uv run ruff format --check .
+      - run: uv run ruff check .
+      - run: uv run pyright
+      - run: uv run pytest
+      - run: uv run python -m build
+      - run: uv run pip-audit
+      - name: Validate tracked-file policy
+        run: >-
+          uv run python -c "import subprocess;
+          from gemini_trading.safety.repository_policy import validate_tracked_paths;
+          validate_tracked_paths(subprocess.check_output(['git','ls-files'], text=True).splitlines())"
+      - name: Scan tracked files for secrets
+        run: uv run pre-commit run detect-secrets --all-files
 
   gitleaks:
     runs-on: ubuntu-latest

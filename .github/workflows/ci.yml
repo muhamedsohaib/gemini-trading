@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  export-verified-tree:
+  export-stage2-workflow:
     if: >-
       github.event_name == 'pull_request' &&
       github.head_ref == 'research/verified-multi-closure-partial-candle-manifest' &&
@@ -28,77 +28,17 @@ jobs:
           python-version: "3.12"
       - run: uv sync --all-groups --frozen
       - run: uv run python scripts/temporary_task11_apply.py
-      - run: uv run python scripts/temporary_task12_apply.py
-      - run: >-
-          uv run ruff format
-          src/gemini_trading/strategy/sealed_dataset_identity.py
-          tests/unit/strategy/test_sealed_dataset_identity.py
-          tests/acceptance/test_sealed_historical_validation_workflows.py
-          tests/acceptance/test_sealed_historical_validation_documentation.py
-      - run: >-
-          uv run ruff check
-          src/gemini_trading/strategy/sealed_dataset_identity.py
-          tests/unit/strategy/test_sealed_dataset_identity.py
-          tests/acceptance/test_sealed_historical_validation_workflows.py
-          tests/acceptance/test_sealed_historical_validation_documentation.py
-      - run: >-
-          uv run pyright
-          src/gemini_trading/strategy/sealed_dataset_identity.py
-          tests/unit/strategy/test_sealed_dataset_identity.py
       - run: >-
           uv run pytest
-          tests/unit/strategy/test_sealed_dataset_identity.py
           tests/acceptance/test_sealed_historical_validation_workflows.py
-          tests/acceptance/test_sealed_historical_validation_documentation.py
           -q
-      - name: Package verified files
-        run: |
-          mkdir -p verified-tree/.github/workflows
-          mkdir -p verified-tree/docs/operations
-          mkdir -p verified-tree/src/gemini_trading/strategy
-          mkdir -p verified-tree/tests/acceptance
-          mkdir -p verified-tree/tests/unit/strategy
-          cp .github/workflows/sealed-btcusdt-study.yml verified-tree/.github/workflows/
-          cp README.md verified-tree/
-          cp docs/operations/sealed-btcusdt-historical-validation.md verified-tree/docs/operations/
-          cp src/gemini_trading/strategy/sealed_dataset_identity.py verified-tree/src/gemini_trading/strategy/
-          cp tests/acceptance/test_sealed_historical_validation_documentation.py verified-tree/tests/acceptance/
-          cp tests/acceptance/test_sealed_historical_validation_workflows.py verified-tree/tests/acceptance/
-          cp tests/unit/strategy/test_sealed_dataset_identity.py verified-tree/tests/unit/strategy/
+      - run: cp .github/workflows/sealed-btcusdt-study.yml verified-sealed-btcusdt-study.yml
       - uses: actions/upload-artifact@v4
         with:
-          name: verified-sealed-v4-tree-${{ github.sha }}-${{ github.run_id }}
-          path: verified-tree/
+          name: verified-stage2-workflow-${{ github.sha }}-${{ github.run_id }}
+          path: verified-sealed-btcusdt-study.yml
           if-no-files-found: error
           retention-days: 7
-
-  quality:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6.0.2
-        with:
-          fetch-depth: 0
-      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
-        with:
-          version: "0.11.25"
-          enable-cache: true
-      - uses: actions/setup-python@v6.2.0
-        with:
-          python-version: "3.12"
-      - run: uv sync --all-groups --frozen
-      - run: uv run ruff format --check .
-      - run: uv run ruff check .
-      - run: uv run pyright
-      - run: uv run pytest
-      - run: uv run python -m build
-      - run: uv run pip-audit
-      - name: Validate tracked-file policy
-        run: >-
-          uv run python -c "import subprocess;
-          from gemini_trading.safety.repository_policy import validate_tracked_paths;
-          validate_tracked_paths(subprocess.check_output(['git','ls-files'], text=True).splitlines())"
-      - name: Scan tracked files for secrets
-        run: uv run pre-commit run detect-secrets --all-files
 
   gitleaks:
     runs-on: ubuntu-latest

@@ -72,7 +72,7 @@ gemini-trading research dataset-replay --run-id <retrieval-run-id> --output-root
 gemini-trading research dataset-verify --dataset-id <dataset-id> --run-id <retrieval-run-id> --output-root <artifact-root>
 ```
 
-There is no operator-provided closure or exclusion path, environment override, dispatch input, or remote policy source. Earlier v1-v3 datasets and handoffs are invalid for the revised study.
+There is no operator-provided closure or exclusion path, environment override, dispatch input, or remote policy source. Earlier v1-v3 datasets and handoffs are invalid for the revised study. A completely new Stage 1 v4 run is mandatory after protected merge and exact-main verification.
 
 '''
 guide = guide[:section_start] + new_section + guide[section_end:]

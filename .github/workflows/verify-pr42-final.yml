@@ -22,7 +22,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync --all-groups --frozen
-      - name: Add exact line-level SHA allowlists
+      - name: Add exact lint-compatible SHA allowlists
         run: |
           uv run python - <<'PY'
           import re
@@ -32,18 +32,28 @@ jobs:
               Path("tests/unit/data/test_exchange_closures.py"),
               Path("src/gemini_trading/strategy/sealed_dataset_identity.py"),
           )
-          pattern = re.compile(r'^(\s*)"[0-9a-f]{64}",\s*$')
-          updated = 0
+          digest_pattern = re.compile(r'^(\s*)"[0-9a-f]{64}",\s*$')
+          ineffective = re.compile(r'^(\s*)\),\s+# pragma: allowlist secret$')
+          added = 0
+          removed = 0
           for path in paths:
               output: list[str] = []
               for raw_line in path.read_text(encoding="utf-8").splitlines():
-                  if pattern.fullmatch(raw_line) and "pragma: allowlist secret" not in raw_line:
-                      raw_line = f"{raw_line}  # pragma: allowlist secret"
-                      updated += 1
+                  ineffective_match = ineffective.fullmatch(raw_line)
+                  if ineffective_match:
+                      raw_line = f"{ineffective_match.group(1)}),"
+                      removed += 1
+                  if digest_pattern.fullmatch(raw_line):
+                      raw_line = (
+                          f"{raw_line}  # noqa: E501  # pragma: allowlist secret"
+                      )
+                      added += 1
                   output.append(raw_line)
               path.write_text("\n".join(output) + "\n", encoding="utf-8")
-          if updated != 40:
-              raise SystemExit(f"expected 40 SHA allowlists, added {updated}")
+          if (added, removed) != (40, 40):
+              raise SystemExit(
+                  f"expected 40 added and 40 removed allowlists, got {added} and {removed}"
+              )
           PY
       - run: >-
           uv run ruff format

@@ -1,8 +1,9 @@
 name: Verify PR42 Acceptance Fixture
 
 on:
-  pull_request:
-    branches: [main]
+  push:
+    branches:
+      - verification/pr42-final-head-f0ea8d2
 
 permissions:
   contents: read

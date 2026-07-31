@@ -5,9 +5,6 @@ from pathlib import Path
 _ROOT = Path(__file__).resolve().parents[2]
 _GUIDE = _ROOT / "docs" / "operations" / "sealed-btcusdt-historical-validation.md"
 _README = _ROOT / "README.md"
-_APPROVED_ROW_SHA256 = (
-    "6d0ed02c75960a3acf11073a2b7276e0bdc04f217fc99a488b15a5ff68e70775"  # pragma: allowlist secret
-)
 
 
 def test_operator_guide_locks_scope_sequence_and_failure_policy() -> None:
@@ -39,25 +36,35 @@ def test_operator_guide_locks_scope_sequence_and_failure_policy() -> None:
         "INCONCLUSIVE",
         "RESEARCH_ONLY",
         "No classification authorizes execution or capital",
-        "candle-dataset-v3",
-        "exchange-closure-manifest-v2",
+        "candle-dataset-v4",
+        "exchange-closure-manifest-v3",
         "candle-exclusion-manifest-v1",
-        "binance-spot-system-upgrade-2018-02-08",
-        "2018-02-08T00:28:14.788Z",
-        _APPROVED_ROW_SHA256,
-        "[2018-02-08T00:00:00Z, 2018-02-09T08:00:00Z)",
-        "eight unavailable canonical `4h` slots",
-        "one exact partial-candle exclusion",
-        "resulting canonical segments: two",
+        "candle-segment-manifest-v1",
+        "sealed-dataset-handoff-v4",
+        "20 structurally valid partial-candle provider rows",
+        "16 fully absent canonical opens",
+        "36 unavailable canonical `4h` slots",
+        "20 ordered exact exclusions",
+        "21 maximal continuous segments",
+        "18,582 completed canonical candles",
+        "2018-01-01T00:00:00Z",
+        "2026-06-30T20:00:00Z",
+        "zero fully missing opens",
         "never inserts, forward-fills, interpolates, zero-fills",
         "Feature warm-up restarts",
         "noncash account or active order",
         "dataset-ingest",
         "dataset-replay",
         "dataset-verify",
+        "Earlier v1-v3 datasets and handoffs are invalid",
+        "completely new Stage 1 v4",
     )
     for phrase in required:
         assert phrase in text
+    assert "candle-dataset-v3" not in text
+    assert "exchange-closure-manifest-v2" not in text
+    assert "18,617" not in text
+    assert "(1, 1, 2)" not in text
 
 
 def test_documentation_states_no_real_result_exists_before_operation() -> None:
@@ -70,3 +77,6 @@ def test_documentation_states_no_real_result_exists_before_operation() -> None:
     assert "does not prove future profitability" in guide
     assert "no credentials" in guide
     assert "no real-capital authorization" in guide
+    assert "candle-dataset-v4" in readme
+    assert "18,582" in readme
+    assert "completely new Stage 1 v4" in readme

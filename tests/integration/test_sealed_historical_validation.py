@@ -85,8 +85,9 @@ from strategy_fixture_support import base_simulation
 _CODE_COMMIT = "a" * 40
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _MAX_TRAINING_ROWS = 1_000
-_MAX_CALIBRATION_ROWS = 500
+_MAX_CALIBRATION_ROWS = 1_000
 _MAX_DECISION_ROWS = 64
+_FINAL_CALIBRATION_ROWS = 512
 
 
 @dataclass(frozen=True, slots=True)
@@ -152,12 +153,19 @@ def _bounded_split_plan(
         policy,
         segment_manifest,
     )
+    selected_folds = plan.folds[: policy.minimum_development_folds]
     folds = tuple(
         replace(
             fold,
-            development_test_indices=fold.development_test_indices[:_MAX_DECISION_ROWS],
+            development_test_indices=fold.development_test_indices[
+                : (
+                    _FINAL_CALIBRATION_ROWS
+                    if fold_index == len(selected_folds) - 1
+                    else _MAX_DECISION_ROWS
+                )
+            ],
         )
-        for fold in plan.folds[: policy.minimum_development_folds]
+        for fold_index, fold in enumerate(selected_folds)
     )
     return (
         replace(

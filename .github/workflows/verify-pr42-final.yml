@@ -1,0 +1,40 @@
+name: Verify PR42 Final Head
+
+on:
+  push:
+    branches:
+      - verification/pr42-final-head-f0ea8d2
+
+permissions:
+  contents: read
+
+jobs:
+  verify-final-head:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          ref: f0ea8d23429a87b541446d5acf105c60ad6af572
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.11.25"
+          enable-cache: true
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - name: Assert exact clean PR head
+        run: |
+          test "$(git rev-parse HEAD)" = "f0ea8d23429a87b541446d5acf105c60ad6af572"
+          test -z "$(git status --porcelain)"
+          git diff --check
+      - run: uv run python -m build
+      - run: uv run pip-audit
+      - name: Validate tracked-file policy
+        run: >-
+          uv run python -c "import subprocess;
+          from gemini_trading.safety.repository_policy import validate_tracked_paths;
+          validate_tracked_paths(subprocess.check_output(['git','ls-files'], text=True).splitlines())"
+      - name: Scan tracked files for secrets
+        run: uv run pre-commit run detect-secrets --all-files

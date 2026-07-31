@@ -5,9 +5,9 @@
 - Promotion level: `RESEARCH_ONLY`
 - Exchange order submission: disabled
 - Credentials and private endpoints: not used
-- Existing failed Stage 1 runs: invalid and not reusable
-- New Stage 1 v3 dataset workflow: blocked until the partial-closure implementation is merged and exact-main CI passes
-- Real sealed Stage 2 study: prohibited until a new Stage 1 v3 artifact is independently verified and explicitly approved in Issue #22
+- Existing Stage 1 v1-v3 runs and artifacts: invalid for the revised study and not reusable
+- New Stage 1 v4 dataset workflow: blocked until the multi-closure implementation is merged and exact-main verification passes
+- Real sealed Stage 2 study: prohibited until a completely new Stage 1 v4 artifact is independently verified and explicitly approved in Issue #22
 - Profitability and capital readiness: not established
 
 ## Approved scope
@@ -18,44 +18,46 @@
 - Candidate identity: `candidate.multi_model.v0_1`
 - Final untouched test: last 18 calendar months, single access
 
-## Verified February 2018 evidence
+## Verified multi-closure inventory
 
-- Partial candle open: `2018-02-08T00:00:00Z`
-- Actual provider close: `2018-02-08T00:28:14.788Z`
-- Expected full close: `2018-02-08T03:59:59.999Z`
-- Exact provider-row SHA-256: `6d0ed02c75960a3acf11073a2b7276e0bdc04f217fc99a488b15a5ff68e70775`
-- Fully absent opens: seven, from `2018-02-08T04:00:00Z` through `2018-02-09T04:00:00Z`
-- First resumed full candle: `2018-02-09T08:00:00Z`
-- Effective canonical closure: eight unavailable `4h` slots
-- Expected fixed-window canonical candle count: `18,617`
-- Expected segment boundary index: `228`
-- Expected continuous segment count: `2`
+- Source-controlled schema: `exchange-closure-manifest-v3`
+- Verified partial-candle rows: `20`
+- Fully absent canonical opens: `16`
+- Total unavailable canonical `4h` slots: `36`
+- Exact exclusions: `20`
+- Expected continuous segments: `21`
+- Expected fixed-window canonical candle count: `18,582`
+- Expected first canonical open: `2018-01-01T00:00:00Z`
+- Expected last canonical open: `2026-06-30T20:00:00Z`
+- Expected segment boundaries: `(18, 227, 1047, 1092, 1733, 1887, 2593, 2975, 3524, 4062, 4133, 4650, 5042, 5425, 6483, 6791, 7198, 7228, 7886, 8168)`
+- Raw provider pages and all excluded rows remain byte-for-byte immutable
+- No candle is inserted, repaired, interpolated, forward-filled, zero-filled, padded, or synthesized
 
 ## Current implementation checkpoint
 
-- Design and implementation-plan gate: Issue #22 and draft PR #33
-- Exchange-closure manifest upgraded to `exchange-closure-manifest-v2`
-- Exact partial-row digest matching and immutable exclusion evidence: implemented
-- Raw response bytes and the truncated provider row remain unchanged
-- Derived `candle-exclusion-manifest-v1`: implemented
-- Unified eight-slot closure and deterministic two-segment derivation: implemented
-- Canonical dataset identity upgraded to `candle-dataset-v3`
-- Immutable storage, provider-free replay, and independent verification of exclusion evidence: implemented
-- Verified dataset reader and Stage 1 handoff v3: implemented
-- Exclusion identity propagated through pre-final, final-access, replay, and sealed-study verification: implemented
-- Stage 1 and Stage 2 fixed workflow identity checks upgraded to v3: implemented
-- Tamper rejection for exclusion hashes, closure linkage, excluded-row identity, and segment boundaries: implemented
-- Operator documentation and acceptance tests: updated
-- Temporary diagnostic and workspace-export workflows: removed from the intended final tree
+- Approved design and implementation plan: Issue #22 and PR #41
+- Implementation pull request: PR #42
+- Exchange-closure manifest: `exchange-closure-manifest-v3`
+- Exact multi-page partial-row matching and immutable exclusion evidence: implemented
+- Zero-fully-missing interruption arithmetic: implemented
+- Derived `candle-exclusion-manifest-v1` with 20 ordered exclusions: implemented
+- Derived `candle-segment-manifest-v1` with 21 deterministic segments: implemented
+- Canonical dataset identity: `candle-dataset-v4`
+- Immutable storage, provider-free replay, and independent v4 verification: implemented
+- Strict verified dataset loading with `require_v4=True`: implemented
+- Stage 1 handoff: `sealed-dataset-handoff-v4` with ordered plural excluded-row identities
+- Handoff v4 identity propagated through pre-final, final-access, replay, sealed evaluation, and independent sealed-study verification
+- Central fixed v4 identity validator added for Stage 1 and Stage 2 workflows
+- Tamper rejection covers missing, duplicate, changed, reordered, shifted, extra, overlapping, and boundary-crossing evidence
+- Strategy features, labels, models, costs, thresholds, folds, final-test dates, and long-or-cash policy remain unchanged
 
 ## Verification checkpoint
 
-- Repository-wide Ruff format check: passed locally
-- Repository-wide Ruff lint: passed locally
-- Changed-source strict Pyright: passed locally
-- Consolidated data, reader, handoff, strategy-identity, workflow, and documentation tests: `254 passed`
-- Handoff tamper-focused tests: `19 passed`
-- Complete sealed end-to-end integration is too slow for the exported local runner and exceeded the local execution ceiling; exact-head GitHub CI is required as the authoritative complete-suite result
-- Build, dependency audit, repository policy, detect-secrets, and full pytest remain required on the final exact PR head
+- Focused Ruff, strict Pyright, unit, workflow-contract, and integration checks are required on the exact final PR head
+- Full repository pytest, build, dependency audit, tracked-file policy, detect-secrets, and Gitleaks remain mandatory before merge
+- Protected merge and exact-main verification remain mandatory before a completely new Stage 1 v4 run
+- No Stage 1 v4 artifact has yet been approved
+- No Stage 2 study has been authorized or run
+- There is no real historical Candidate result
 
 Generated raw data, canonical datasets, exclusion manifests, repository-seal receipts, stable local seals, final-access receipts, pre-final evidence, and full strategy studies remain excluded from tracked repository files.

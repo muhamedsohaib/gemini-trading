@@ -1,4 +1,4 @@
-name: Verify PR42 SHA Allowlists
+name: Verify PR42 Final Head
 
 on:
   pull_request:
@@ -8,12 +8,12 @@ permissions:
   contents: read
 
 jobs:
-  patch-and-export:
+  unit:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2
         with:
-          ref: f0ea8d23429a87b541446d5acf105c60ad6af572
+          ref: 869dab35eba7fe31f1f3dbe246a0c3b090139b71
           fetch-depth: 0
       - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
         with:
@@ -22,67 +22,113 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync --all-groups --frozen
-      - name: Add exact file-scoped SHA allowlists
-        run: |
-          uv run python - <<'PY'
-          import re
-          from pathlib import Path
+      - run: test "$(git rev-parse HEAD)" = "869dab35eba7fe31f1f3dbe246a0c3b090139b71"
+      - run: uv run pytest tests/unit -q
 
-          paths = (
-              Path("tests/unit/data/test_exchange_closures.py"),
-              Path("src/gemini_trading/strategy/sealed_dataset_identity.py"),
-          )
-          digest_pattern = re.compile(r'^(\s*)"[0-9a-f]{64}",\s*$')
-          ineffective = re.compile(r'^(\s*)\),\s+# pragma: allowlist secret$')
-          added = 0
-          removed = 0
-          for path in paths:
-              lines = path.read_text(encoding="utf-8").splitlines()
-              if not lines or lines[0] != "# ruff: noqa: E501":
-                  lines.insert(0, "# ruff: noqa: E501")
-              output: list[str] = []
-              for raw_line in lines:
-                  ineffective_match = ineffective.fullmatch(raw_line)
-                  if ineffective_match:
-                      raw_line = f"{ineffective_match.group(1)}),"
-                      removed += 1
-                  if digest_pattern.fullmatch(raw_line):
-                      raw_line = f"{raw_line}  # pragma: allowlist secret"
-                      added += 1
-                  output.append(raw_line)
-              path.write_text("\n".join(output) + "\n", encoding="utf-8")
-          if (added, removed) != (40, 40):
-              raise SystemExit(
-                  f"expected 40 added and 40 removed allowlists, got {added} and {removed}"
-              )
-          PY
-      - run: >-
-          uv run ruff format
-          tests/unit/data/test_exchange_closures.py
-          src/gemini_trading/strategy/sealed_dataset_identity.py
-      - run: >-
-          uv run ruff check
-          tests/unit/data/test_exchange_closures.py
-          src/gemini_trading/strategy/sealed_dataset_identity.py
-      - run: >-
-          uv run pyright
-          tests/unit/data/test_exchange_closures.py
-          src/gemini_trading/strategy/sealed_dataset_identity.py
-      - run: >-
-          uv run pytest
-          tests/unit/data/test_exchange_closures.py
-          tests/unit/strategy/test_sealed_dataset_identity.py
-          -q
-      - run: uv run pre-commit run detect-secrets --all-files
-      - name: Package verified files
-        run: |
-          mkdir -p sha-allowlists/tests/unit/data
-          mkdir -p sha-allowlists/src/gemini_trading/strategy
-          cp tests/unit/data/test_exchange_closures.py sha-allowlists/tests/unit/data/
-          cp src/gemini_trading/strategy/sealed_dataset_identity.py sha-allowlists/src/gemini_trading/strategy/
-      - uses: actions/upload-artifact@v4
+  integration-sealed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6.0.2
         with:
-          name: verified-sha-allowlists-${{ github.sha }}-${{ github.run_id }}
-          path: sha-allowlists/
-          if-no-files-found: error
-          retention-days: 7
+          ref: 869dab35eba7fe31f1f3dbe246a0c3b090139b71
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.11.25"
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - run: test "$(git rev-parse HEAD)" = "869dab35eba7fe31f1f3dbe246a0c3b090139b71"
+      - run: uv run pytest tests/integration/test_sealed_historical_validation.py -q
+
+  integration-rest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          ref: 869dab35eba7fe31f1f3dbe246a0c3b090139b71
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.11.25"
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - run: test "$(git rev-parse HEAD)" = "869dab35eba7fe31f1f3dbe246a0c3b090139b71"
+      - run: >-
+          uv run pytest tests/integration
+          --ignore=tests/integration/test_sealed_historical_validation.py
+          -q
+
+  acceptance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          ref: 869dab35eba7fe31f1f3dbe246a0c3b090139b71
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.11.25"
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - run: test "$(git rev-parse HEAD)" = "869dab35eba7fe31f1f3dbe246a0c3b090139b71"
+      - run: uv run pytest tests/acceptance -q
+
+  other-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          ref: 869dab35eba7fe31f1f3dbe246a0c3b090139b71
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.11.25"
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - run: test "$(git rev-parse HEAD)" = "869dab35eba7fe31f1f3dbe246a0c3b090139b71"
+      - run: >-
+          uv run pytest tests
+          --ignore=tests/unit
+          --ignore=tests/integration
+          --ignore=tests/acceptance
+          -q
+
+  build-security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          ref: 869dab35eba7fe31f1f3dbe246a0c3b090139b71
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.11.25"
+          enable-cache: true
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - name: Assert exact clean PR head
+        run: |
+          test "$(git rev-parse HEAD)" = "869dab35eba7fe31f1f3dbe246a0c3b090139b71"
+          test -z "$(git status --porcelain)"
+          git diff --check
+      - run: uv run python -m build
+      - run: uv run pip-audit
+      - name: Validate tracked-file policy
+        run: >-
+          uv run python -c "import subprocess;
+          from gemini_trading.safety.repository_policy import validate_tracked_paths;
+          validate_tracked_paths(subprocess.check_output(['git','ls-files'], text=True).splitlines())"
+      - name: Scan tracked files for secrets
+        run: uv run pre-commit run detect-secrets --all-files

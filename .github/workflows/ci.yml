@@ -29,11 +29,13 @@ jobs:
       - run: uv sync --all-groups --frozen
       - run: uv run python scripts/temporary_task10_expand_calibration.py
       - run: uv run python scripts/temporary_task11_apply.py
+      - run: uv run python scripts/temporary_task12_apply.py
       - run: >-
           uv run ruff format
           src/gemini_trading/strategy/sealed_dataset_identity.py
           tests/unit/strategy/test_sealed_dataset_identity.py
           tests/acceptance/test_sealed_historical_validation_workflows.py
+          tests/acceptance/test_sealed_historical_validation_documentation.py
           tests/integration/test_sealed_historical_validation.py
       - run: >-
           uv run ruff check
@@ -47,6 +49,7 @@ jobs:
           tests/unit/strategy/test_sealed_manifest_identity.py
           tests/unit/strategy/test_sealed_dataset_identity.py
           tests/acceptance/test_sealed_historical_validation_workflows.py
+          tests/acceptance/test_sealed_historical_validation_documentation.py
           tests/integration/test_sealed_historical_validation.py
       - run: >-
           uv run pyright
@@ -66,6 +69,7 @@ jobs:
           tests/unit/strategy/test_sealed_manifest_identity.py
           tests/unit/strategy/test_sealed_dataset_identity.py
           tests/acceptance/test_sealed_historical_validation_workflows.py
+          tests/acceptance/test_sealed_historical_validation_documentation.py
           -q
 
   task10-prepare:
@@ -150,23 +154,29 @@ jobs:
       - run: uv sync --all-groups --frozen
       - run: uv run python scripts/temporary_task10_expand_calibration.py
       - run: uv run python scripts/temporary_task11_apply.py
+      - run: uv run python scripts/temporary_task12_apply.py
       - run: >-
           uv run ruff format
           src/gemini_trading/strategy/sealed_dataset_identity.py
           tests/unit/strategy/test_sealed_dataset_identity.py
           tests/acceptance/test_sealed_historical_validation_workflows.py
+          tests/acceptance/test_sealed_historical_validation_documentation.py
           tests/integration/test_sealed_historical_validation.py
-      - name: Commit verified Tasks 10 and 11 and restore normal CI
+      - name: Commit verified Tasks 10 through 12 and restore normal CI
         run: |
           git checkout origin/main -- .github/workflows/ci.yml
-          git rm -f --ignore-unmatch scripts/temporary_task10_*.py scripts/temporary_task11_*.py task10-*.txt
+          git rm -f --ignore-unmatch scripts/temporary_task10_*.py scripts/temporary_task11_*.py scripts/temporary_task12_*.py task10-*.txt
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add \
             .github/workflows/ci.yml \
             .github/workflows/sealed-btcusdt-dataset.yml \
             .github/workflows/sealed-btcusdt-study.yml \
+            README.md \
+            docs/operations/sealed-btcusdt-historical-validation.md \
+            reports/verification/sealed-btcusdt-historical-validation-progress.md \
             src/gemini_trading/strategy/sealed_dataset_identity.py \
+            tests/acceptance/test_sealed_historical_validation_documentation.py \
             tests/acceptance/test_sealed_historical_validation_workflows.py \
             tests/integration/test_sealed_historical_validation.py \
             tests/unit/strategy/test_sealed_dataset_identity.py

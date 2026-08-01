@@ -43,6 +43,7 @@ from gemini_trading.domain.timeframe import Timeframe
 _DATASET_SCHEMA_VERSION = "candle-dataset-v1"
 _DATASET_SCHEMA_VERSION_V2 = "candle-dataset-v2"
 _DATASET_SCHEMA_VERSION_V3 = "candle-dataset-v3"
+_DATASET_SCHEMA_VERSION_V4 = "candle-dataset-v4"
 _RETRIEVAL_SCHEMA_VERSION_V2 = "retrieval-manifest-v2"
 _PROVENANCE_SCHEMA_VERSION = "dataset-provenance-v1"
 _CHECKS = (
@@ -57,7 +58,7 @@ _CHECKS = (
     "completed_state",
 )
 
-_V3_CHECKS = (
+_SEALED_CHECKS = (
     "retrieval_manifest_bytes",
     "raw_page_hashes",
     "raw_reconstruction",
@@ -217,12 +218,14 @@ def _parse_dataset_manifest(raw: bytes) -> DatasetManifest:
                 in {
                     _DATASET_SCHEMA_VERSION_V2,
                     _DATASET_SCHEMA_VERSION_V3,
+                    _DATASET_SCHEMA_VERSION_V4,
                 }
                 else None
             ),
             exclusion_manifest_sha256=(
                 _required_str(mapping, "exclusion_manifest_sha256")
-                if mapping.get("schema_version") == _DATASET_SCHEMA_VERSION_V3
+                if mapping.get("schema_version")
+                in {_DATASET_SCHEMA_VERSION_V3, _DATASET_SCHEMA_VERSION_V4}
                 else None
             ),
             segment_manifest_sha256=(
@@ -231,6 +234,7 @@ def _parse_dataset_manifest(raw: bytes) -> DatasetManifest:
                 in {
                     _DATASET_SCHEMA_VERSION_V2,
                     _DATASET_SCHEMA_VERSION_V3,
+                    _DATASET_SCHEMA_VERSION_V4,
                 }
                 else None
             ),
@@ -240,12 +244,14 @@ def _parse_dataset_manifest(raw: bytes) -> DatasetManifest:
                 in {
                     _DATASET_SCHEMA_VERSION_V2,
                     _DATASET_SCHEMA_VERSION_V3,
+                    _DATASET_SCHEMA_VERSION_V4,
                 }
                 else 0
             ),
             exclusion_count=(
                 _required_int(mapping, "exclusion_count")
-                if mapping.get("schema_version") == _DATASET_SCHEMA_VERSION_V3
+                if mapping.get("schema_version")
+                in {_DATASET_SCHEMA_VERSION_V3, _DATASET_SCHEMA_VERSION_V4}
                 else 0
             ),
             segment_count=(
@@ -254,6 +260,7 @@ def _parse_dataset_manifest(raw: bytes) -> DatasetManifest:
                 in {
                     _DATASET_SCHEMA_VERSION_V2,
                     _DATASET_SCHEMA_VERSION_V3,
+                    _DATASET_SCHEMA_VERSION_V4,
                 }
                 else 1
             ),
@@ -379,7 +386,7 @@ class VerificationService:
 
             dataset_manifest = _parse_dataset_manifest(dataset_manifest_bytes)
             expected_schema = (
-                _DATASET_SCHEMA_VERSION_V3
+                _DATASET_SCHEMA_VERSION_V4
                 if closure_manifest is not None
                 else _DATASET_SCHEMA_VERSION
             )
@@ -432,7 +439,7 @@ class VerificationService:
                 dataset_id=dataset_id,
                 run_id=run_id,
                 candle_count=len(reconstructed),
-                checks=(_V3_CHECKS if closure_manifest is not None else _CHECKS),
+                checks=(_SEALED_CHECKS if closure_manifest is not None else _CHECKS),
             )
         except MarketDataError:
             raise

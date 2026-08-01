@@ -93,7 +93,7 @@ def _validate_dataset(dataset: VerifiedDataset, policy: CandidatePolicy) -> None
     if dataset.manifest.timeframe.value != policy.timeframe:
         raise StudyArtifactError("candidate dataset timeframe does not match locked policy")
     if (
-        dataset.manifest.schema_version != "candle-dataset-v3"
+        dataset.manifest.schema_version != "candle-dataset-v4"
         or dataset.closure_manifest is None
         or dataset.exclusion_manifest is None
         or dataset.segment_manifest is None
@@ -101,7 +101,7 @@ def _validate_dataset(dataset: VerifiedDataset, policy: CandidatePolicy) -> None
         or dataset.exclusion_manifest_bytes is None
         or dataset.segment_manifest_bytes is None
     ):
-        raise StudyArtifactError("sealed candidate evaluation requires dataset v3 evidence")
+        raise StudyArtifactError("sealed candidate evaluation requires dataset v4 evidence")
 
 
 def build_candidate_preparation(
@@ -219,8 +219,16 @@ def build_candidate_preparation(
     exclusion_manifest = dataset.exclusion_manifest
     if closure_manifest is None or exclusion_manifest is None:
         raise StudyArtifactError("sealed candidate evaluation requires exclusion evidence")
-    if len(exclusion_manifest.exclusions) != 1:
-        raise StudyArtifactError("sealed candidate evaluation requires one exclusion")
+    if (
+        dataset.manifest.closure_count,
+        dataset.manifest.exclusion_count,
+        dataset.manifest.segment_count,
+    ) != (20, 20, 21):
+        raise StudyArtifactError("sealed candidate evaluation evidence counts mismatch")
+    if tuple(item.closure_id for item in exclusion_manifest.exclusions) != tuple(
+        item.closure_id for item in closure_manifest.closures
+    ):
+        raise StudyArtifactError("sealed candidate exclusion order mismatch")
     policy_bytes = serialize_candidate_policy(policy)
     configuration_bytes = canonical_json_bytes(
         {
@@ -239,7 +247,13 @@ def build_candidate_preparation(
             "exclusion_count": dataset.manifest.exclusion_count,
             "segment_count": dataset.manifest.segment_count,
             "closure_ids": [item.closure_id for item in closure_manifest.closures],
-            "excluded_provider_row_sha256": exclusion_manifest.exclusions[0].provider_row_sha256,
+            "excluded_provider_rows": [
+                {
+                    "closure_id": item.closure_id,
+                    "provider_row_sha256": item.provider_row_sha256,
+                }
+                for item in exclusion_manifest.exclusions
+            ],
             "segment_boundary_indices": list(split_plan.segment_boundary_indices),
         }
     )
@@ -556,7 +570,13 @@ def _extend_manifest(
             "exclusion_count": handoff.exclusion_count,
             "segment_count": handoff.segment_count,
             "closure_ids": list(handoff.closure_ids),
-            "excluded_provider_row_sha256": handoff.excluded_provider_row_sha256,
+            "excluded_provider_rows": [
+                {
+                    "closure_id": item.closure_id,
+                    "provider_row_sha256": item.provider_row_sha256,
+                }
+                for item in handoff.excluded_provider_rows
+            ],
             "segment_boundary_indices": list(segment_boundary_indices),
         }
     )

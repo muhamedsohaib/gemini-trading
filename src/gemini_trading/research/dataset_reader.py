@@ -11,6 +11,7 @@ from gemini_trading.data.datasets.canonical_writer import (
     dataset_id,
     dataset_id_v2,
     dataset_id_v3,
+    dataset_id_v4,
     serialize_candles,
     serialize_dataset_manifest,
 )
@@ -61,6 +62,7 @@ _MANIFEST_FIELDS_V3 = _MANIFEST_FIELDS_V2 | {
     "exclusion_manifest_sha256",
     "exclusion_count",
 }
+_MANIFEST_FIELDS_V4 = _MANIFEST_FIELDS_V3
 _INSTRUMENT_FIELDS = {"symbol", "base_asset", "quote_asset"}
 _CANDLE_FIELDS = {
     "symbol",
@@ -161,7 +163,9 @@ def _parse_manifest(manifest_bytes: bytes) -> DatasetManifest:
     mapping = _mapping(loaded, "dataset manifest")
     schema_version = _string(mapping, "schema_version", "manifest")
     expected_fields = (
-        _MANIFEST_FIELDS_V3
+        _MANIFEST_FIELDS_V4
+        if schema_version == "candle-dataset-v4"
+        else _MANIFEST_FIELDS_V3
         if schema_version == "candle-dataset-v3"
         else _MANIFEST_FIELDS_V2
         if schema_version == "candle-dataset-v2"
@@ -195,32 +199,32 @@ def _parse_manifest(manifest_bytes: bytes) -> DatasetManifest:
             canonical_sha256=_string(mapping, "canonical_sha256", "manifest"),
             closure_manifest_sha256=(
                 _string(mapping, "closure_manifest_sha256", "manifest")
-                if schema_version in {"candle-dataset-v2", "candle-dataset-v3"}
+                if schema_version in {"candle-dataset-v2", "candle-dataset-v3", "candle-dataset-v4"}
                 else None
             ),
             exclusion_manifest_sha256=(
                 _string(mapping, "exclusion_manifest_sha256", "manifest")
-                if schema_version == "candle-dataset-v3"
+                if schema_version in {"candle-dataset-v3", "candle-dataset-v4"}
                 else None
             ),
             segment_manifest_sha256=(
                 _string(mapping, "segment_manifest_sha256", "manifest")
-                if schema_version in {"candle-dataset-v2", "candle-dataset-v3"}
+                if schema_version in {"candle-dataset-v2", "candle-dataset-v3", "candle-dataset-v4"}
                 else None
             ),
             closure_count=(
                 _integer(mapping, "closure_count", "manifest")
-                if schema_version in {"candle-dataset-v2", "candle-dataset-v3"}
+                if schema_version in {"candle-dataset-v2", "candle-dataset-v3", "candle-dataset-v4"}
                 else 0
             ),
             exclusion_count=(
                 _integer(mapping, "exclusion_count", "manifest")
-                if schema_version == "candle-dataset-v3"
+                if schema_version in {"candle-dataset-v3", "candle-dataset-v4"}
                 else 0
             ),
             segment_count=(
                 _integer(mapping, "segment_count", "manifest")
-                if schema_version in {"candle-dataset-v2", "candle-dataset-v3"}
+                if schema_version in {"candle-dataset-v2", "candle-dataset-v3", "candle-dataset-v4"}
                 else 1
             ),
         )
@@ -243,7 +247,25 @@ def _verify_content_identity(
         raise DatasetVerificationError("dataset identity mismatch")
     if hashlib.sha256(canonical_bytes).hexdigest() != manifest.canonical_sha256:
         raise DatasetVerificationError("canonical content hash mismatch")
-    if manifest.schema_version == "candle-dataset-v3":
+    if manifest.schema_version == "candle-dataset-v4":
+        if (
+            closure_manifest_bytes is None
+            or exclusion_manifest_bytes is None
+            or segment_manifest_bytes is None
+        ):
+            raise DatasetVerificationError("v4 supporting evidence is missing")
+        expected_id = dataset_id_v4(
+            provider=manifest.provider,
+            instrument=manifest.instrument,
+            timeframe=manifest.timeframe,
+            start_time=manifest.start_time,
+            end_time=manifest.end_time,
+            canonical_bytes=canonical_bytes,
+            closure_manifest_bytes=closure_manifest_bytes,
+            exclusion_manifest_bytes=exclusion_manifest_bytes,
+            segment_manifest_bytes=segment_manifest_bytes,
+        )
+    elif manifest.schema_version == "candle-dataset-v3":
         if (
             closure_manifest_bytes is None
             or exclusion_manifest_bytes is None
@@ -370,6 +392,7 @@ def load_verified_dataset(
     *,
     require_v2: bool = False,
     require_v3: bool = False,
+    require_v4: bool = False,
 ) -> VerifiedDataset:
     """Load and independently verify one immutable canonical dataset."""
 
@@ -380,19 +403,25 @@ def load_verified_dataset(
             raise DatasetVerificationError("sealed dataset loading requires candle-dataset-v2")
         if require_v3 and manifest.schema_version != "candle-dataset-v3":
             raise DatasetVerificationError("sealed dataset loading requires candle-dataset-v3")
+        if require_v4 and manifest.schema_version != "candle-dataset-v4":
+            raise DatasetVerificationError("sealed dataset loading requires candle-dataset-v4")
         closure_manifest = None
         exclusion_manifest = None
         segment_manifest = None
         closure_manifest_bytes = None
         exclusion_manifest_bytes = None
         segment_manifest_bytes = None
-        if manifest.schema_version in {"candle-dataset-v2", "candle-dataset-v3"}:
+        if manifest.schema_version in {
+            "candle-dataset-v2",
+            "candle-dataset-v3",
+            "candle-dataset-v4",
+        }:
             closure_manifest_bytes, segment_manifest_bytes = (
                 store.read_dataset_supporting_manifests(dataset_id_value)
             )
             closure_manifest = load_exchange_closure_manifest(closure_manifest_bytes)
             segment_manifest = load_candle_segment_manifest(segment_manifest_bytes)
-            if manifest.schema_version == "candle-dataset-v3":
+            if manifest.schema_version in {"candle-dataset-v3", "candle-dataset-v4"}:
                 exclusion_manifest_bytes = store.read_dataset_exclusion_manifest_bytes(
                     dataset_id_value
                 )
@@ -418,6 +447,11 @@ def load_verified_dataset(
             if exclusion_manifest is not None:
                 if len(exclusion_manifest.exclusions) != manifest.exclusion_count:
                     raise DatasetVerificationError("exclusion count mismatch")
+                if manifest.schema_version == "candle-dataset-v4":
+                    closure_ids = tuple(item.closure_id for item in closure_manifest.closures)
+                    exclusion_ids = tuple(item.closure_id for item in exclusion_manifest.exclusions)
+                    if exclusion_ids != closure_ids:
+                        raise DatasetVerificationError("exclusion declaration order mismatch")
                 declarations = {item.closure_id: item for item in closure_manifest.closures}
                 for exclusion in exclusion_manifest.exclusions:
                     declaration = declarations.get(exclusion.closure_id)

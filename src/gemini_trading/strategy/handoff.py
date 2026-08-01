@@ -18,7 +18,7 @@ from gemini_trading.strategy.errors import DatasetHandoffError, HistoricalValida
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 _GIT_COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 _IDENTITY_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
-_SCHEMA_VERSION = "sealed-dataset-handoff-v3"
+_SCHEMA_VERSION = "sealed-dataset-handoff-v4"
 _REPOSITORY = "muhamedsohaib/gemini-trading"
 _WORKFLOW_NAME = "sealed-btcusdt-dataset"
 _JOB_NAME = "dataset"
@@ -29,10 +29,9 @@ _QUOTE_ASSET = "USDT"
 _INTERVAL = "4h"
 _START = "2018-01-01T00:00:00Z"
 _END_EXCLUSIVE = "2026-07-01T00:00:00Z"
-_CLOSURE_ID = "binance-spot-system-upgrade-2018-02-08"
-_PROVIDER_ROW_SHA256 = (
-    "6d0ed02c75960a3acf11073a2b7276e0bdc04f217fc99a488b15a5ff68e70775"  # pragma: allowlist secret
-)
+_LAST_OPEN = "2026-06-30T20:00:00Z"
+_EXPECTED_COUNTS = (20, 20, 21)
+_EXPECTED_CANDLE_COUNT = 18_582
 _ALLOWED_FIELDS = {
     "schema_version",
     "repository",
@@ -61,7 +60,7 @@ _ALLOWED_FIELDS = {
     "exclusion_count",
     "segment_count",
     "closure_ids",
-    "excluded_provider_row_sha256",
+    "excluded_provider_rows",
     "segment_boundary_indices",
     "candle_count",
     "first_open_time",
@@ -72,6 +71,7 @@ _ALLOWED_FIELDS = {
     "inventory_root_sha256",
 }
 _FILE_FIELDS = {"path", "size_bytes", "sha256"}
+_EXCLUDED_ROW_FIELDS = {"closure_id", "provider_row_sha256"}
 
 
 def _require_sha256(value: str, field_name: str) -> str:
@@ -106,6 +106,18 @@ class ArtifactInventoryEntry:
             raise HistoricalValidationError("invalid artifact size")
         if _SHA256_PATTERN.fullmatch(self.sha256) is None:
             raise HistoricalValidationError("invalid artifact SHA-256")
+
+
+@dataclass(frozen=True, slots=True)
+class ExcludedProviderRow:
+    """One exact closure-to-provider-row identity in handoff order."""
+
+    closure_id: str
+    provider_row_sha256: str
+
+    def __post_init__(self) -> None:
+        _require_identity(self.closure_id, "excluded row closure ID")
+        _require_sha256(self.provider_row_sha256, "excluded provider row SHA-256")
 
 
 def validate_artifact_relative_path(value: str) -> str:
@@ -211,7 +223,7 @@ class DatasetHandoffManifest:
     exclusion_count: int
     segment_count: int
     closure_ids: tuple[str, ...]
-    excluded_provider_row_sha256: str
+    excluded_provider_rows: tuple[ExcludedProviderRow, ...]
     segment_boundary_indices: tuple[int, ...]
     candle_count: int
     first_open_time: str
@@ -245,8 +257,8 @@ class DatasetHandoffManifest:
             raise DatasetHandoffError("dataset handoff historical window mismatch")
         _require_identity(self.run_id, "retrieval run ID")
         _require_sha256(self.dataset_id, "dataset ID")
-        if self.dataset_schema_version != "candle-dataset-v3":
-            raise DatasetHandoffError("dataset handoff requires candle-dataset-v3")
+        if self.dataset_schema_version != "candle-dataset-v4":
+            raise DatasetHandoffError("dataset handoff requires candle-dataset-v4")
         object.__setattr__(
             self,
             "closure_manifest_path",
@@ -265,21 +277,24 @@ class DatasetHandoffManifest:
         _require_sha256(self.closure_manifest_sha256, "closure manifest SHA-256")
         _require_sha256(self.exclusion_manifest_sha256, "exclusion manifest SHA-256")
         _require_sha256(self.segment_manifest_sha256, "segment manifest SHA-256")
-        _require_positive_int(self.closure_count, "closure count")
-        _require_positive_int(self.exclusion_count, "exclusion count")
-        _require_positive_int(self.segment_count, "segment count")
-        if (self.closure_count, self.exclusion_count, self.segment_count) != (1, 1, 2):
+        if (self.closure_count, self.exclusion_count, self.segment_count) != _EXPECTED_COUNTS:
             raise DatasetHandoffError("dataset handoff evidence counts mismatch")
         if len(self.closure_ids) != self.closure_count:
             raise DatasetHandoffError("dataset handoff closure count mismatch")
-        if not self.closure_ids or len(set(self.closure_ids)) != len(self.closure_ids):
-            raise DatasetHandoffError("invalid dataset handoff closure IDs")
+        if len(set(self.closure_ids)) != len(self.closure_ids):
+            raise DatasetHandoffError("duplicate dataset handoff closure ID")
         for closure_id in self.closure_ids:
             _require_identity(closure_id, "closure ID")
-        if self.closure_ids != (_CLOSURE_ID,):
-            raise DatasetHandoffError("dataset handoff closure identity mismatch")
-        if self.excluded_provider_row_sha256 != _PROVIDER_ROW_SHA256:
-            raise DatasetHandoffError("dataset handoff excluded row identity mismatch")
+        if len(self.excluded_provider_rows) != self.exclusion_count:
+            raise DatasetHandoffError("dataset handoff excluded row count mismatch")
+        excluded_closure_ids = tuple(item.closure_id for item in self.excluded_provider_rows)
+        excluded_digests = tuple(item.provider_row_sha256 for item in self.excluded_provider_rows)
+        if excluded_closure_ids != self.closure_ids:
+            raise DatasetHandoffError("dataset handoff excluded row order mismatch")
+        if len(set(excluded_closure_ids)) != len(excluded_closure_ids):
+            raise DatasetHandoffError("duplicate dataset handoff excluded closure ID")
+        if len(set(excluded_digests)) != len(excluded_digests):
+            raise DatasetHandoffError("duplicate dataset handoff excluded row digest")
         if len(self.segment_boundary_indices) != self.closure_count:
             raise DatasetHandoffError("dataset handoff segment boundary count mismatch")
         if tuple(sorted(self.segment_boundary_indices)) != self.segment_boundary_indices:
@@ -288,8 +303,9 @@ class DatasetHandoffManifest:
             raise DatasetHandoffError("duplicate dataset handoff segment boundary")
         for boundary_index in self.segment_boundary_indices:
             _require_positive_int(boundary_index, "segment boundary index")
-        _require_positive_int(self.candle_count, "candle count")
-        if self.first_open_time != _START or self.last_open_time != "2026-06-30T20:00:00Z":
+        if self.candle_count != _EXPECTED_CANDLE_COUNT:
+            raise DatasetHandoffError("dataset handoff candle count mismatch")
+        if self.first_open_time != _START or self.last_open_time != _LAST_OPEN:
             raise DatasetHandoffError("dataset handoff candle boundary mismatch")
         if self.replay_status != "completed" or self.verification_status != "verified":
             raise DatasetHandoffError("dataset handoff is not verified")
@@ -335,7 +351,13 @@ def _handoff_payload(manifest: DatasetHandoffManifest) -> dict[str, object]:
         "exclusion_count": manifest.exclusion_count,
         "segment_count": manifest.segment_count,
         "closure_ids": list(manifest.closure_ids),
-        "excluded_provider_row_sha256": manifest.excluded_provider_row_sha256,
+        "excluded_provider_rows": [
+            {
+                "closure_id": item.closure_id,
+                "provider_row_sha256": item.provider_row_sha256,
+            }
+            for item in manifest.excluded_provider_rows
+        ],
         "segment_boundary_indices": list(manifest.segment_boundary_indices),
         "candle_count": manifest.candle_count,
         "first_open_time": manifest.first_open_time,
@@ -404,6 +426,23 @@ def _strings(mapping: dict[str, object], key: str) -> tuple[str, ...]:
     return tuple(cast(list[str], raw_values))
 
 
+def _excluded_rows(mapping: dict[str, object]) -> tuple[ExcludedProviderRow, ...]:
+    value = mapping.get("excluded_provider_rows")
+    if not isinstance(value, list):
+        raise DatasetHandoffError("invalid dataset handoff field: excluded_provider_rows")
+    rows: list[ExcludedProviderRow] = []
+    for raw_row in cast(list[object], value):
+        row_mapping = _mapping(raw_row, "excluded provider row")
+        _exact_fields(row_mapping, _EXCLUDED_ROW_FIELDS, "excluded provider row")
+        rows.append(
+            ExcludedProviderRow(
+                closure_id=_str(row_mapping, "closure_id"),
+                provider_row_sha256=_str(row_mapping, "provider_row_sha256"),
+            )
+        )
+    return tuple(rows)
+
+
 def load_dataset_handoff(raw: bytes) -> DatasetHandoffManifest:
     """Parse exact canonical handoff bytes and reject alternate encodings or fields."""
 
@@ -455,7 +494,7 @@ def load_dataset_handoff(raw: bytes) -> DatasetHandoffManifest:
         exclusion_count=_int(mapping, "exclusion_count"),
         segment_count=_int(mapping, "segment_count"),
         closure_ids=_strings(mapping, "closure_ids"),
-        excluded_provider_row_sha256=_str(mapping, "excluded_provider_row_sha256"),
+        excluded_provider_rows=_excluded_rows(mapping),
         segment_boundary_indices=_integers(mapping, "segment_boundary_indices"),
         candle_count=_int(mapping, "candle_count"),
         first_open_time=_str(mapping, "first_open_time"),
@@ -509,14 +548,24 @@ def verify_dataset_handoff(
             raise DatasetHandoffError("closure count mismatch")
         if len(exclusion_manifest.exclusions) != manifest.exclusion_count:
             raise DatasetHandoffError("exclusion count mismatch")
-        exclusion_closure_ids = tuple(item.closure_id for item in exclusion_manifest.exclusions)
-        if exclusion_closure_ids != closure_ids:
+        evidence_pairs = tuple(
+            ExcludedProviderRow(
+                closure_id=item.closure_id,
+                provider_row_sha256=item.provider_row_sha256,
+            )
+            for item in exclusion_manifest.exclusions
+        )
+        if evidence_pairs != manifest.excluded_provider_rows:
+            raise DatasetHandoffError("excluded provider row identity mismatch")
+        if tuple(item.closure_id for item in evidence_pairs) != closure_ids:
             raise DatasetHandoffError("exclusion closure ID mismatch")
-        if (
-            exclusion_manifest.exclusions[0].provider_row_sha256
-            != manifest.excluded_provider_row_sha256
+        for closure, exclusion in zip(
+            closure_manifest.closures,
+            exclusion_manifest.exclusions,
+            strict=True,
         ):
-            raise DatasetHandoffError("excluded provider row mismatch")
+            if closure.partial_candle.provider_row_sha256 != exclusion.provider_row_sha256:
+                raise DatasetHandoffError("closure and exclusion row identity mismatch")
         if segment_manifest.boundary_indices != manifest.segment_boundary_indices:
             raise DatasetHandoffError("segment boundary mismatch")
         if len(segment_manifest.segments) != manifest.segment_count:
@@ -541,6 +590,7 @@ def verify_dataset_handoff(
 __all__ = [
     "ArtifactInventoryEntry",
     "DatasetHandoffManifest",
+    "ExcludedProviderRow",
     "build_artifact_inventory",
     "inventory_root_sha256",
     "load_dataset_handoff",

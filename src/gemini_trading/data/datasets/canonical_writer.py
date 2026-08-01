@@ -129,6 +129,37 @@ def dataset_id_v3(
     return hashlib.sha256(canonical_json_bytes(identity_payload)).hexdigest()
 
 
+def dataset_id_v4(
+    *,
+    provider: str,
+    instrument: Instrument,
+    timeframe: Timeframe,
+    start_time: datetime,
+    end_time: datetime,
+    canonical_bytes: bytes,
+    closure_manifest_bytes: bytes,
+    exclusion_manifest_bytes: bytes,
+    segment_manifest_bytes: bytes,
+) -> str:
+    """Bind canonical candles and all exact supporting evidence into v4 identity."""
+
+    if not provider.strip():
+        raise ValueError("provider must not be empty")
+    identity_payload: dict[str, object] = {
+        "schema_version": "candle-dataset-v4",
+        "provider": provider,
+        "instrument": _instrument_payload(instrument),
+        "timeframe": timeframe.value,
+        "start_time": _format_datetime(start_time),
+        "end_time": _format_datetime(end_time),
+        "canonical_sha256": hashlib.sha256(canonical_bytes).hexdigest(),
+        "closure_manifest_sha256": hashlib.sha256(closure_manifest_bytes).hexdigest(),
+        "exclusion_manifest_sha256": hashlib.sha256(exclusion_manifest_bytes).hexdigest(),
+        "segment_manifest_sha256": hashlib.sha256(segment_manifest_bytes).hexdigest(),
+    }
+    return hashlib.sha256(canonical_json_bytes(identity_payload)).hexdigest()
+
+
 def build_dataset_manifest(
     *,
     schema_version: str,
@@ -151,29 +182,50 @@ def build_dataset_manifest(
     candle_values = tuple(candles)
     if not candle_values:
         raise ValueError("canonical dataset must contain at least one candle")
-    if schema_version in {"candle-dataset-v2", "candle-dataset-v3"}:
+    sealed_schemas = {
+        "candle-dataset-v2",
+        "candle-dataset-v3",
+        "candle-dataset-v4",
+    }
+    exclusion_schemas = {"candle-dataset-v3", "candle-dataset-v4"}
+    if schema_version in sealed_schemas:
         if closure_manifest_bytes is None or segment_manifest_bytes is None:
             raise ValueError("sealed datasets require supporting manifest bytes")
         closure_sha256 = hashlib.sha256(closure_manifest_bytes).hexdigest()
         segment_sha256 = hashlib.sha256(segment_manifest_bytes).hexdigest()
-        if schema_version == "candle-dataset-v3":
+        if schema_version in exclusion_schemas:
             if exclusion_manifest_bytes is None:
-                raise ValueError("candle-dataset-v3 requires exclusion manifest bytes")
-            identity = dataset_id_v3(
-                provider=provider,
-                instrument=instrument,
-                timeframe=timeframe,
-                start_time=start_time,
-                end_time=end_time,
-                canonical_bytes=canonical_bytes,
-                closure_manifest_bytes=closure_manifest_bytes,
-                exclusion_manifest_bytes=exclusion_manifest_bytes,
-                segment_manifest_bytes=segment_manifest_bytes,
-            )
+                raise ValueError(f"{schema_version} requires exclusion manifest bytes")
+            if schema_version == "candle-dataset-v3":
+                identity = dataset_id_v3(
+                    provider=provider,
+                    instrument=instrument,
+                    timeframe=timeframe,
+                    start_time=start_time,
+                    end_time=end_time,
+                    canonical_bytes=canonical_bytes,
+                    closure_manifest_bytes=closure_manifest_bytes,
+                    exclusion_manifest_bytes=exclusion_manifest_bytes,
+                    segment_manifest_bytes=segment_manifest_bytes,
+                )
+            else:
+                identity = dataset_id_v4(
+                    provider=provider,
+                    instrument=instrument,
+                    timeframe=timeframe,
+                    start_time=start_time,
+                    end_time=end_time,
+                    canonical_bytes=canonical_bytes,
+                    closure_manifest_bytes=closure_manifest_bytes,
+                    exclusion_manifest_bytes=exclusion_manifest_bytes,
+                    segment_manifest_bytes=segment_manifest_bytes,
+                )
             exclusion_sha256 = hashlib.sha256(exclusion_manifest_bytes).hexdigest()
         else:
             if exclusion_manifest_bytes is not None:
-                raise ValueError("exclusion manifest bytes require candle-dataset-v3")
+                raise ValueError(
+                    "exclusion manifest bytes require candle-dataset-v3 or candle-dataset-v4"
+                )
             identity = dataset_id_v2(
                 provider=provider,
                 instrument=instrument,
@@ -237,7 +289,11 @@ def serialize_dataset_manifest(manifest: DatasetManifest) -> bytes:
         "candle_count": manifest.candle_count,
         "canonical_sha256": manifest.canonical_sha256,
     }
-    if manifest.schema_version in {"candle-dataset-v2", "candle-dataset-v3"}:
+    if manifest.schema_version in {
+        "candle-dataset-v2",
+        "candle-dataset-v3",
+        "candle-dataset-v4",
+    }:
         payload.update(
             {
                 "closure_manifest_sha256": manifest.closure_manifest_sha256,
@@ -246,7 +302,7 @@ def serialize_dataset_manifest(manifest: DatasetManifest) -> bytes:
                 "segment_count": manifest.segment_count,
             }
         )
-        if manifest.schema_version == "candle-dataset-v3":
+        if manifest.schema_version in {"candle-dataset-v3", "candle-dataset-v4"}:
             payload.update(
                 {
                     "exclusion_manifest_sha256": manifest.exclusion_manifest_sha256,

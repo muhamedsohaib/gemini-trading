@@ -3,23 +3,32 @@
 from __future__ import annotations
 
 import json
-from dataclasses import replace
-from datetime import timedelta
+from dataclasses import dataclass, replace
 from decimal import Decimal
 from pathlib import Path
 from typing import cast
 
+import pytest
+
 from candidate_strategy_e2e_worker import synthetic_candidate_candles
+from fixtures.market_data.multi_closure_btcusdt_4h import (
+    CANDLES as FIXED_CANDLES,
+)
+from fixtures.market_data.multi_closure_btcusdt_4h import (
+    EXPECTED_BOUNDARIES,
+    EXPECTED_CANDLE_COUNT,
+    REQUEST,
+)
+from fixtures.market_data.multi_closure_btcusdt_4h import (
+    MANIFEST as CLOSURE_MANIFEST,
+)
+from fixtures.market_data.multi_closure_btcusdt_4h import (
+    MANIFEST_BYTES as CLOSURE_MANIFEST_BYTES,
+)
 from gemini_trading.data.datasets.canonical_writer import (
     build_dataset_manifest,
     serialize_candles,
     serialize_dataset_manifest,
-)
-from gemini_trading.data.exchange_closures import (
-    ExchangeClosure,
-    ExchangeClosureManifest,
-    PartialCandleDeclaration,
-    serialize_exchange_closure_manifest,
 )
 from gemini_trading.data.exclusions import (
     CandleExclusion,
@@ -27,144 +36,261 @@ from gemini_trading.data.exclusions import (
     serialize_candle_exclusion_manifest,
 )
 from gemini_trading.data.segments import (
-    CandleSegment,
     CandleSegmentManifest,
     serialize_candle_segment_manifest,
+    validate_and_segment_candle_sequence,
 )
 from gemini_trading.data.storage.local_immutable import LocalImmutableStore, write_immutable
+from gemini_trading.domain.candle import Candle
 from gemini_trading.research.artifacts import LocalResearchStore
+from gemini_trading.research.config import SimulationConfig
 from gemini_trading.research.dataset_reader import VerifiedDataset
+from gemini_trading.strategy import sealed_evaluator
 from gemini_trading.strategy.artifacts import REQUIRED_STUDY_ARTIFACT_NAMES
 from gemini_trading.strategy.evaluator import reconstruct_study_strategy
+from gemini_trading.strategy.features import FeatureMatrix
 from gemini_trading.strategy.final_access import FinalAccessStore
 from gemini_trading.strategy.handoff import (
     DatasetHandoffManifest,
+    ExcludedProviderRow,
     build_artifact_inventory,
     inventory_root_sha256,
     serialize_dataset_handoff,
 )
+from gemini_trading.strategy.labels import LabelVector
+from gemini_trading.strategy.policy import CandidatePolicy
 from gemini_trading.strategy.sealed_evaluator import (
-    build_candidate_preparation,
+    CandidatePreparation,
     complete_candidate_strategy_study,
     final_access_identity,
     prepare_candidate_strategy_study,
+)
+from gemini_trading.strategy.sealed_evaluator import (
+    build_candidate_preparation as build_candidate_preparation_unbounded,
+)
+from gemini_trading.strategy.splits import ChronologicalSplitPlan
+from gemini_trading.strategy.study import StudyPhase
+from gemini_trading.strategy.study_plans import (
+    build_split_plan as build_split_plan_unbounded,
+)
+from gemini_trading.strategy.study_predictions import (
+    PredictionBundle,
+)
+from gemini_trading.strategy.study_predictions import (
+    fit_prediction_bundle as fit_prediction_bundle_unbounded,
 )
 from gemini_trading.strategy.verification import StrategyStudyVerificationService
 from strategy_fixture_support import base_simulation
 
 _CODE_COMMIT = "a" * 40
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
-_CLOSURE_ID = "binance-spot-system-upgrade-2018-02-08"
-_APPROVED_ROW_SHA256 = (
-    "6d0ed02c75960a3acf11073a2b7276e0bdc04f217fc99a488b15a5ff68e70775"  # pragma: allowlist secret
-)
+_MAX_TRAINING_ROWS = 1_000
+_MAX_CALIBRATION_ROWS = 1_000
+_MAX_DECISION_ROWS = 64
+_FINAL_CALIBRATION_ROWS = 512
+
+
+@dataclass(frozen=True, slots=True)
+class _StoredResearchVerification:
+    result_id: str
+
+
+def _stored_research_verifier(
+    root: Path,
+    experiment_id: str,
+) -> _StoredResearchVerification:
+    manifest = cast(
+        dict[str, object],
+        json.loads(
+            LocalResearchStore(root).read_artifact(
+                experiment_id,
+                "result-manifest.json",
+            )
+        ),
+    )
+    result_id = manifest.get("result_id")
+    if not isinstance(result_id, str):
+        raise AssertionError("stored research result identity is missing")
+    return _StoredResearchVerification(result_id=result_id)
+
+
+def _bounded_prediction_bundle(
+    *,
+    phase: StudyPhase,
+    fold_number: int | None,
+    matrix: FeatureMatrix,
+    labels: LabelVector,
+    policy: CandidatePolicy,
+    training_indices: tuple[int, ...],
+    calibration_indices: tuple[int, ...],
+    prediction_indices: tuple[int, ...],
+) -> PredictionBundle:
+    """Fit real deterministic specialists on bounded integration-only windows."""
+
+    return fit_prediction_bundle_unbounded(
+        phase=phase,
+        fold_number=fold_number,
+        matrix=matrix,
+        labels=labels,
+        policy=policy,
+        training_indices=training_indices[:_MAX_TRAINING_ROWS],
+        calibration_indices=calibration_indices[:_MAX_CALIBRATION_ROWS],
+        prediction_indices=prediction_indices,
+    )
+
+
+def _bounded_split_plan(
+    candles: tuple[Candle, ...],
+    eligible_indices: tuple[int, ...],
+    policy: CandidatePolicy,
+    segment_manifest: CandleSegmentManifest | None = None,
+) -> tuple[ChronologicalSplitPlan, bool]:
+    """Retain exact boundaries while bounding integration decision work."""
+
+    plan, history_requirement_met = build_split_plan_unbounded(
+        candles,
+        eligible_indices,
+        policy,
+        segment_manifest,
+    )
+    selected_folds = plan.folds[: policy.minimum_development_folds]
+    folds = tuple(
+        replace(
+            fold,
+            development_test_indices=fold.development_test_indices[
+                : (
+                    _FINAL_CALIBRATION_ROWS
+                    if fold_index == len(selected_folds) - 1
+                    else _MAX_DECISION_ROWS
+                )
+            ],
+        )
+        for fold_index, fold in enumerate(selected_folds)
+    )
+    return (
+        replace(
+            plan,
+            folds=folds,
+            final_test_indices=plan.final_test_indices[:_MAX_DECISION_ROWS],
+        ),
+        history_requirement_met,
+    )
+
+
+@pytest.fixture(autouse=True)
+def bound_integration_training(monkeypatch: pytest.MonkeyPatch) -> None:
+    preparation_cache: dict[bool, CandidatePreparation] = {}
+
+    def cached_candidate_preparation(
+        *,
+        dataset: VerifiedDataset,
+        simulation: SimulationConfig,
+        initial_cash: Decimal,
+        include_final: bool,
+    ) -> CandidatePreparation:
+        cached = preparation_cache.get(include_final)
+        if cached is None:
+            cached = build_candidate_preparation_unbounded(
+                dataset=dataset,
+                simulation=simulation,
+                initial_cash=initial_cash,
+                include_final=include_final,
+            )
+            preparation_cache[include_final] = cached
+        return cached
+
+    monkeypatch.setattr(
+        sealed_evaluator,
+        "fit_prediction_bundle",
+        _bounded_prediction_bundle,
+    )
+    monkeypatch.setattr(
+        sealed_evaluator,
+        "build_split_plan",
+        _bounded_split_plan,
+    )
+    monkeypatch.setattr(
+        sealed_evaluator,
+        "build_candidate_preparation",
+        cached_candidate_preparation,
+    )
 
 
 def _verified_dataset(root: Path) -> VerifiedDataset:
     source_candles = synthetic_candidate_candles()
-    closure_duration = timedelta(hours=28)
-    candles = (
-        source_candles[0],
-        *(
-            replace(
-                candle,
-                open_time=candle.open_time + closure_duration,
-                close_time=candle.close_time + closure_duration,
-            )
-            for candle in source_candles[1:]
-        ),
+    first_open = source_candles[0].open
+    cycle_factor = source_candles[-1].close / first_open
+    price_quantum = Decimal("0.01")
+    candles = tuple(
+        replace(
+            source_candles[index % len(source_candles)],
+            instrument=fixed.instrument,
+            timeframe=fixed.timeframe,
+            open_time=fixed.open_time,
+            close_time=fixed.close_time,
+            open=(
+                source_candles[index % len(source_candles)].open
+                * (cycle_factor ** (index // len(source_candles)))
+            ).quantize(price_quantum),
+            high=(
+                source_candles[index % len(source_candles)].high
+                * (cycle_factor ** (index // len(source_candles)))
+            ).quantize(price_quantum),
+            low=(
+                source_candles[index % len(source_candles)].low
+                * (cycle_factor ** (index // len(source_candles)))
+            ).quantize(price_quantum),
+            close=(
+                source_candles[index % len(source_candles)].close
+                * (cycle_factor ** (index // len(source_candles)))
+            ).quantize(price_quantum),
+            source_provider=fixed.source_provider,
+        )
+        for index, fixed in enumerate(FIXED_CANDLES)
     )
+    if len(candles) != EXPECTED_CANDLE_COUNT:
+        raise AssertionError("fixed dataset candle count mismatch")
     canonical_bytes = serialize_candles(candles)
-    boundary = 1
-    synthetic_gap_start = candles[0].open_time + candles[0].timeframe.duration
-    synthetic_expected_close = (
-        synthetic_gap_start + candles[0].timeframe.duration - timedelta(milliseconds=1)
-    )
-    closure_manifest = ExchangeClosureManifest(
-        schema_version="exchange-closure-manifest-v2",
-        provider="binance_spot",
-        instrument=candles[0].instrument,
-        timeframe=candles[0].timeframe,
-        start_time=candles[0].open_time,
-        end_time=candles[-1].close_time + timedelta(milliseconds=1),
-        closures=(
-            ExchangeClosure(
-                closure_id=_CLOSURE_ID,
-                canonical_gap_start=synthetic_gap_start,
-                resumed_open=candles[boundary].open_time,
-                unavailable_candle_count=7,
-                fully_missing_start=synthetic_gap_start + candles[0].timeframe.duration,
-                fully_missing_candle_count=6,
-                reason_code="exchange_system_upgrade",
-                governance_reference="synthetic-sealed-test",
-                partial_candle=PartialCandleDeclaration(
-                    open_time=synthetic_gap_start,
-                    actual_close_time=synthetic_gap_start + timedelta(minutes=28),
-                    expected_close_time=synthetic_expected_close,
-                    provider_row_sha256=_APPROVED_ROW_SHA256,
-                    exclusion_reason="synthetic_exchange_closed_mid_candle",
-                ),
-            ),
-        ),
-    )
-    closure_bytes = serialize_exchange_closure_manifest(closure_manifest)
     exclusion_manifest = CandleExclusionManifest(
         schema_version="candle-exclusion-manifest-v1",
-        exclusions=(
+        exclusions=tuple(
             CandleExclusion(
-                closure_id=_CLOSURE_ID,
-                raw_page_sequence=1,
-                raw_page_sha256="1" * 64,
-                row_index=boundary,
-                provider_row_sha256=_APPROVED_ROW_SHA256,
-                open_time=synthetic_gap_start,
-                actual_close_time=synthetic_gap_start + timedelta(minutes=28),
-                expected_close_time=synthetic_expected_close,
-                exclusion_reason="synthetic_exchange_closed_mid_candle",
-                canonical_index_before_removal=boundary,
-            ),
+                closure_id=closure.closure_id,
+                raw_page_sequence=index + 1,
+                raw_page_sha256=f"{index + 1:064x}",
+                row_index=index,
+                provider_row_sha256=closure.partial_candle.provider_row_sha256,
+                open_time=closure.partial_candle.open_time,
+                actual_close_time=closure.partial_candle.actual_close_time,
+                expected_close_time=closure.partial_candle.expected_close_time,
+                exclusion_reason=closure.partial_candle.exclusion_reason,
+                canonical_index_before_removal=EXPECTED_BOUNDARIES[index] + index,
+            )
+            for index, closure in enumerate(CLOSURE_MANIFEST.closures)
         ),
     )
     exclusion_bytes = serialize_candle_exclusion_manifest(exclusion_manifest)
-    segment_manifest = CandleSegmentManifest(
-        schema_version="candle-segment-manifest-v1",
-        segments=(
-            CandleSegment(
-                segment_number=1,
-                start_index=0,
-                end_exclusive=boundary,
-                first_open_time=candles[0].open_time,
-                last_open_time=candles[boundary - 1].open_time,
-                candle_count=boundary,
-                preceding_closure_id=None,
-            ),
-            CandleSegment(
-                segment_number=2,
-                start_index=boundary,
-                end_exclusive=len(candles),
-                first_open_time=candles[boundary].open_time,
-                last_open_time=candles[-1].open_time,
-                candle_count=len(candles) - boundary,
-                preceding_closure_id=_CLOSURE_ID,
-            ),
-        ),
+    segment_manifest = validate_and_segment_candle_sequence(
+        candles,
+        REQUEST,
+        CLOSURE_MANIFEST,
     )
     segment_bytes = serialize_candle_segment_manifest(segment_manifest)
     manifest = build_dataset_manifest(
-        schema_version="candle-dataset-v3",
-        provider="binance_spot",
-        instrument=candles[0].instrument,
-        timeframe=candles[0].timeframe,
-        start_time=candles[0].open_time,
-        end_time=candles[-1].close_time + timedelta(milliseconds=1),
+        schema_version="candle-dataset-v4",
+        provider=CLOSURE_MANIFEST.provider,
+        instrument=CLOSURE_MANIFEST.instrument,
+        timeframe=CLOSURE_MANIFEST.timeframe,
+        start_time=REQUEST.start_time,
+        end_time=REQUEST.end_time,
         candles=candles,
         canonical_bytes=canonical_bytes,
-        closure_manifest_bytes=closure_bytes,
+        closure_manifest_bytes=CLOSURE_MANIFEST_BYTES,
         exclusion_manifest_bytes=exclusion_bytes,
         segment_manifest_bytes=segment_bytes,
-        closure_count=1,
-        exclusion_count=1,
-        segment_count=2,
+        closure_count=len(CLOSURE_MANIFEST.closures),
+        exclusion_count=len(exclusion_manifest.exclusions),
+        segment_count=len(segment_manifest.segments),
     )
     store = LocalImmutableStore(root)
     store.write_dataset(
@@ -174,7 +300,7 @@ def _verified_dataset(root: Path) -> VerifiedDataset:
     )
     store.write_dataset_supporting_manifests(
         manifest.dataset_id,
-        closure_bytes,
+        CLOSURE_MANIFEST_BYTES,
         segment_bytes,
     )
     store.write_dataset_exclusion_manifest(manifest.dataset_id, exclusion_bytes)
@@ -182,10 +308,10 @@ def _verified_dataset(root: Path) -> VerifiedDataset:
         manifest=manifest,
         candles=candles,
         canonical_bytes=canonical_bytes,
-        closure_manifest=closure_manifest,
+        closure_manifest=CLOSURE_MANIFEST,
         exclusion_manifest=exclusion_manifest,
         segment_manifest=segment_manifest,
-        closure_manifest_bytes=closure_bytes,
+        closure_manifest_bytes=CLOSURE_MANIFEST_BYTES,
         exclusion_manifest_bytes=exclusion_bytes,
         segment_manifest_bytes=segment_bytes,
     )
@@ -206,7 +332,7 @@ def _handoff(root: Path, dataset: VerifiedDataset) -> DatasetHandoffManifest:
     exclusion_path = (canonical_root / "candle-exclusions.json").relative_to(root).as_posix()
     segment_path = (canonical_root / "candle-segments.json").relative_to(root).as_posix()
     handoff = DatasetHandoffManifest(
-        schema_version="sealed-dataset-handoff-v3",
+        schema_version="sealed-dataset-handoff-v4",
         repository="muhamedsohaib/gemini-trading",
         source_commit=_CODE_COMMIT,
         workflow_name="sealed-btcusdt-dataset",
@@ -222,7 +348,7 @@ def _handoff(root: Path, dataset: VerifiedDataset) -> DatasetHandoffManifest:
         end_exclusive="2026-07-01T00:00:00Z",
         run_id="diagnostic-run",
         dataset_id=dataset_id,
-        dataset_schema_version="candle-dataset-v3",
+        dataset_schema_version=dataset.manifest.schema_version,
         closure_manifest_path=closure_path,
         closure_manifest_sha256=dataset.manifest.closure_manifest_sha256 or "",
         exclusion_manifest_path=exclusion_path,
@@ -235,9 +361,21 @@ def _handoff(root: Path, dataset: VerifiedDataset) -> DatasetHandoffManifest:
         closure_ids=tuple(item.closure_id for item in dataset.closure_manifest.closures)
         if dataset.closure_manifest is not None
         else (),
-        excluded_provider_row_sha256=_APPROVED_ROW_SHA256,
-        segment_boundary_indices=(1,),
-        candle_count=18_618,
+        excluded_provider_rows=tuple(
+            ExcludedProviderRow(
+                closure_id=item.closure_id,
+                provider_row_sha256=item.provider_row_sha256,
+            )
+            for item in dataset.exclusion_manifest.exclusions
+        )
+        if dataset.exclusion_manifest is not None
+        else (),
+        segment_boundary_indices=(
+            dataset.segment_manifest.boundary_indices
+            if dataset.segment_manifest is not None
+            else ()
+        ),
+        candle_count=len(dataset.candles),
         first_open_time="2018-01-01T00:00:00Z",
         last_open_time="2026-06-30T20:00:00Z",
         replay_status="completed",
@@ -256,7 +394,7 @@ def test_prepare_does_not_materialize_final_phase(tmp_path: Path) -> None:
     simulation = base_simulation()
     full_count = len(dataset.candles)
 
-    preparation = build_candidate_preparation(
+    preparation = sealed_evaluator.build_candidate_preparation(
         dataset=dataset,
         simulation=simulation,
         initial_cash=Decimal("10000"),
@@ -301,7 +439,7 @@ def test_complete_requires_matching_durable_receipt(tmp_path: Path) -> None:
         code_commit=_CODE_COMMIT,
         handoff=handoff,
     )
-    preparation = build_candidate_preparation(
+    preparation = sealed_evaluator.build_candidate_preparation(
         dataset=dataset,
         simulation=simulation,
         initial_cash=Decimal("10000"),
@@ -337,10 +475,23 @@ def test_complete_requires_matching_durable_receipt(tmp_path: Path) -> None:
     assert manifest["pre_final_id"] == pre_final.pre_final_id
     assert manifest["dataset_handoff_inventory_root"] == handoff.inventory_root_sha256
     assert manifest["durable_final_access_receipt_id"] == receipt.receipt_id
+    assert manifest["dataset_schema_version"] == "candle-dataset-v4"
+    assert manifest["excluded_provider_rows"] == [
+        {
+            "closure_id": item.closure_id,
+            "provider_row_sha256": item.provider_row_sha256,
+        }
+        for item in handoff.excluded_provider_rows
+    ]
+    assert "excluded_provider_row_sha256" not in manifest
 
     verified = StrategyStudyVerificationService(
         root=tmp_path,
         current_commit_resolver=lambda: _CODE_COMMIT,
+        research_verifier=lambda experiment_id: _stored_research_verifier(
+            tmp_path,
+            experiment_id,
+        ),
         research_strategy_reconstructor=reconstruct_study_strategy,
     ).verify(artifacts.study_id)
     assert {

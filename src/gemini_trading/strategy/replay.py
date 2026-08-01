@@ -17,6 +17,7 @@ from gemini_trading.strategy.artifacts import (
 )
 from gemini_trading.strategy.errors import StudyReplayMismatchError
 from gemini_trading.strategy.evaluation import PromotionClassification
+from gemini_trading.strategy.handoff import ExcludedProviderRow
 from gemini_trading.strategy.study import (
     REQUIRED_DEVELOPMENT_CASE_IDS,
     REQUIRED_FINAL_CASE_IDS,
@@ -56,7 +57,7 @@ _SEALED_STUDY_MANIFEST_KEYS = {
     "exclusion_count",
     "segment_count",
     "closure_ids",
-    "excluded_provider_row_sha256",
+    "excluded_provider_rows",
     "segment_boundary_indices",
 }
 _CASE_KEYS = {
@@ -163,6 +164,30 @@ def _required_positive_int_tuple(
     return tuple(cast(list[int], values))
 
 
+def _required_excluded_rows(
+    mapping: Mapping[str, object], key: str, description: str
+) -> tuple[ExcludedProviderRow, ...]:
+    value = mapping.get(key)
+    if not isinstance(value, list):
+        raise StudyReplayMismatchError(f"invalid {description} field: {key}")
+    rows: list[ExcludedProviderRow] = []
+    for raw_row in cast(list[object], value):
+        if not isinstance(raw_row, dict):
+            raise StudyReplayMismatchError(f"invalid {description} field: {key}")
+        row = cast(dict[object, object], raw_row)
+        if set(row) != {"closure_id", "provider_row_sha256"}:
+            raise StudyReplayMismatchError(f"invalid {description} field: {key}")
+        closure_id = row.get("closure_id")
+        provider_row_sha256 = row.get("provider_row_sha256")
+        if not isinstance(closure_id, str) or not isinstance(provider_row_sha256, str):
+            raise StudyReplayMismatchError(f"invalid {description} field: {key}")
+        try:
+            rows.append(ExcludedProviderRow(closure_id, provider_row_sha256))
+        except Exception:
+            raise StudyReplayMismatchError(f"invalid {description} field: {key}") from None
+    return tuple(rows)
+
+
 @dataclass(frozen=True, slots=True)
 class StoredStrategyStudyManifest:
     """Strict canonical study-level trust-boundary manifest."""
@@ -185,7 +210,7 @@ class StoredStrategyStudyManifest:
     exclusion_count: int | None = None
     segment_count: int | None = None
     closure_ids: tuple[str, ...] = ()
-    excluded_provider_row_sha256: str | None = None
+    excluded_provider_rows: tuple[ExcludedProviderRow, ...] = ()
     segment_boundary_indices: tuple[int, ...] = ()
 
 
@@ -305,17 +330,14 @@ def parse_study_manifest(raw: bytes) -> StoredStrategyStudyManifest:
             if sealed
             else ()
         ),
-        excluded_provider_row_sha256=(
-            _sha256(
-                _required_str(
-                    mapping,
-                    "excluded_provider_row_sha256",
-                    "strategy study manifest",
-                ),
-                "excluded provider-row identity",
+        excluded_provider_rows=(
+            _required_excluded_rows(
+                mapping,
+                "excluded_provider_rows",
+                "strategy study manifest",
             )
             if sealed
-            else None
+            else ()
         ),
         segment_boundary_indices=(
             _required_positive_int_tuple(
@@ -330,18 +352,27 @@ def parse_study_manifest(raw: bytes) -> StoredStrategyStudyManifest:
     if manifest.final_evaluation_count != 1:
         raise StudyReplayMismatchError("final-test receipt must record exactly one evaluation")
     if sealed:
-        if manifest.dataset_schema_version != "candle-dataset-v3":
-            raise StudyReplayMismatchError("sealed study requires candle-dataset-v3")
+        if manifest.dataset_schema_version != "candle-dataset-v4":
+            raise StudyReplayMismatchError("sealed study requires candle-dataset-v4")
         if manifest.closure_count is None or manifest.closure_count < 1:
             raise StudyReplayMismatchError("invalid sealed study closure count")
         if manifest.exclusion_count != manifest.closure_count:
             raise StudyReplayMismatchError("invalid sealed study exclusion count")
         if manifest.segment_count != manifest.closure_count + 1:
             raise StudyReplayMismatchError("invalid sealed study segment count")
-        if manifest.excluded_provider_row_sha256 is None:
-            raise StudyReplayMismatchError("sealed study lacks excluded row identity")
+        if len(manifest.excluded_provider_rows) != manifest.exclusion_count:
+            raise StudyReplayMismatchError("invalid sealed study excluded row count")
         if len(manifest.closure_ids) != manifest.closure_count:
             raise StudyReplayMismatchError("invalid sealed study closure IDs")
+        if (
+            tuple(item.closure_id for item in manifest.excluded_provider_rows)
+            != manifest.closure_ids
+        ):
+            raise StudyReplayMismatchError("invalid sealed study excluded row order")
+        if len({item.provider_row_sha256 for item in manifest.excluded_provider_rows}) != len(
+            manifest.excluded_provider_rows
+        ):
+            raise StudyReplayMismatchError("duplicate sealed study excluded row identity")
         if len(manifest.segment_boundary_indices) != manifest.closure_count:
             raise StudyReplayMismatchError("invalid sealed study segment boundaries")
     if canonical_json_bytes(mapping) != raw:

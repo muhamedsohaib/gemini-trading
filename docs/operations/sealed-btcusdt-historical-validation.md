@@ -24,24 +24,27 @@ Changing any scope, policy, configuration, split, cost, feature, label, model, c
 
 ## Verified exchange-closure and partial-candle evidence
 
-The fixed historical window contains one source-controlled Binance Spot closure declaration:
+The fixed historical window contains 20 independently verified Binance Spot interruption declarations in `config/market-data/sealed-btcusdt-4h-exchange-closures.json` using `exchange-closure-manifest-v3`.
 
-- manifest: `config/market-data/sealed-btcusdt-4h-exchange-closures.json`;
-- schema: `exchange-closure-manifest-v2`;
-- closure ID: `binance-spot-system-upgrade-2018-02-08`;
-- truncated candle open: `2018-02-08T00:00:00Z`;
-- authentic provider close: `2018-02-08T00:28:14.788Z`;
-- expected complete `4h` close: `2018-02-08T03:59:59.999Z`;
-- exact provider-row SHA-256: `6d0ed02c75960a3acf11073a2b7276e0bdc04f217fc99a488b15a5ff68e70775`;
-- effective canonical closure: `[2018-02-08T00:00:00Z, 2018-02-09T08:00:00Z)`;
-- eight unavailable canonical `4h` slots: one exact partial-candle exclusion and seven fully absent opens;
-- resulting canonical segments: two, with the resumed segment beginning at canonical index `228`.
+The immutable fixed identity is:
 
-The raw provider page and truncated row remain byte-for-byte immutable. The row is excluded from canonical completed-`4h` data only after exact row encoding, timestamp, SHA-256, normalized-value, page, and row-index matching. Derived evidence is stored as `candle-exclusions.json` using `candle-exclusion-manifest-v1`. Every missing, duplicate, altered, shifted, additional, overlong, or undeclared partial candle fails closed.
+- 20 structurally valid partial-candle provider rows;
+- 16 fully absent canonical opens;
+- 36 unavailable canonical `4h` slots in total;
+- 20 ordered exact exclusions in `candle-exclusion-manifest-v1`;
+- 21 maximal continuous segments in `candle-segment-manifest-v1`;
+- 18,582 completed canonical candles in `candle-dataset-v4`;
+- first canonical open `2018-01-01T00:00:00Z`;
+- last canonical open `2026-06-30T20:00:00Z`;
+- segment boundaries `(18, 227, 1047, 1092, 1733, 1887, 2593, 2975, 3524, 4062, 4133, 4650, 5042, 5425, 6483, 6791, 7198, 7228, 7886, 8168)`.
 
-The dataset schema is `candle-dataset-v3`. Its identity binds the canonical candle bytes, exact closure-manifest bytes, exact exclusion-manifest bytes, and exact candle-segment-manifest bytes. The fixed valid dataset contains `18,617` canonical candles. The pipeline never inserts, forward-fills, interpolates, zero-fills, repairs, pads, or otherwise fabricates a candle.
+A closure may contain zero fully missing opens. In that case the partial candle is unavailable, `fully_missing_start` equals `resumed_open`, and `unavailable_candle_count` remains one. Every declaration must satisfy exact timeframe arithmetic and must match exactly one immutable provider row by open time, actual close, expected close, normalized values, page location, row location, and SHA-256.
 
-Features, labels, folds, strategy schedules, simulator orders, positions, returns, and final-test access cannot cross a segment boundary. Feature warm-up restarts after the closure. Label outcomes crossing the boundary are omitted. A noncash account or active order at a boundary is a terminal validation failure; no synthetic liquidation is allowed. The approved closure precedes the final 18-month test. Any closure intersecting that final partition requires a new written design gate.
+Raw provider pages and excluded rows remain byte-for-byte immutable. The pipeline never inserts, forward-fills, interpolates, zero-fills, repairs, pads, or otherwise fabricates a candle. Missing, duplicate, changed, reordered, shifted, additional, overlong, undeclared, overlapping, touching, or unused evidence fails closed.
+
+`candle-dataset-v4` binds canonical candle bytes, closure-manifest bytes, exclusion-manifest bytes, and segment-manifest bytes. `sealed-dataset-handoff-v4` additionally binds all ordered `(closure_id, provider_row_sha256)` pairs, the exact counts, all segment boundaries, the first and last opens, replay completion, independent verification, and the sorted artifact inventory root.
+
+Features, labels, folds, strategy schedules, simulator orders, positions, returns, and final-test access cannot cross a segment boundary. Feature warm-up restarts after every interruption. Label outcomes crossing a boundary are omitted. A noncash account or active order at a boundary is a terminal validation failure; no synthetic liquidation is allowed. Every approved interruption precedes the final 18-month test. Any interruption intersecting that final partition requires a new written design gate.
 
 The fixed Stage 1 commands are:
 
@@ -51,7 +54,7 @@ gemini-trading research dataset-replay --run-id <retrieval-run-id> --output-root
 gemini-trading research dataset-verify --dataset-id <dataset-id> --run-id <retrieval-run-id> --output-root <artifact-root>
 ```
 
-There is no operator-provided closure or exclusion path, environment override, dispatch input, or remote policy source.
+There is no operator-provided closure or exclusion path, environment override, dispatch input, or remote policy source. Earlier v1-v3 datasets and handoffs are invalid for the revised study. A completely new Stage 1 v4 run is mandatory after protected merge and exact-main verification.
 
 ## Workflows
 
@@ -106,15 +109,18 @@ Record the following exact Stage 1 evidence on Issue #22:
 - workflow run ID and attempt;
 - artifact name and artifact ID;
 - retrieval run ID;
-- dataset ID and `candle-dataset-v3` schema;
-- closure-manifest path and SHA-256;
+- dataset ID and `candle-dataset-v4` schema;
+- closure-manifest path, SHA-256, and `exchange-closure-manifest-v3` schema;
 - exclusion-manifest path and SHA-256;
 - segment-manifest path and SHA-256;
-- closure count `1`, exclusion count `1`, segment count `2`, exact closure ID, exact excluded provider-row SHA-256, and segment boundary indices `(228,)`;
-- candle count `18,617`;
-- first and last open timestamps;
+- closure count `20`, exclusion count `20`, and segment count `21`;
+- all ordered closure IDs and excluded provider-row SHA-256 identities;
+- all segment boundary indices `(18, 227, 1047, 1092, 1733, 1887, 2593, 2975, 3524, 4062, 4133, 4650, 5042, 5425, 6483, 6791, 7198, 7228, 7886, 8168)`;
+- unavailable canonical-slot count `36` and fully absent-open count `16`;
+- candle count `18,582`;
+- first open `2018-01-01T00:00:00Z` and last open `2026-06-30T20:00:00Z`;
 - inventory root SHA-256;
-- replay result;
+- byte-identical replay result;
 - independent verification result.
 
 Stage 2 remains prohibited until the repository owner posts an Issue #22 comment containing this exact machine-readable marker:

@@ -15,10 +15,7 @@ _SERVER_TIME = datetime(2025, 1, 1, 10, tzinfo=UTC)
 _FIRST_REPLAY_TIME = datetime(2025, 1, 1, 11, tzinfo=UTC)
 _SECOND_REPLAY_TIME = datetime(2025, 1, 1, 12, tzinfo=UTC)
 _FIXTURE = (
-    Path(__file__).parents[1]
-    / "fixtures"
-    / "binance_spot"
-    / "klines_valid_two_pages_page_1.json"
+    Path(__file__).parents[1] / "fixtures" / "binance_spot" / "klines_valid_two_pages_page_1.json"
 )
 
 

@@ -1,11 +1,12 @@
 """Offline reconstruction of canonical datasets from immutable raw evidence."""
 
 import hashlib
+import json
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Protocol
+from typing import Protocol, cast
 
 from gemini_trading.data.datasets.canonical_writer import (
     build_dataset_manifest,
@@ -83,6 +84,8 @@ class ReplayCanonicalStore(Protocol):
 
     def write_dataset_exclusion_manifest(self, dataset_id: str, exclusion_raw: bytes) -> Path: ...
 
+    def read_provenance(self, dataset_id: str, run_id: str) -> bytes: ...
+
     def write_provenance(
         self,
         dataset_id: str,
@@ -97,6 +100,65 @@ def _utc_now() -> datetime:
 
 def _utc_milliseconds(value: datetime) -> int:
     return (value - _EPOCH) // timedelta(milliseconds=1)
+
+
+def _existing_provenance_created_at(raw: bytes) -> datetime:
+    try:
+        loaded: object = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        raise MarketDataError("existing dataset provenance is invalid") from None
+    if not isinstance(loaded, dict):
+        raise MarketDataError("existing dataset provenance is invalid")
+    mapping = cast(dict[object, object], loaded)
+    created_at = mapping.get("created_at")
+    if not isinstance(created_at, str):
+        raise MarketDataError("existing dataset provenance is invalid")
+    try:
+        return datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+    except ValueError:
+        raise MarketDataError("existing dataset provenance is invalid") from None
+
+
+def _replay_provenance_bytes(
+    canonical_store: ReplayCanonicalStore,
+    *,
+    dataset_id: str,
+    run_id: str,
+    page_hashes: tuple[str, ...],
+    retrieval_manifest_sha256: str,
+    clock: Callable[[], datetime],
+) -> bytes:
+    try:
+        existing = canonical_store.read_provenance(dataset_id, run_id)
+    except FileNotFoundError:
+        provenance = build_provenance(
+            schema_version=_PROVENANCE_SCHEMA_VERSION,
+            dataset_id=dataset_id,
+            run_id=run_id,
+            page_hashes=page_hashes,
+            retrieval_manifest_sha256=retrieval_manifest_sha256,
+            linked=True,
+            created_at=clock(),
+        )
+        return serialize_provenance(provenance)
+    except OSError:
+        raise MarketDataError("replay failed to read existing provenance") from None
+
+    try:
+        expected = build_provenance(
+            schema_version=_PROVENANCE_SCHEMA_VERSION,
+            dataset_id=dataset_id,
+            run_id=run_id,
+            page_hashes=page_hashes,
+            retrieval_manifest_sha256=retrieval_manifest_sha256,
+            linked=True,
+            created_at=_existing_provenance_created_at(existing),
+        )
+    except ValueError:
+        raise MarketDataError("existing dataset provenance is invalid") from None
+    if serialize_provenance(expected) != existing:
+        raise MarketDataError("existing dataset provenance does not match replay")
+    return existing
 
 
 def _validate_request_parameters(
@@ -360,19 +422,18 @@ class ReplayService:
                 ("exclusion_manifest", exclusion_path),
                 ("segment_manifest", segment_path),
             )
-        provenance = build_provenance(
-            schema_version=_PROVENANCE_SCHEMA_VERSION,
+        provenance_bytes = _replay_provenance_bytes(
+            self.canonical_store,
             dataset_id=dataset_manifest.dataset_id,
             run_id=run_id,
             page_hashes=manifest.page_hashes,
             retrieval_manifest_sha256=hashlib.sha256(manifest_bytes).hexdigest(),
-            linked=True,
-            created_at=self.clock(),
+            clock=self.clock,
         )
         provenance_path = self.canonical_store.write_provenance(
             dataset_manifest.dataset_id,
             run_id,
-            serialize_provenance(provenance),
+            provenance_bytes,
         )
         return IngestionResult(
             run_id=run_id,

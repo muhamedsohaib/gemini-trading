@@ -6,6 +6,10 @@ on:
 permissions:
   contents: read
 
+defaults:
+  run:
+    shell: bash --noprofile --norc -e -o pipefail {0}
+
 jobs:
   dataset:
     runs-on: ubuntu-latest
@@ -47,10 +51,26 @@ jobs:
               output.write(f"dataset_id={payload['dataset_id']}\n")
           PY
       - name: Replay stored dataset evidence
+        env:
+          EXPECTED_RUN_ID: ${{ steps.ingest.outputs.run_id }}
+          EXPECTED_DATASET_ID: ${{ steps.ingest.outputs.dataset_id }}
         run: |
           uv run gemini-trading research dataset-replay \
-            --run-id "${{ steps.ingest.outputs.run_id }}" \
+            --run-id "${EXPECTED_RUN_ID}" \
             --output-root "${OUTPUT_ROOT}" | tee "${RUNNER_TEMP}/replay.json"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          payload = json.loads((Path(os.environ["RUNNER_TEMP"]) / "replay.json").read_text())
+          if payload.get("status") != "completed":
+              raise SystemExit("dataset replay did not complete")
+          if payload.get("run_id") != os.environ["EXPECTED_RUN_ID"]:
+              raise SystemExit("dataset replay run identity mismatch")
+          if payload.get("dataset_id") != os.environ["EXPECTED_DATASET_ID"]:
+              raise SystemExit("dataset replay dataset identity mismatch")
+          PY
       - name: Independently verify dataset
         run: |
           uv run gemini-trading research dataset-verify \

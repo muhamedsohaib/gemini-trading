@@ -14,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6.0.2
         with:
-          ref: a82348102956fcc44a88d2d26372aca0f1f74277
+          ref: 8445cd4de8ad15b1cab1dffd70cd2999a2e436b2
           fetch-depth: 0
       - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
         with:
@@ -23,7 +23,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync --all-groups --frozen
-      - run: test "$(git rev-parse HEAD)" = "a82348102956fcc44a88d2d26372aca0f1f74277"
+      - run: test "$(git rev-parse HEAD)" = "8445cd4de8ad15b1cab1dffd70cd2999a2e436b2"
       - run: >-
           uv run pytest
           tests/acceptance/test_sealed_historical_validation_end_to_end.py::test_complete_sealed_path_is_provider_free_and_non_promotional

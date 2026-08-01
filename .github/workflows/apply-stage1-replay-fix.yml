@@ -21,6 +21,22 @@ jobs:
           ref: fix/stage1-replay-fail-closed
           path: target
           fetch-depth: 0
+      - name: Correct patch selector
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("operator/tools/apply_stage1_replay_fix.py")
+          text = path.read_text()
+          old = '    provenance_start = replay.index("        provenance = build_provenance(")\n'
+          new = (
+              '    service_start = replay.index("class ReplayService:")\n'
+              '    provenance_start = replay.index("        provenance = build_provenance(", service_start)\n'
+          )
+          if text.count(old) != 1:
+              raise SystemExit("unexpected provenance selector")
+          path.write_text(text.replace(old, new))
+          PY
       - name: Apply correction
         run: python operator/tools/apply_stage1_replay_fix.py target
       - name: Capture corrected files

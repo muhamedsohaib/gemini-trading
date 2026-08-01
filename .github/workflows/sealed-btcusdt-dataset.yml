@@ -85,7 +85,7 @@ jobs:
           PY
       - name: Assert worktree stayed clean
         run: test -z "$(git status --porcelain)"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: sealed-btcusdt-dataset-${{ github.sha }}-${{ github.run_id }}
           path: /tmp/sealed-output/

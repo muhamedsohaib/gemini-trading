@@ -66,7 +66,9 @@ def _seed_completed_run(store: LocalImmutableStore) -> None:
     )
 
 
-def test_replaying_same_run_preserves_existing_immutable_provenance(tmp_path: Path) -> None:
+def test_replaying_same_run_preserves_existing_immutable_provenance(
+    tmp_path: Path,
+) -> None:
     store = LocalImmutableStore(tmp_path)
     _seed_completed_run(store)
 

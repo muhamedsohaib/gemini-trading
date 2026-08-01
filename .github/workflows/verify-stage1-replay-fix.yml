@@ -12,10 +12,10 @@ jobs:
     steps:
       - uses: actions/checkout@v6.0.2
         with:
-          ref: 438140249ac095b65ab177a68864b1748f7a0010 # pragma: allowlist secret
+          ref: bfce98402bc8114cfb0c48fbad1366706f915d41 # pragma: allowlist secret
           fetch-depth: 0
-      - name: Assert exact test-only head
-        run: test "$(git rev-parse HEAD)" = "438140249ac095b65ab177a68864b1748f7a0010" # pragma: allowlist secret
+      - name: Assert exact corrected head
+        run: test "$(git rev-parse HEAD)" = "bfce98402bc8114cfb0c48fbad1366706f915d41" # pragma: allowlist secret
       - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
         with:
           version: "0.11.25"

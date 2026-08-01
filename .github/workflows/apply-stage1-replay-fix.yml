@@ -4,7 +4,7 @@ on:
   pull_request:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   apply:
@@ -23,15 +23,20 @@ jobs:
           fetch-depth: 0
       - name: Apply correction
         run: python operator/tools/apply_stage1_replay_fix.py target
-      - name: Commit correction to fix branch
-        working-directory: target
+      - name: Capture corrected files
         run: |
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add \
-            src/gemini_trading/data/ingestion/replay.py \
-            .github/workflows/sealed-btcusdt-dataset.yml \
-            .github/workflows/sealed-btcusdt-study.yml \
-            tests/acceptance/test_sealed_workflow_fail_closed.py
-          git commit -m "fix: make sealed replay fail closed"
-          git push origin HEAD:fix/stage1-replay-fail-closed
+          mkdir -p corrected/.github/workflows corrected/src/gemini_trading/data/ingestion corrected/tests/acceptance
+          cp target/.github/workflows/sealed-btcusdt-dataset.yml corrected/.github/workflows/
+          cp target/.github/workflows/sealed-btcusdt-study.yml corrected/.github/workflows/
+          cp target/src/gemini_trading/data/ingestion/replay.py corrected/src/gemini_trading/data/ingestion/
+          cp target/tests/acceptance/test_sealed_workflow_fail_closed.py corrected/tests/acceptance/
+          git -C target diff --stat
+          git -C target diff > corrected.patch
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage1-replay-corrected-files-${{ github.run_id }}
+          path: |
+            corrected/
+            corrected.patch
+          if-no-files-found: error
+          retention-days: 1

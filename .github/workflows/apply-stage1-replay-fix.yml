@@ -1,0 +1,255 @@
+name: Apply Stage 1 Replay Fix
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.pull_request.head.ref == 'ops/apply-stage1-replay-fix'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          ref: fix/stage1-replay-fail-closed
+          fetch-depth: 0
+      - name: Apply minimal replay and workflow correction
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: Path, old: str, new: str) -> None:
+              text = path.read_text(encoding="utf-8")
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"expected one replacement in {path}, found {count}")
+              path.write_text(text.replace(old, new), encoding="utf-8")
+
+          replay = Path("src/gemini_trading/data/ingestion/replay.py")
+          replace_once(replay, "import hashlib\n", "import hashlib\nimport json\n")
+          replace_once(replay, "from typing import Protocol\n", "from typing import Protocol, cast\n")
+          replace_once(
+              replay,
+              '''    def write_provenance(
+                  self,
+                  dataset_id: str,
+                  run_id: str,
+                  receipt_bytes: bytes,
+              ) -> Path: ...
+          ''',
+              '''    def read_provenance(self, dataset_id: str, run_id: str) -> bytes: ...
+
+              def write_provenance(
+                  self,
+                  dataset_id: str,
+                  run_id: str,
+                  receipt_bytes: bytes,
+              ) -> Path: ...
+          ''',
+          )
+          replace_once(
+              replay,
+              '''def _utc_milliseconds(value: datetime) -> int:
+              return (value - _EPOCH) // timedelta(milliseconds=1)
+
+
+          def _validate_request_parameters(
+          ''',
+              '''def _utc_milliseconds(value: datetime) -> int:
+              return (value - _EPOCH) // timedelta(milliseconds=1)
+
+
+          def _existing_provenance_created_at(raw: bytes) -> datetime:
+              try:
+                  loaded: object = json.loads(raw.decode("utf-8"))
+              except (UnicodeDecodeError, json.JSONDecodeError):
+                  raise MarketDataError("existing dataset provenance is invalid") from None
+              if not isinstance(loaded, dict):
+                  raise MarketDataError("existing dataset provenance is invalid")
+              mapping = cast(dict[object, object], loaded)
+              created_at = mapping.get("created_at")
+              if not isinstance(created_at, str):
+                  raise MarketDataError("existing dataset provenance is invalid")
+              try:
+                  return datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+              except ValueError:
+                  raise MarketDataError("existing dataset provenance is invalid") from None
+
+
+          def _replay_provenance_bytes(
+              canonical_store: ReplayCanonicalStore,
+              *,
+              dataset_id: str,
+              run_id: str,
+              page_hashes: tuple[str, ...],
+              retrieval_manifest_sha256: str,
+              clock: Callable[[], datetime],
+          ) -> bytes:
+              try:
+                  existing = canonical_store.read_provenance(dataset_id, run_id)
+              except FileNotFoundError:
+                  provenance = build_provenance(
+                      schema_version=_PROVENANCE_SCHEMA_VERSION,
+                      dataset_id=dataset_id,
+                      run_id=run_id,
+                      page_hashes=page_hashes,
+                      retrieval_manifest_sha256=retrieval_manifest_sha256,
+                      linked=True,
+                      created_at=clock(),
+                  )
+                  return serialize_provenance(provenance)
+              except OSError:
+                  raise MarketDataError("replay failed to read existing provenance") from None
+
+              try:
+                  expected = build_provenance(
+                      schema_version=_PROVENANCE_SCHEMA_VERSION,
+                      dataset_id=dataset_id,
+                      run_id=run_id,
+                      page_hashes=page_hashes,
+                      retrieval_manifest_sha256=retrieval_manifest_sha256,
+                      linked=True,
+                      created_at=_existing_provenance_created_at(existing),
+                  )
+              except ValueError:
+                  raise MarketDataError("existing dataset provenance is invalid") from None
+              if serialize_provenance(expected) != existing:
+                  raise MarketDataError("existing dataset provenance does not match replay")
+              return existing
+
+
+          def _validate_request_parameters(
+          ''',
+          )
+          replace_once(
+              replay,
+              '''        provenance = build_provenance(
+                  schema_version=_PROVENANCE_SCHEMA_VERSION,
+                  dataset_id=dataset_manifest.dataset_id,
+                  run_id=run_id,
+                  page_hashes=manifest.page_hashes,
+                  retrieval_manifest_sha256=hashlib.sha256(manifest_bytes).hexdigest(),
+                  linked=True,
+                  created_at=self.clock(),
+              )
+              provenance_path = self.canonical_store.write_provenance(
+                  dataset_manifest.dataset_id,
+                  run_id,
+                  serialize_provenance(provenance),
+              )
+          ''',
+              '''        provenance_bytes = _replay_provenance_bytes(
+                  self.canonical_store,
+                  dataset_id=dataset_manifest.dataset_id,
+                  run_id=run_id,
+                  page_hashes=manifest.page_hashes,
+                  retrieval_manifest_sha256=hashlib.sha256(manifest_bytes).hexdigest(),
+                  clock=self.clock,
+              )
+              provenance_path = self.canonical_store.write_provenance(
+                  dataset_manifest.dataset_id,
+                  run_id,
+                  provenance_bytes,
+              )
+          ''',
+          )
+
+          dataset_workflow = Path(".github/workflows/sealed-btcusdt-dataset.yml")
+          replace_once(
+              dataset_workflow,
+              '''permissions:
+            contents: read
+
+          jobs:
+          ''',
+              '''permissions:
+            contents: read
+
+          defaults:
+            run:
+              shell: bash -o pipefail {0}
+
+          jobs:
+          ''',
+          )
+          replace_once(
+              dataset_workflow,
+              '''      - name: Replay stored dataset evidence
+              run: |
+                uv run gemini-trading research dataset-replay \\
+                  --run-id "${{ steps.ingest.outputs.run_id }}" \\
+                  --output-root "${OUTPUT_ROOT}" | tee "${RUNNER_TEMP}/replay.json"
+          ''',
+              '''      - name: Replay stored dataset evidence
+              env:
+                EXPECTED_RUN_ID: ${{ steps.ingest.outputs.run_id }}
+                EXPECTED_DATASET_ID: ${{ steps.ingest.outputs.dataset_id }}
+              run: |
+                uv run gemini-trading research dataset-replay \\
+                  --run-id "${EXPECTED_RUN_ID}" \\
+                  --output-root "${OUTPUT_ROOT}" | tee "${RUNNER_TEMP}/replay.json"
+                python - <<'PY'
+                import json
+                import os
+                from pathlib import Path
+
+                payload = json.loads((Path(os.environ["RUNNER_TEMP"]) / "replay.json").read_text())
+                if payload.get("status") != "completed":
+                    raise SystemExit("dataset replay did not complete")
+                if payload.get("run_id") != os.environ["EXPECTED_RUN_ID"]:
+                    raise SystemExit("dataset replay run identity mismatch")
+                if payload.get("dataset_id") != os.environ["EXPECTED_DATASET_ID"]:
+                    raise SystemExit("dataset replay dataset identity mismatch")
+                PY
+          ''',
+          )
+
+          study_workflow = Path(".github/workflows/sealed-btcusdt-study.yml")
+          replace_once(
+              study_workflow,
+              '''concurrency:
+            group: sealed-btcusdt-study
+            cancel-in-progress: false
+
+          jobs:
+          ''',
+              '''concurrency:
+            group: sealed-btcusdt-study
+            cancel-in-progress: false
+
+          defaults:
+            run:
+              shell: bash -o pipefail {0}
+
+          jobs:
+          ''',
+          )
+
+          workflow_test = Path("tests/acceptance/test_sealed_workflow_fail_closed.py")
+          replace_once(
+              workflow_test,
+              '''def test_every_sealed_workflow_tee_pipeline_propagates_command_failures() -> None:
+              for path in (_DATASET, _STUDY):
+                  text = _text(path)
+                  assert text.count("set -o pipefail") == text.count("| tee ")
+          ''',
+              '''def test_every_sealed_workflow_tee_pipeline_propagates_command_failures() -> None:
+              for path in (_DATASET, _STUDY):
+                  text = _text(path)
+                  assert "defaults:\\n  run:\\n    shell: bash -o pipefail {0}\\n" in text
+          ''',
+          )
+          PY
+      - name: Commit correction to fix branch
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add \
+            src/gemini_trading/data/ingestion/replay.py \
+            .github/workflows/sealed-btcusdt-dataset.yml \
+            .github/workflows/sealed-btcusdt-study.yml \
+            tests/acceptance/test_sealed_workflow_fail_closed.py
+          git commit -m "fix: make sealed replay fail closed"
+          git push origin HEAD:fix/stage1-replay-fail-closed

@@ -1,0 +1,86 @@
+name: Dispatch Sealed BTCUSDT Stage 1 v4
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      MERGED_SHA: "7da1a48c9981364fd6544bae3e4d99673326363f" # pragma: allowlist secret
+      WORKFLOW_FILE: sealed-btcusdt-dataset.yml
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          ref: 7da1a48c9981364fd6544bae3e4d99673326363f # pragma: allowlist secret
+          fetch-depth: 0
+      - name: Assert exact merged main
+        run: |
+          git fetch origin main
+          test "$(git rev-parse HEAD)" = "${MERGED_SHA}"
+          test "$(git rev-parse origin/main)" = "${MERGED_SHA}"
+          test -z "$(git status --porcelain)"
+      - name: Dispatch exactly one Stage 1 run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          list_exact_runs() {
+            gh run list \
+              --repo "${GITHUB_REPOSITORY}" \
+              --workflow "${WORKFLOW_FILE}" \
+              --branch main \
+              --event workflow_dispatch \
+              --limit 50 \
+              --json databaseId,headSha,status,conclusion,createdAt
+          }
+
+          find_exact_run() {
+            RUNS_JSON="$1" python - <<'PY'
+          import json
+          import os
+
+          expected = os.environ["MERGED_SHA"]
+          runs = json.loads(os.environ["RUNS_JSON"])
+          matches = [run for run in runs if run["headSha"] == expected]
+          matches.sort(key=lambda run: run["createdAt"], reverse=True)
+          if matches:
+              run = matches[0]
+              print(f"{run['databaseId']} {run['status']} {run.get('conclusion')}")
+          PY
+          }
+
+          runs_json="$(list_exact_runs)"
+          existing="$(find_exact_run "${runs_json}")"
+          if [ -n "${existing}" ]; then
+            echo "Exact-main Stage 1 already exists: ${existing}"
+            exit 0
+          fi
+
+          gh workflow run "${WORKFLOW_FILE}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --ref main
+
+          for _ in $(seq 1 18); do
+            sleep 5
+            runs_json="$(list_exact_runs)"
+            dispatched="$(find_exact_run "${runs_json}")"
+            if [ -n "${dispatched}" ]; then
+              echo "Dispatched exact-main Stage 1: ${dispatched}"
+              echo "### Stage 1 dispatch" >> "${GITHUB_STEP_SUMMARY}"
+              echo "${dispatched}" >> "${GITHUB_STEP_SUMMARY}"
+              exit 0
+            fi
+          done
+
+          echo "Stage 1 dispatch was not observable after 90 seconds" >&2
+          exit 1

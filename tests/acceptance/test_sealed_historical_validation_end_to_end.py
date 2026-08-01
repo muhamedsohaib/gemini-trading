@@ -1,10 +1,14 @@
 """Synthetic acceptance for the complete sealed historical-validation path."""
 
+from collections.abc import Callable
 from pathlib import Path
+from typing import cast
 
 import pytest
 
 from gemini_trading.data.providers.binance_spot import BinanceSpotProvider
+from gemini_trading.strategy import sealed_evaluator
+from gemini_trading.strategy.splits import ChronologicalSplitPlan
 from integration.test_sealed_historical_validation import (
     bound_integration_training as _bound_integration_training,
 )
@@ -20,6 +24,18 @@ def test_complete_sealed_path_is_provider_free_and_non_promotional(
 ) -> None:
     assert _bound_integration_training is not None
 
+    bounded_split_plan = cast(
+        Callable[..., tuple[ChronologicalSplitPlan, bool]],
+        sealed_evaluator.build_split_plan,
+    )
+
+    def synthetic_split_plan(
+        *args: object,
+        **kwargs: object,
+    ) -> tuple[ChronologicalSplitPlan, bool]:
+        plan, _ = bounded_split_plan(*args, **kwargs)
+        return plan, False
+
     def deny_provider(
         self: object,
         *args: object,
@@ -28,6 +44,7 @@ def test_complete_sealed_path_is_provider_free_and_non_promotional(
         del self, args, kwargs
         raise AssertionError("sealed historical validation constructed a market-data provider")
 
+    monkeypatch.setattr(sealed_evaluator, "build_split_plan", synthetic_split_plan)
     monkeypatch.setattr(BinanceSpotProvider, "__init__", deny_provider)
 
     _run_complete_sealed_path(tmp_path)

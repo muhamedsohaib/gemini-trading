@@ -1,4 +1,4 @@
-name: Apply Stage 1 Replay Fix
+name: Format Stage 1 Replay Fix
 
 on:
   pull_request:
@@ -7,53 +7,27 @@ permissions:
   contents: read
 
 jobs:
-  apply:
+  format:
     if: github.event.pull_request.head.ref == 'ops/apply-stage1-replay-fix'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2
         with:
-          ref: ops/apply-stage1-replay-fix
-          path: operator
-          fetch-depth: 0
-      - uses: actions/checkout@v6.0.2
-        with:
           ref: fix/stage1-replay-fail-closed
-          path: target
           fetch-depth: 0
-      - name: Correct patch selector
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          path = Path("operator/tools/apply_stage1_replay_fix.py")
-          text = path.read_text()
-          old = '    provenance_start = replay.index("        provenance = build_provenance(")\n'
-          new = (
-              '    service_start = replay.index("class ReplayService:")\n'
-              '    provenance_start = replay.index("        provenance = build_provenance(", service_start)\n'
-          )
-          if text.count(old) != 1:
-              raise SystemExit("unexpected provenance selector")
-          path.write_text(text.replace(old, new))
-          PY
-      - name: Apply correction
-        run: python operator/tools/apply_stage1_replay_fix.py target
-      - name: Capture corrected files
-        run: |
-          mkdir -p corrected/.github/workflows corrected/src/gemini_trading/data/ingestion corrected/tests/acceptance
-          cp target/.github/workflows/sealed-btcusdt-dataset.yml corrected/.github/workflows/
-          cp target/.github/workflows/sealed-btcusdt-study.yml corrected/.github/workflows/
-          cp target/src/gemini_trading/data/ingestion/replay.py corrected/src/gemini_trading/data/ingestion/
-          cp target/tests/acceptance/test_sealed_workflow_fail_closed.py corrected/tests/acceptance/
-          git -C target diff --stat
-          git -C target diff > corrected.patch
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.11.25"
+          enable-cache: true
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - name: Format regression test
+        run: uv run ruff format tests/regression/test_dataset_replay_idempotency.py
       - uses: actions/upload-artifact@v4
         with:
-          name: stage1-replay-corrected-files-${{ github.run_id }}
-          path: |
-            corrected/
-            corrected.patch
+          name: formatted-stage1-replay-test-${{ github.run_id }}
+          path: tests/regression/test_dataset_replay_idempotency.py
           if-no-files-found: error
-          include-hidden-files: true
           retention-days: 1

@@ -12,7 +12,7 @@ def _text(path: Path) -> str:
 def test_every_sealed_workflow_tee_pipeline_propagates_command_failures() -> None:
     for path in (_DATASET, _STUDY):
         text = _text(path)
-        assert text.count("set -o pipefail") == text.count("| tee ")
+        assert "defaults:\n  run:\n    shell: bash -o pipefail {0}\n" in text
 
 
 def test_dataset_replay_step_requires_completed_exact_identity() -> None:

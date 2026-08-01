@@ -27,7 +27,7 @@ concurrency:
 
 defaults:
   run:
-    shell: bash -o pipefail {0}
+    shell: bash --noprofile --norc -e -o pipefail {0}
 
 jobs:
   validate-dataset:

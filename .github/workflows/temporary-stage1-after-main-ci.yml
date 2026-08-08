@@ -1,0 +1,154 @@
+name: Gate Fresh Stage 1 After Exact Main CI
+
+on:
+  pull_request:
+
+permissions:
+  actions: write
+  contents: read
+  issues: write
+
+concurrency:
+  group: gate-stage1-after-main-ci-8ab67c21
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash --noprofile --norc -e -o pipefail {0}
+
+jobs:
+  gate-and-dispatch:
+    if: github.event.pull_request.head.ref == 'ops/dispatch-stage1-after-main-ci-8ab67c21'
+    runs-on: ubuntu-latest
+    timeout-minutes: 95
+    env:
+      EXPECTED_MAIN_SHA: 8ab67c2103c8dce5c5b088bd89f411727a2ddf1f
+      EXPECTED_CI_RUN_ID: '31279270229'
+      STAGE1_WORKFLOW: sealed-btcusdt-dataset.yml
+    steps:
+      - name: Wait for exact merged-main CI gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for attempt in $(seq 1 180); do
+            gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXPECTED_CI_RUN_ID}" > "${RUNNER_TEMP}/ci-run.json"
+            python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          payload = json.loads((Path(os.environ["RUNNER_TEMP"]) / "ci-run.json").read_text())
+          expected_sha = os.environ["EXPECTED_MAIN_SHA"]
+          if str(payload.get("head_sha")) != expected_sha:
+              raise SystemExit("exact-main CI SHA mismatch")
+          if str(payload.get("head_branch")) != "main":
+              raise SystemExit("exact-main CI branch mismatch")
+          if str(payload.get("event")) != "push":
+              raise SystemExit("exact-main CI event mismatch")
+          if str(payload.get("name")) != "CI":
+              raise SystemExit("exact-main CI workflow mismatch")
+          status = str(payload.get("status"))
+          conclusion = payload.get("conclusion")
+          if status == "completed" and conclusion != "success":
+              raise SystemExit(f"exact-main CI completed non-successfully: {conclusion}")
+          if status == "completed" and conclusion == "success":
+              print("READY")
+          else:
+              print("WAIT")
+          PY
+            state="$(python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          payload = json.loads((Path(os.environ["RUNNER_TEMP"]) / "ci-run.json").read_text())
+          print("READY" if payload.get("status") == "completed" and payload.get("conclusion") == "success" else "WAIT")
+          PY
+          )"
+            if [ "${state}" = "READY" ]; then
+              exit 0
+            fi
+            sleep 30
+          done
+          echo "exact-main CI did not complete within gate timeout" >&2
+          exit 1
+
+      - name: Check for an existing exact-SHA Stage 1 run
+        id: existing
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/${STAGE1_WORKFLOW}/runs?branch=main&event=workflow_dispatch&per_page=100" > "${RUNNER_TEMP}/stage1-runs.json"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          payload = json.loads((Path(os.environ["RUNNER_TEMP"]) / "stage1-runs.json").read_text())
+          expected = os.environ["EXPECTED_MAIN_SHA"]
+          matches = [
+              run for run in payload.get("workflow_runs", [])
+              if run.get("head_sha") == expected and run.get("event") == "workflow_dispatch"
+          ]
+          matches.sort(key=lambda run: str(run.get("created_at", "")), reverse=True)
+          output = Path(os.environ["GITHUB_OUTPUT"])
+          with output.open("a") as handle:
+              handle.write(f"exists={'true' if matches else 'false'}\n")
+              if matches:
+                  handle.write(f"run_id={matches[0]['id']}\n")
+          PY
+
+      - name: Dispatch fresh Stage 1 from main
+        if: steps.existing.outputs.exists != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api --method POST \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/${STAGE1_WORKFLOW}/dispatches" \
+            -f ref=main
+
+      - name: Resolve exact Stage 1 run identity
+        id: stage1
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for attempt in $(seq 1 30); do
+            gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/${STAGE1_WORKFLOW}/runs?branch=main&event=workflow_dispatch&per_page=100" > "${RUNNER_TEMP}/stage1-runs.json"
+            run_id="$(python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          payload = json.loads((Path(os.environ["RUNNER_TEMP"]) / "stage1-runs.json").read_text())
+          expected = os.environ["EXPECTED_MAIN_SHA"]
+          matches = [
+              run for run in payload.get("workflow_runs", [])
+              if run.get("head_sha") == expected and run.get("event") == "workflow_dispatch"
+          ]
+          matches.sort(key=lambda run: str(run.get("created_at", "")), reverse=True)
+          print(matches[0]["id"] if matches else "")
+          PY
+          )"
+            if [ -n "${run_id}" ]; then
+              echo "run_id=${run_id}" >> "${GITHUB_OUTPUT}"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "no exact-SHA Stage 1 workflow run was observed after dispatch" >&2
+          exit 1
+
+      - name: Record guarded Stage 1 dispatch on Issue 22
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STAGE1_RUN_ID: ${{ steps.stage1.outputs.run_id }}
+        run: |
+          BODY="## Fresh Stage 1 dispatched after exact-main CI gate
+
+          - Exact merged-main SHA: \`${EXPECTED_MAIN_SHA}\`
+          - Exact-main CI run: \`${EXPECTED_CI_RUN_ID}\` — required to be completed with \`success\`
+          - Fresh Stage 1 run: \`${STAGE1_RUN_ID}\`
+          - Workflow: \`${STAGE1_WORKFLOW}\`
+          - Boundary: \`RESEARCH_ONLY\`
+
+          This is a Stage 1 dataset-generation run only. It is not dataset approval and does not authorize Stage 2."
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/issues/22/comments" -f body="${BODY}" > /dev/null

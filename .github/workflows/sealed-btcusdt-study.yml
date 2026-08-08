@@ -25,6 +25,10 @@ concurrency:
   group: sealed-btcusdt-study
   cancel-in-progress: false
 
+defaults:
+  run:
+    shell: bash --noprofile --norc -e -o pipefail {0}
+
 jobs:
   validate-dataset:
     runs-on: ubuntu-latest

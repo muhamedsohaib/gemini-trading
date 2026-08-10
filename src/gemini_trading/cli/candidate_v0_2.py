@@ -79,12 +79,9 @@ def _qualification_root(handoff_path: Path, output_root: Path) -> Path:
             "dataset handoff path is outside the Stage 1 artifact root"
         ) from None
     parts = relative.parts
-    fixed_layout = (
-        len(parts) == 5
-        and parts[:3] == _HANDOFF_PREFIX
-        and parts[-1] == "dataset-handoff.json"
-    )
-    if not fixed_layout:
+    if len(parts) != 5:
+        raise DatasetHandoffError("dataset handoff path does not match the fixed artifact layout")
+    if parts[:3] != _HANDOFF_PREFIX or parts[-1] != "dataset-handoff.json":
         raise DatasetHandoffError("dataset handoff path does not match the fixed artifact layout")
     return resolved_root
 

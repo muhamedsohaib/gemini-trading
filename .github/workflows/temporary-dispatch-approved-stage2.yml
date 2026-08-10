@@ -1,0 +1,182 @@
+name: Dispatch Approved Stage 2
+
+on:
+  pull_request:
+
+permissions:
+  actions: write
+  contents: read
+  issues: write
+
+concurrency:
+  group: dispatch-approved-stage2-8ab67c21-31281645042
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash --noprofile --norc -e -o pipefail {0}
+
+jobs:
+  gate-and-dispatch:
+    if: github.event.pull_request.head.ref == 'ops/dispatch-stage2-8ab67c21-31281645042'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SOURCE_COMMIT: 8ab67c2103c8dce5c5b088bd89f411727a2ddf1f
+      DATASET_RUN_ID: '31281645042'
+      DATASET_ARTIFACT_NAME: sealed-btcusdt-dataset-8ab67c2103c8dce5c5b088bd89f411727a2ddf1f-31281645042
+      DATASET_ARTIFACT_DIGEST: sha256:f3781fe51a2ea9c6be453599a4622b6dc35d680fd362ecec25de970f6362e4eb
+      DATASET_ID: 33cdaecbec6b1d90db46fde0e0ad1164b3dca2e6bd2fb858d73a1b177f6a007b
+      STAGE2_WORKFLOW: sealed-btcusdt-study.yml
+      APPROVAL_MARKER: '<!-- sealed-dataset-approved:8ab67c2103c8dce5c5b088bd89f411727a2ddf1f:31281645042:33cdaecbec6b1d90db46fde0e0ad1164b3dca2e6bd2fb858d73a1b177f6a007b -->'
+      DISPATCH_MARKER: '<!-- sealed-stage2-dispatched:8ab67c2103c8dce5c5b088bd89f411727a2ddf1f:31281645042:33cdaecbec6b1d90db46fde0e0ad1164b3dca2e6bd2fb858d73a1b177f6a007b -->'
+
+    steps:
+      - name: Verify immutable Stage 2 prerequisites
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/${GITHUB_REPOSITORY}/branches/main" > "${RUNNER_TEMP}/main.json"
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${DATASET_RUN_ID}" > "${RUNNER_TEMP}/stage1.json"
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${DATASET_RUN_ID}/artifacts" > "${RUNNER_TEMP}/artifacts.json"
+          gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/issues/22/comments" > "${RUNNER_TEMP}/comments.json"
+          gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/${STAGE2_WORKFLOW}/runs?event=workflow_dispatch&per_page=100" > "${RUNNER_TEMP}/stage2-runs.json"
+
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          temp = Path(os.environ["RUNNER_TEMP"])
+          source_commit = os.environ["SOURCE_COMMIT"]
+          dataset_run_id = int(os.environ["DATASET_RUN_ID"])
+          artifact_name = os.environ["DATASET_ARTIFACT_NAME"]
+          artifact_digest = os.environ["DATASET_ARTIFACT_DIGEST"]
+          approval_marker = os.environ["APPROVAL_MARKER"]
+          dispatch_marker = os.environ["DISPATCH_MARKER"]
+
+          main = json.loads((temp / "main.json").read_text())
+          if main.get("commit", {}).get("sha") != source_commit:
+              raise SystemExit("main moved from the approved source commit")
+
+          stage1 = json.loads((temp / "stage1.json").read_text())
+          expected_stage1 = {
+              "id": dataset_run_id,
+              "name": "Sealed BTCUSDT Dataset",
+              "head_branch": "main",
+              "head_sha": source_commit,
+              "event": "workflow_dispatch",
+              "status": "completed",
+              "conclusion": "success",
+              "run_attempt": 1,
+          }
+          for field, expected in expected_stage1.items():
+              if stage1.get(field) != expected:
+                  raise SystemExit(f"Stage 1 identity mismatch: {field}")
+
+          artifacts = json.loads((temp / "artifacts.json").read_text()).get("artifacts", [])
+          matches = [item for item in artifacts if item.get("name") == artifact_name]
+          if len(matches) != 1:
+              raise SystemExit("exact Stage 1 artifact identity is not unique")
+          artifact = matches[0]
+          if artifact.get("expired") is not False:
+              raise SystemExit("approved Stage 1 artifact is expired")
+          if artifact.get("digest") != artifact_digest:
+              raise SystemExit("approved Stage 1 artifact digest mismatch")
+          workflow_run = artifact.get("workflow_run", {})
+          if workflow_run.get("id") != dataset_run_id or workflow_run.get("head_sha") != source_commit:
+              raise SystemExit("approved Stage 1 artifact workflow binding mismatch")
+
+          pages = json.loads((temp / "comments.json").read_text())
+          comments = [comment for page in pages for comment in page]
+          owner = os.environ["GITHUB_REPOSITORY_OWNER"]
+          approval_comments = [
+              comment for comment in comments
+              if approval_marker in str(comment.get("body", ""))
+              and str(comment.get("user", {}).get("login", "")) == owner
+          ]
+          if len(approval_comments) != 1:
+              raise SystemExit("exact owner Stage 1 approval marker is missing or non-unique")
+          if any(dispatch_marker in str(comment.get("body", "")) for comment in comments):
+              raise SystemExit("exact Stage 2 dispatch marker already exists")
+          if any("<!-- sealed-final-access:" in str(comment.get("body", "")) for comment in comments):
+              raise SystemExit("a final-access repository seal already exists; second access is prohibited")
+
+          prior_runs = json.loads((temp / "stage2-runs.json").read_text()).get("workflow_runs", [])
+          exact_prior = [
+              run for run in prior_runs
+              if run.get("event") == "workflow_dispatch" and run.get("head_sha") == source_commit
+          ]
+          if exact_prior:
+              raise SystemExit("an exact-source Stage 2 workflow run already exists")
+          PY
+
+      - name: Dispatch exact approved Stage 2
+        id: dispatch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          DISPATCH_STARTED="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "dispatch_started=${DISPATCH_STARTED}" >> "${GITHUB_OUTPUT}"
+          gh workflow run "${STAGE2_WORKFLOW}" \
+            --ref main \
+            -f source_commit="${SOURCE_COMMIT}" \
+            -f dataset_run_id="${DATASET_RUN_ID}" \
+            -f dataset_artifact_name="${DATASET_ARTIFACT_NAME}" \
+            -f dataset_id="${DATASET_ID}"
+
+      - name: Resolve dispatched Stage 2 run
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DISPATCH_STARTED: ${{ steps.dispatch.outputs.dispatch_started }}
+        run: |
+          for attempt in $(seq 1 30); do
+            gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/${STAGE2_WORKFLOW}/runs?branch=main&event=workflow_dispatch&per_page=30" > "${RUNNER_TEMP}/stage2-after.json"
+            RUN_ID="$(python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          payload = json.loads((Path(os.environ["RUNNER_TEMP"]) / "stage2-after.json").read_text())
+          source_commit = os.environ["SOURCE_COMMIT"]
+          started = os.environ["DISPATCH_STARTED"]
+          matches = [
+              run for run in payload.get("workflow_runs", [])
+              if run.get("event") == "workflow_dispatch"
+              and run.get("head_branch") == "main"
+              and run.get("head_sha") == source_commit
+              and str(run.get("created_at", "")) >= started
+          ]
+          matches.sort(key=lambda run: str(run.get("created_at", "")), reverse=True)
+          print(matches[0]["id"] if len(matches) == 1 else "")
+          PY
+          )"
+            if [ -n "${RUN_ID}" ]; then
+              echo "run_id=${RUN_ID}" >> "${GITHUB_OUTPUT}"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "unable to resolve one exact dispatched Stage 2 run" >&2
+          exit 1
+
+      - name: Record Stage 2 dispatch on Issue 22
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STAGE2_RUN_ID: ${{ steps.resolve.outputs.run_id }}
+        run: |
+          BODY="${DISPATCH_MARKER}
+
+          ## Stage 2 sealed Candidate study dispatched
+
+          - Source commit: \`${SOURCE_COMMIT}\`
+          - Approved Stage 1 run: \`${DATASET_RUN_ID}\`
+          - Approved dataset ID: \`${DATASET_ID}\`
+          - Stage 1 artifact: \`${DATASET_ARTIFACT_NAME}\`
+          - Stage 1 artifact digest: \`${DATASET_ARTIFACT_DIGEST}\`
+          - Stage 2 workflow run: \`${STAGE2_RUN_ID}\`
+          - Boundary: \`RESEARCH_ONLY\`
+
+          Stage 2 is now governed by the workflow's one-time final-access seal and fail-closed completion rules. This does not authorize paper, demo, live trading, exchange orders, credentials, leverage, futures, shorting, portfolio allocation, or real capital."
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/issues/22/comments" -f body="${BODY}" > /dev/null

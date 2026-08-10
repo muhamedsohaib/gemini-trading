@@ -23,6 +23,8 @@ def test_locked_policy_matches_approved_spec() -> None:
     assert policy.cooldown_candles == 2
     assert policy.initial_stop_atr == Decimal("2.5")
     assert policy.trailing_stop_atr == Decimal("3.0")
+    assert policy.trend_max_iterations == 10000
+    assert policy.trend_tolerance == Decimal("0.00000001")
     assert serialize_candidate_policy(policy) == serialize_candidate_policy(
         CandidatePolicy.locked_v0_1()
     )

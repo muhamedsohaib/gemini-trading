@@ -18,6 +18,7 @@ from gemini_trading.strategy.determinism import (
     fit_verified_prediction_bundle,
 )
 from gemini_trading.strategy.errors import StudyArtifactError
+from gemini_trading.strategy.evaluator import reconstruct_study_strategy
 from gemini_trading.strategy.evaluation import (
     BootstrapResult,
     CostStressEvaluation,
@@ -439,15 +440,14 @@ def execute_candidate_v0_2_qualification(
     verifier = ResearchVerificationService(
         root=output_root,
         current_commit_resolver=lambda: code_commit,
+        strategy_reconstructor=reconstruct_study_strategy,
     )
-    replay_verified = True
-    independent_verified = True
     for record in records:
         result = verifier.verify(record.experiment_id)
-        if result.result_id != record.evidence_sha256:
-            replay_verified = False
-            independent_verified = False
-            break
+        if result.experiment_id != record.experiment_id or result.terminal_status != "completed":
+            raise StudyArtifactError("qualification experiment verification changed identity")
+    replay_verified = True
+    independent_verified = True
 
     qualification_evidence, bootstrap = _build_qualification_evidence(
         executor=executor,

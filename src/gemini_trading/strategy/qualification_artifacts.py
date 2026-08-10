@@ -165,7 +165,7 @@ class LocalQualificationStore:
 
     root: Path
 
-    def _directory(self, qualification_id: str) -> Path:
+    def directory(self, qualification_id: str) -> Path:
         if _SHA256.fullmatch(qualification_id) is None:
             raise StudyArtifactError("invalid qualification ID")
         return (
@@ -173,7 +173,7 @@ class LocalQualificationStore:
         )
 
     def write(self, artifacts: QualificationArtifacts) -> None:
-        directory = self._directory(artifacts.qualification_id)
+        directory = self.directory(artifacts.qualification_id)
         for name, raw in artifacts.files:
             write_immutable(directory / name, raw)
 
@@ -191,7 +191,7 @@ def _load_json(raw: bytes, description: str) -> dict[str, object]:
 def verify_qualification_artifacts(root: Path, qualification_id: str) -> QualificationArtifacts:
     """Verify qualification evidence byte-for-byte without provider or network access."""
 
-    directory = LocalQualificationStore(root)._directory(qualification_id)
+    directory = LocalQualificationStore(root).directory(qualification_id)
     try:
         result_raw = (directory / _RESULT).read_bytes()
     except OSError:

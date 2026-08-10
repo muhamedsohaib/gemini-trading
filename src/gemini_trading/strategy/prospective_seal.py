@@ -123,9 +123,26 @@ def build_prospective_final_seal(request: ProspectiveFinalSealRequest) -> Prospe
     """Build a future-window seal without reading or constructing market evidence."""
 
     core = _request_core(request)
+    window = ProspectiveFinalWindow.from_verified_at(
+        development_cutoff=request.development_cutoff,
+        verified_at=request.verified_at,
+    )
     return ProspectiveFinalSeal(
+        schema_version=_SCHEMA,
         seal_id=_seal_id(core),
-        **core,
+        code_commit=request.code_commit,
+        dataset_id=request.dataset_id,
+        dataset_handoff_inventory_root=request.dataset_handoff_inventory_root,
+        qualification_id=request.qualification_id,
+        qualification_inventory_root=request.qualification_inventory_root,
+        workflow_run_id=request.workflow_run_id,
+        workflow_run_attempt=request.workflow_run_attempt,
+        verified_at=request.verified_at,
+        development_cutoff=request.development_cutoff,
+        bridge_start=window.bridge_start,
+        bridge_end=window.bridge_end,
+        final_start=window.final_start,
+        final_end=window.final_end,
     )
 
 

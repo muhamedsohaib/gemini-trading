@@ -1,0 +1,32 @@
+name: Candidate v0.2 Dev Fast
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  focused:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.25"
+          enable-cache: true
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - run: uv run ruff format --check .
+      - run: uv run ruff check .
+      - run: uv run pyright
+      - name: Run focused Candidate v0.2 tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t extra < <(find tests/integration tests/acceptance -type f -name '*v0_2*.py' -print | sort)
+          uv run pytest tests/unit/strategy tests/unit/cli "${extra[@]}" -q

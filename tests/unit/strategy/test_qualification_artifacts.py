@@ -1,10 +1,12 @@
 """RED tests for immutable Candidate v0.2 qualification evidence."""
 
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
 
 from gemini_trading.strategy.errors import StudyArtifactError
+from gemini_trading.strategy.evaluation import BootstrapResult
 from gemini_trading.strategy.qualification import QualificationClassification, QualificationReport
 from gemini_trading.strategy.qualification_artifacts import (
     LocalQualificationStore,
@@ -13,8 +15,6 @@ from gemini_trading.strategy.qualification_artifacts import (
     verify_qualification_artifacts,
 )
 from gemini_trading.strategy.qualification_execution import QualificationRun
-from gemini_trading.strategy.evaluation import BootstrapResult
-from decimal import Decimal
 
 
 def _run() -> QualificationRun:

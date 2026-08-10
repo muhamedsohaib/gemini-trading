@@ -88,13 +88,16 @@ class QualificationReport:
     gates: tuple[GateResult, ...]
 
 
+type GateOutcome = tuple[GateResult, bool]
+
+
 def _gate(
     gate_id: str,
     passed: bool,
     observed: object,
     required: str,
     reason: str,
-) -> tuple[GateResult, bool]:
+) -> GateOutcome:
     return (
         GateResult(
             gate_id=gate_id,
@@ -107,7 +110,7 @@ def _gate(
     )
 
 
-def _missing(gate_id: str, required: str, reason: str) -> tuple[GateResult, bool]:
+def _missing(gate_id: str, required: str, reason: str) -> GateOutcome:
     return (
         GateResult(
             gate_id=gate_id,
@@ -120,12 +123,7 @@ def _missing(gate_id: str, required: str, reason: str) -> tuple[GateResult, bool
     )
 
 
-def _optional_boolean(
-    gate_id: str,
-    value: bool | None,
-    *,
-    reason: str,
-) -> tuple[GateResult, bool]:
+def _boolean(gate_id: str, value: bool | None, reason: str) -> GateOutcome:
     if value is None:
         return _missing(gate_id, "true", reason)
     return _gate(gate_id, value, value, "true", f"{reason} evaluated")
@@ -139,52 +137,30 @@ def _median(values: tuple[Decimal, ...]) -> Decimal:
     return (ordered[middle - 1] + ordered[middle]) / Decimal("2")
 
 
-def evaluate_development_qualification(evidence: QualificationEvidence) -> QualificationReport:
-    """Apply every preregistered Candidate v0.2 development gate and fail closed."""
-
-    outcomes: list[tuple[GateResult, bool]] = []
-    outcomes.append(
-        _optional_boolean(
-            "integrity.verified",
-            evidence.integrity_verified,
-            reason="development integrity verification",
-        )
-    )
-
-    receipts = evidence.trend_determinism
+def _trend_determinism(
+    receipts: tuple[TrendDeterminismReceipt, ...] | None,
+) -> GateOutcome:
     if receipts is None:
-        outcomes.append(
-            _missing(
-                "convergence.trend_determinism",
-                "12 exact deterministic fold receipts",
-                "trend determinism evidence",
-            )
+        return _missing(
+            "convergence.trend_determinism",
+            "12 exact deterministic fold receipts",
+            "trend determinism evidence",
         )
-    else:
-        fold_numbers = tuple(item.fold_number for item in receipts)
-        deterministic = (
-            fold_numbers == tuple(range(1, 13))
-            and all(item.exact_match and item.iteration_count < 50_000 for item in receipts)
-        )
-        outcomes.append(
-            _gate(
-                "convergence.trend_determinism",
-                deterministic,
-                f"folds={fold_numbers}",
-                "folds=1..12; exact; iterations<50000",
-                "trend repeated-fit determinism evaluated",
-            )
-        )
-    outcomes.append(
-        _optional_boolean(
-            "calibration.complete",
-            evidence.calibration_complete,
-            reason="calibration minimums and artifacts",
-        )
+    fold_numbers = tuple(item.fold_number for item in receipts)
+    passed = fold_numbers == tuple(range(1, 13)) and all(
+        item.exact_match and item.iteration_count < 50_000 for item in receipts
+    )
+    return _gate(
+        "convergence.trend_determinism",
+        passed,
+        f"folds={fold_numbers}",
+        "folds=1..12; exact; iterations<50000",
+        "trend repeated-fit determinism evaluated",
     )
 
-    folds = evidence.development_folds
-    outcomes.append(
+
+def _development_outcomes(folds: tuple[FoldEvaluation, ...]) -> list[GateOutcome]:
+    outcomes = [
         _gate(
             "development.fold_count",
             len(folds) == 12,
@@ -192,9 +168,9 @@ def evaluate_development_qualification(evidence: QualificationEvidence) -> Quali
             "=12",
             "complete fixed development-fold count evaluated",
         )
-    )
-    positive_folds = sum(item.candidate_net_return > _ZERO for item in folds)
-    positive_fraction = _ZERO if not folds else Decimal(positive_folds) / Decimal(len(folds))
+    ]
+    positive_count = sum(item.candidate_net_return > _ZERO for item in folds)
+    positive_fraction = _ZERO if not folds else Decimal(positive_count) / Decimal(len(folds))
     outcomes.append(
         _gate(
             "development.positive_return_folds",
@@ -233,64 +209,38 @@ def evaluate_development_qualification(evidence: QualificationEvidence) -> Quali
                 "development baseline return-to-drawdown wins evaluated",
             )
         )
-    total_positive_profit = sum((max(item.positive_profit, _ZERO) for item in folds), _ZERO)
+    total_profit = sum((max(item.positive_profit, _ZERO) for item in folds), _ZERO)
     concentration = (
         _ONE
-        if total_positive_profit == _ZERO
-        else max((item.positive_profit for item in folds), default=_ZERO) / total_positive_profit
+        if total_profit == _ZERO
+        else max((item.positive_profit for item in folds), default=_ZERO) / total_profit
     )
-    outcomes.append(
-        _gate(
-            "development.profit_concentration",
-            concentration <= Decimal("0.50"),
-            concentration,
-            "<=0.50",
-            "development profit concentration evaluated",
-        )
-    )
-    development_trades = sum(item.completed_trades for item in folds)
-    outcomes.append(
-        _gate(
-            "development.trade_count",
-            development_trades >= 60,
-            development_trades,
-            ">=60",
-            "development completed-trade count evaluated",
-        )
-    )
-
     outcomes.extend(
         (
-            _optional_boolean(
-                "control.shuffled_labels",
-                evidence.shuffled_labels_safe,
-                reason="shuffled-label negative control",
+            _gate(
+                "development.profit_concentration",
+                concentration <= Decimal("0.50"),
+                concentration,
+                "<=0.50",
+                "development profit concentration evaluated",
             ),
-            _optional_boolean(
-                "control.delayed_features",
-                evidence.delayed_features_component_supported,
-                reason="delayed-feature control",
-            ),
-            _optional_boolean(
-                "control.no_disagreement",
-                evidence.disagreement_component_supported,
-                reason="disagreement-abstention component value",
-            ),
-            _optional_boolean(
-                "control.no_volume",
-                evidence.volume_component_supported,
-                reason="volume component value",
-            ),
-            _optional_boolean(
-                "control.no_protection",
-                evidence.protection_component_supported,
-                reason="protection component value",
+            _gate(
+                "development.trade_count",
+                sum(item.completed_trades for item in folds) >= 60,
+                sum(item.completed_trades for item in folds),
+                ">=60",
+                "development completed-trade count evaluated",
             ),
         )
     )
+    return outcomes
 
-    cost_1_5x = evidence.cost_1_5x
-    if cost_1_5x is None:
+
+def _cost_outcomes(evidence: QualificationEvidence) -> list[GateOutcome]:
+    one_half = evidence.cost_1_5x
+    double = evidence.cost_2x
+    outcomes: list[GateOutcome] = []
+    if one_half is None:
         outcomes.extend(
             (
                 _missing("cost.one_half_return", ">0", "1.5x-cost return"),
@@ -302,22 +252,21 @@ def evaluate_development_qualification(evidence: QualificationEvidence) -> Quali
             (
                 _gate(
                     "cost.one_half_return",
-                    cost_1_5x.net_return > _ZERO,
-                    cost_1_5x.net_return,
+                    one_half.net_return > _ZERO,
+                    one_half.net_return,
                     ">0",
                     "1.5x-cost aggregate development return evaluated",
                 ),
                 _gate(
                     "cost.one_half_drawdown",
-                    cost_1_5x.maximum_drawdown <= Decimal("0.275"),
-                    cost_1_5x.maximum_drawdown,
+                    one_half.maximum_drawdown <= Decimal("0.275"),
+                    one_half.maximum_drawdown,
                     "<=0.275",
                     "1.5x-cost aggregate development drawdown evaluated",
                 ),
             )
         )
-    cost_2x = evidence.cost_2x
-    if cost_2x is None:
+    if double is None:
         outcomes.extend(
             (
                 _missing("cost.double_return", ">=-0.05", "2x-cost return"),
@@ -329,169 +278,173 @@ def evaluate_development_qualification(evidence: QualificationEvidence) -> Quali
             (
                 _gate(
                     "cost.double_return",
-                    cost_2x.net_return >= Decimal("-0.05"),
-                    cost_2x.net_return,
+                    double.net_return >= Decimal("-0.05"),
+                    double.net_return,
                     ">=-0.05",
                     "2x-cost aggregate development return evaluated",
                 ),
                 _gate(
                     "cost.double_drawdown",
-                    cost_2x.maximum_drawdown <= Decimal("0.30"),
-                    cost_2x.maximum_drawdown,
+                    double.maximum_drawdown <= Decimal("0.30"),
+                    double.maximum_drawdown,
                     "<=0.30",
                     "2x-cost aggregate development drawdown evaluated",
                 ),
             )
         )
-    if (
-        evidence.primary_aggregate_net_return is None
-        or cost_1_5x is None
-        or cost_2x is None
-    ):
+    primary = evidence.primary_aggregate_net_return
+    if primary is None or one_half is None or double is None:
         outcomes.append(
-            _missing(
-                "cost.monotonicity",
-                "base>=1.5x>=2x",
-                "aggregate development cost monotonicity",
-            )
+            _missing("cost.monotonicity", "base>=1.5x>=2x", "cost monotonicity")
         )
     else:
         outcomes.append(
             _gate(
                 "cost.monotonicity",
-                cost_returns_are_monotonic(
-                    evidence.primary_aggregate_net_return,
-                    cost_1_5x.net_return,
-                    cost_2x.net_return,
-                ),
-                (
-                    f"{evidence.primary_aggregate_net_return},"
-                    f"{cost_1_5x.net_return},{cost_2x.net_return}"
-                ),
+                cost_returns_are_monotonic(primary, one_half.net_return, double.net_return),
+                f"{primary},{one_half.net_return},{double.net_return}",
                 "base>=1.5x>=2x",
                 "aggregate development cost monotonicity evaluated",
             )
         )
+    return outcomes
 
+
+def _sensitivity_outcomes(evidence: QualificationEvidence) -> list[GateOutcome]:
     neighbors = evidence.neighbors
     if neighbors is None:
-        outcomes.extend(
-            (
-                _missing("sensitivity.positive_neighbors", ">=7/10", "sensitivity variants"),
-                _missing("sensitivity.median_return", ">0", "sensitivity median return"),
-                _missing("sensitivity.drawdown", "<=0.35", "sensitivity drawdown"),
-                _missing(
-                    "sensitivity.primary_stability",
-                    "no >100% neighbor improvement when primary<=0.02",
-                    "primary sensitivity stability",
-                ),
+        return [
+            _missing("sensitivity.positive_neighbors", ">=7/10", "sensitivity variants"),
+            _missing("sensitivity.median_return", ">0", "sensitivity median return"),
+            _missing("sensitivity.drawdown", "<=0.35", "sensitivity drawdown"),
+            _missing(
+                "sensitivity.primary_stability",
+                "no >100% neighbor improvement when primary<=0.02",
+                "primary sensitivity stability",
+            ),
+        ]
+    returns = tuple(item.net_return for item in neighbors)
+    positive_count = sum(value > _ZERO for value in returns)
+    maximum_drawdown = max(
+        (item.maximum_drawdown for item in neighbors),
+        default=Decimal("Infinity"),
+    )
+    outcomes = [
+        _gate(
+            "sensitivity.positive_neighbors",
+            len(neighbors) == 10 and positive_count >= 7,
+            positive_count,
+            ">=7/10 with exactly 10 variants",
+            "positive sensitivity variants evaluated",
+        ),
+        _gate(
+            "sensitivity.median_return",
+            bool(returns) and _median(returns) > _ZERO,
+            _ZERO if not returns else _median(returns),
+            ">0",
+            "sensitivity median aggregate return evaluated",
+        ),
+        _gate(
+            "sensitivity.drawdown",
+            maximum_drawdown <= Decimal("0.35"),
+            maximum_drawdown,
+            "<=0.35",
+            "sensitivity maximum aggregate drawdown evaluated",
+        ),
+    ]
+    primary = evidence.primary_aggregate_net_return
+    if primary is None:
+        outcomes.append(
+            _missing(
+                "sensitivity.primary_stability",
+                "no >100% neighbor improvement when primary<=0.02",
+                "primary aggregate development return",
             )
         )
     else:
-        neighbor_returns = tuple(item.net_return for item in neighbors)
-        positive_neighbors = sum(value > _ZERO for value in neighbor_returns)
-        neighbor_median = _ZERO if not neighbor_returns else _median(neighbor_returns)
-        neighbor_max_drawdown = max(
-            (item.maximum_drawdown for item in neighbors),
-            default=Decimal("Infinity"),
+        stable = primary > Decimal("0.02") or all(
+            item.net_return <= primary * Decimal("2") for item in neighbors
         )
-        outcomes.extend(
-            (
-                _gate(
-                    "sensitivity.positive_neighbors",
-                    len(neighbors) == 10 and positive_neighbors >= 7,
-                    positive_neighbors,
-                    ">=7/10 with exactly 10 variants",
-                    "positive sensitivity variants evaluated",
-                ),
-                _gate(
-                    "sensitivity.median_return",
-                    neighbor_median > _ZERO,
-                    neighbor_median,
-                    ">0",
-                    "sensitivity median aggregate return evaluated",
-                ),
-                _gate(
-                    "sensitivity.drawdown",
-                    neighbor_max_drawdown <= Decimal("0.35"),
-                    neighbor_max_drawdown,
-                    "<=0.35",
-                    "sensitivity maximum aggregate drawdown evaluated",
-                ),
+        outcomes.append(
+            _gate(
+                "sensitivity.primary_stability",
+                stable,
+                primary,
+                "no >100% neighbor improvement when primary<=0.02",
+                "primary development sensitivity stability evaluated",
             )
         )
-        if evidence.primary_aggregate_net_return is None:
-            outcomes.append(
-                _missing(
-                    "sensitivity.primary_stability",
-                    "no >100% neighbor improvement when primary<=0.02",
-                    "primary aggregate development return",
-                )
-            )
-        else:
-            stable = True
-            if evidence.primary_aggregate_net_return <= Decimal("0.02"):
-                stable = all(
-                    item.net_return <= evidence.primary_aggregate_net_return * Decimal("2")
-                    for item in neighbors
-                )
-            outcomes.append(
-                _gate(
-                    "sensitivity.primary_stability",
-                    stable,
-                    evidence.primary_aggregate_net_return,
-                    "no >100% neighbor improvement when primary<=0.02",
-                    "primary development sensitivity stability evaluated",
-                )
-            )
+    return outcomes
 
-    bootstrap = evidence.bootstrap
+
+def _bootstrap_outcomes(bootstrap: BootstrapResult | None) -> list[GateOutcome]:
     if bootstrap is None:
-        outcomes.extend(
-            (
-                _missing(
-                    "uncertainty.bootstrap_median",
-                    ">0",
-                    "development bootstrap median return difference",
-                ),
-                _missing(
-                    "uncertainty.bootstrap_lower_bound",
-                    ">-0.02",
-                    "development bootstrap lower bound",
-                ),
-            )
-        )
-    else:
-        outcomes.extend(
-            (
-                _gate(
-                    "uncertainty.bootstrap_median",
-                    bootstrap.net_return_difference_median > _ZERO,
-                    bootstrap.net_return_difference_median,
-                    ">0",
-                    "development bootstrap median return difference evaluated",
-                ),
-                _gate(
-                    "uncertainty.bootstrap_lower_bound",
-                    bootstrap.net_return_difference_p05 > Decimal("-0.02"),
-                    bootstrap.net_return_difference_p05,
-                    ">-0.02",
-                    "development bootstrap 90% lower bound evaluated",
-                ),
-            )
-        )
+        return [
+            _missing("uncertainty.bootstrap_median", ">0", "bootstrap median"),
+            _missing("uncertainty.bootstrap_lower_bound", ">-0.02", "bootstrap lower bound"),
+        ]
+    return [
+        _gate(
+            "uncertainty.bootstrap_median",
+            bootstrap.net_return_difference_median > _ZERO,
+            bootstrap.net_return_difference_median,
+            ">0",
+            "development bootstrap median return difference evaluated",
+        ),
+        _gate(
+            "uncertainty.bootstrap_lower_bound",
+            bootstrap.net_return_difference_p05 > Decimal("-0.02"),
+            bootstrap.net_return_difference_p05,
+            ">-0.02",
+            "development bootstrap 90% lower bound evaluated",
+        ),
+    ]
 
+
+def evaluate_development_qualification(evidence: QualificationEvidence) -> QualificationReport:
+    """Apply every preregistered Candidate v0.2 development gate and fail closed."""
+
+    outcomes: list[GateOutcome] = [
+        _boolean("integrity.verified", evidence.integrity_verified, "integrity verification"),
+        _trend_determinism(evidence.trend_determinism),
+        _boolean("calibration.complete", evidence.calibration_complete, "calibration evidence"),
+    ]
+    outcomes.extend(_development_outcomes(evidence.development_folds))
     outcomes.extend(
         (
-            _optional_boolean(
-                "replay.verified",
-                evidence.replay_verified,
-                reason="provider-free qualification replay",
+            _boolean(
+                "control.shuffled_labels",
+                evidence.shuffled_labels_safe,
+                "shuffled-label negative control",
             ),
-            _optional_boolean(
+            _boolean(
+                "control.delayed_features",
+                evidence.delayed_features_component_supported,
+                "delayed-feature control",
+            ),
+            _boolean(
+                "control.no_disagreement",
+                evidence.disagreement_component_supported,
+                "disagreement-abstention component",
+            ),
+            _boolean("control.no_volume", evidence.volume_component_supported, "volume component"),
+            _boolean(
+                "control.no_protection",
+                evidence.protection_component_supported,
+                "protection component",
+            ),
+        )
+    )
+    outcomes.extend(_cost_outcomes(evidence))
+    outcomes.extend(_sensitivity_outcomes(evidence))
+    outcomes.extend(_bootstrap_outcomes(evidence.bootstrap))
+    outcomes.extend(
+        (
+            _boolean("replay.verified", evidence.replay_verified, "provider-free replay"),
+            _boolean(
                 "independent.verified",
                 evidence.independent_verified,
-                reason="independent qualification verification",
+                "independent verification",
             ),
         )
     )
@@ -499,15 +452,14 @@ def evaluate_development_qualification(evidence: QualificationEvidence) -> Quali
     gates = tuple(item for item, _ in outcomes)
     if tuple(item.gate_id for item in gates) != QUALIFICATION_GATE_IDS:
         raise RuntimeError("mandatory qualification gate order is incomplete")
-    explicit_failure = any(not item.passed and not missing for item, missing in outcomes)
+    explicit_failure = any(not gate.passed and not missing for gate, missing in outcomes)
     missing_evidence = any(missing for _, missing in outcomes)
-    classification = (
-        QualificationClassification.REJECTED
-        if explicit_failure
-        else QualificationClassification.INCONCLUSIVE
-        if missing_evidence
-        else QualificationClassification.QUALIFIED
-    )
+    if explicit_failure:
+        classification = QualificationClassification.REJECTED
+    elif missing_evidence:
+        classification = QualificationClassification.INCONCLUSIVE
+    else:
+        classification = QualificationClassification.QUALIFIED
     return QualificationReport(classification=classification, gates=gates)
 
 

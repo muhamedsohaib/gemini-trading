@@ -1,4 +1,4 @@
-"""RED tests for the locked Candidate Multi-Model Strategy v0.1 policy."""
+"""RED tests for the locked Candidate Multi-Model Strategy policies."""
 
 from decimal import Decimal
 
@@ -27,6 +27,33 @@ def test_locked_policy_matches_approved_spec() -> None:
     assert policy.trend_tolerance == Decimal("0.00000001")
     assert serialize_candidate_policy(policy) == serialize_candidate_policy(
         CandidatePolicy.locked_v0_1()
+    )
+
+
+def test_locked_v0_2_changes_only_approved_identity_and_convergence() -> None:
+    old = CandidatePolicy.locked_v0_1()
+    new = CandidatePolicy.locked_v0_2()
+
+    assert new.strategy_id == "candidate.multi_model.v0_2"
+    assert new.policy_version == "candidate-multi-model-v0.2"
+    assert new.schema_version == "candidate-strategy-policy-v2"
+    assert (new.instrument_symbol, new.timeframe) == ("BTCUSDT", "4h")
+    assert new.trend_max_iterations == 50_000
+    assert new.trend_tolerance == Decimal("0.0000001")
+    differing = {
+        name
+        for name in old.__dataclass_fields__
+        if getattr(old, name) != getattr(new, name)
+    }
+    assert differing == {
+        "schema_version",
+        "strategy_id",
+        "policy_version",
+        "trend_max_iterations",
+        "trend_tolerance",
+    }
+    assert serialize_candidate_policy(new) == serialize_candidate_policy(
+        CandidatePolicy.locked_v0_2()
     )
 
 

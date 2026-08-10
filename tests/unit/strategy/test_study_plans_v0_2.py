@@ -103,11 +103,14 @@ def test_v0_2_development_qualification_prepares_full_robustness_case_set() -> N
         include_qualification_robustness=True,
     )
 
-    assert tuple(
-        case_id
-        for phase, fold_number, case_id in plans
-        if phase is StudyPhase.DEVELOPMENT and fold_number == 1
-    ) == REQUIRED_FINAL_CASE_IDS
+    assert (
+        tuple(
+            case_id
+            for phase, fold_number, case_id in plans
+            if phase is StudyPhase.DEVELOPMENT and fold_number == 1
+        )
+        == REQUIRED_FINAL_CASE_IDS
+    )
     assert plans[(StudyPhase.DEVELOPMENT, 1, policy.strategy_id)].strategy.strategy_id == (
         "candidate.multi_model.v0_2"
     )

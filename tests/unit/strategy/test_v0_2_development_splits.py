@@ -42,7 +42,7 @@ def test_v0_2_development_plan_rejects_changed_dataset_cutoff() -> None:
         end_exclusive=datetime(2026, 6, 1, tzinfo=UTC),
     )
 
-    with pytest.raises(SplitBoundaryError, match="v0.2 development dataset window"):
+    with pytest.raises(SplitBoundaryError, match=r"v0\.2 development dataset window"):
         DevelopmentQualificationPlan.build(
             candles,
             _eligible(len(candles)),

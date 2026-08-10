@@ -294,9 +294,7 @@ def _cost_outcomes(evidence: QualificationEvidence) -> list[GateOutcome]:
         )
     primary = evidence.primary_aggregate_net_return
     if primary is None or one_half is None or double is None:
-        outcomes.append(
-            _missing("cost.monotonicity", "base>=1.5x>=2x", "cost monotonicity")
-        )
+        outcomes.append(_missing("cost.monotonicity", "base>=1.5x>=2x", "cost monotonicity"))
     else:
         outcomes.append(
             _gate(

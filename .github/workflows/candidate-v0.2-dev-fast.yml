@@ -4,17 +4,15 @@ on:
   pull_request:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   focused:
-    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2
         with:
           fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.ref }}
       - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
           version: "0.11.25"
@@ -23,18 +21,6 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync --all-groups --frozen
-      - name: Apply formatter once
-        shell: bash
-        run: |
-          set -euo pipefail
-          uv run ruff format .
-          if ! git diff --quiet; then
-            git config user.name 'github-actions[bot]'
-            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git add .
-            git commit -m 'style: apply ruff formatter'
-            git push origin HEAD:${{ github.event.pull_request.head.ref }}
-          fi
       - run: uv run ruff format --check .
       - run: uv run ruff check .
       - run: uv run pyright

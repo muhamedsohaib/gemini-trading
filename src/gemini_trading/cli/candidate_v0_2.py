@@ -56,8 +56,14 @@ def _utc_timestamp(arguments: argparse.Namespace, name: str) -> datetime:
     try:
         value = datetime.fromisoformat(raw.replace("Z", "+00:00"))
     except ValueError:
-        raise CliUsageError(f"--{name.replace('_', '-')} must be an ISO-8601 UTC timestamp") from None
-    if value.tzinfo is None or value.utcoffset() is None or value.utcoffset().total_seconds() != 0:
+        raise CliUsageError(
+            f"--{name.replace('_', '-')} must be an ISO-8601 UTC timestamp"
+        ) from None
+    if (
+        value.tzinfo is None
+        or value.utcoffset() is None
+        or value.utcoffset().total_seconds() != 0
+    ):
         raise CliUsageError(f"--{name.replace('_', '-')} must be an ISO-8601 UTC timestamp")
     return value.astimezone(UTC)
 
@@ -72,7 +78,9 @@ def _qualification_root(handoff_path: Path, output_root: Path) -> Path:
     try:
         relative = resolved_handoff.relative_to(resolved_root)
     except ValueError:
-        raise DatasetHandoffError("dataset handoff path is outside the Stage 1 artifact root") from None
+        raise DatasetHandoffError(
+            "dataset handoff path is outside the Stage 1 artifact root"
+        ) from None
     parts = relative.parts
     if (
         len(parts) != 5

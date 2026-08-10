@@ -51,13 +51,15 @@ _SIMULATION_FIELDS = {
 }
 _STRATEGY_FIELDS = {"id", "policy_version"}
 _SCHEMA_VERSION = "candidate-strategy-cli-v1"
-_STRATEGY_ID = "candidate.multi_model.v0_1"
-_POLICY_VERSION = "candidate-multi-model-v0.1"
+_APPROVED_POLICY_BY_STRATEGY = {
+    "candidate.multi_model.v0_1": "candidate-multi-model-v0.1",
+    "candidate.multi_model.v0_2": "candidate-multi-model-v0.2",
+}
 
 
 @dataclass(frozen=True, slots=True)
 class CandidateStrategyCliConfig:
-    """Strict user-supplied non-structural inputs for Candidate v0.1."""
+    """Strict user-supplied non-structural inputs for an approved Candidate."""
 
     schema_version: str
     initial_cash: Decimal
@@ -115,7 +117,7 @@ def _decimal(mapping: Mapping[str, object], key: str, description: str) -> Decim
 
 
 def load_candidate_strategy_config(path: Path) -> CandidateStrategyCliConfig:
-    """Load one exact Candidate v0.1 CLI configuration and reject unsafe variants."""
+    """Load one exact approved Candidate CLI configuration and reject unsafe variants."""
 
     try:
         loaded: object = json.loads(path.read_text(encoding="utf-8"))
@@ -139,10 +141,11 @@ def load_candidate_strategy_config(path: Path) -> CandidateStrategyCliConfig:
     strategy = _mapping(top.get("strategy"), "candidate strategy identity")
     _exact_fields(strategy, _STRATEGY_FIELDS, "candidate strategy identity")
     strategy_id = _string(strategy, "id", "candidate strategy identity")
-    if strategy_id != _STRATEGY_ID:
+    expected_policy_version = _APPROVED_POLICY_BY_STRATEGY.get(strategy_id)
+    if expected_policy_version is None:
         raise InvalidExperimentConfigError("candidate strategy identity is not approved")
     policy_version = _string(strategy, "policy_version", "candidate strategy identity")
-    if policy_version != _POLICY_VERSION:
+    if policy_version != expected_policy_version:
         raise InvalidExperimentConfigError("candidate policy version is not approved")
 
     simulation_mapping = _mapping(top.get("simulation"), "candidate simulation configuration")

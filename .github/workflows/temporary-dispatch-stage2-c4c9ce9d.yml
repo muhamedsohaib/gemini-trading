@@ -1,0 +1,51 @@
+name: Temporary dispatch Stage 2 c4c9ce9d
+
+on:
+  pull_request:
+
+permissions:
+  actions: write
+  contents: read
+  issues: read
+
+defaults:
+  run:
+    shell: bash --noprofile --norc -e -o pipefail {0}
+
+jobs:
+  dispatch:
+    if: github.event.pull_request.head.ref == 'ops/dispatch-stage2-c4c9ce9d-31383925467'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SOURCE_COMMIT: c4c9ce9d62a4fba8aab3795598be9b54cb50aa5d
+      DATASET_RUN_ID: '31383925467'
+      DATASET_ID: 33cdaecbec6b1d90db46fde0e0ad1164b3dca2e6bd2fb858d73a1b177f6a007b
+      DATASET_ARTIFACT_NAME: sealed-btcusdt-dataset-c4c9ce9d62a4fba8aab3795598be9b54cb50aa5d-31383925467
+    steps:
+      - name: Assert current main is exact verified source
+        run: |
+          ACTUAL_MAIN_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq '.object.sha')"
+          test "${ACTUAL_MAIN_SHA}" = "${SOURCE_COMMIT}"
+      - name: Require exact owner approval marker
+        run: |
+          MARKER="<!-- sealed-dataset-approved:${SOURCE_COMMIT}:${DATASET_RUN_ID}:${DATASET_ID} -->"
+          gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/issues/22/comments" > "${RUNNER_TEMP}/comments.json"
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          pages=json.loads((Path(os.environ['RUNNER_TEMP'])/'comments.json').read_text())
+          comments=[c for p in pages for c in p]
+          marker=f"<!-- sealed-dataset-approved:{os.environ['SOURCE_COMMIT']}:{os.environ['DATASET_RUN_ID']}:{os.environ['DATASET_ID']} -->"
+          owner=os.environ['GITHUB_REPOSITORY_OWNER']
+          if not any(marker in str(c.get('body','')) and str(c.get('user',{}).get('login','')) == owner for c in comments):
+              raise SystemExit('exact owner approval marker missing')
+          PY
+      - name: Dispatch sealed Stage 2
+        run: |
+          gh workflow run sealed-btcusdt-study.yml --ref main \
+            -f source_commit="${SOURCE_COMMIT}" \
+            -f dataset_run_id="${DATASET_RUN_ID}" \
+            -f dataset_artifact_name="${DATASET_ARTIFACT_NAME}" \
+            -f dataset_id="${DATASET_ID}"

@@ -111,6 +111,8 @@ jobs:
               raise SystemExit("an exact-source Stage 2 workflow run already exists")
           PY
 
+      - uses: actions/checkout@v6.0.2
+
       - name: Dispatch exact approved Stage 2
         id: dispatch
         env:

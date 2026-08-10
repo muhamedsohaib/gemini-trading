@@ -30,6 +30,7 @@ from gemini_trading.strategy.qualification_execution import execute_candidate_v0
 _V0_2_STRATEGY_ID = "candidate.multi_model.v0_2"
 _V0_2_POLICY_VERSION = "candidate-multi-model-v0.2"
 _DEVELOPMENT_CUTOFF = datetime(2026, 7, 1, tzinfo=UTC)
+_HANDOFF_PREFIX = ("data", "historical-validation", "handoff")
 
 
 def _argument(arguments: argparse.Namespace, name: str) -> str:
@@ -61,14 +62,25 @@ def _utc_timestamp(arguments: argparse.Namespace, name: str) -> datetime:
     return value.astimezone(UTC)
 
 
+def _timestamp(value: datetime) -> str:
+    return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
 def _qualification_root(handoff_path: Path, output_root: Path) -> Path:
+    resolved_root = output_root.resolve(strict=False)
     resolved_handoff = handoff_path.resolve(strict=False)
-    if len(resolved_handoff.parents) < 3:
-        raise DatasetHandoffError("dataset handoff path is outside the expected artifact tree")
-    artifact_root = resolved_handoff.parents[2]
-    if artifact_root != output_root.resolve(strict=False):
-        raise DatasetHandoffError("qualification output root must equal the Stage 1 artifact root")
-    return artifact_root
+    try:
+        relative = resolved_handoff.relative_to(resolved_root)
+    except ValueError:
+        raise DatasetHandoffError("dataset handoff path is outside the Stage 1 artifact root") from None
+    parts = relative.parts
+    if (
+        len(parts) != 5
+        or parts[:3] != _HANDOFF_PREFIX
+        or parts[-1] != "dataset-handoff.json"
+    ):
+        raise DatasetHandoffError("dataset handoff path does not match the fixed artifact layout")
+    return resolved_root
 
 
 def _qualify(arguments: argparse.Namespace) -> dict[str, object]:
@@ -155,11 +167,11 @@ def _seal(arguments: argparse.Namespace) -> dict[str, object]:
         )
     )
     return {
-        "bridge_end": seal.bridge_end,
-        "bridge_start": seal.bridge_start,
+        "bridge_end": _timestamp(seal.bridge_end),
+        "bridge_start": _timestamp(seal.bridge_start),
         "execution_authorized": False,
-        "final_end": seal.final_end,
-        "final_start": seal.final_start,
+        "final_end": _timestamp(seal.final_end),
+        "final_start": _timestamp(seal.final_start),
         "promotable": False,
         "seal_id": seal.seal_id,
         "status": "sealed",

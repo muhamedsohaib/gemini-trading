@@ -18,7 +18,6 @@ from gemini_trading.strategy.determinism import (
     fit_verified_prediction_bundle,
 )
 from gemini_trading.strategy.errors import StudyArtifactError
-from gemini_trading.strategy.evaluator import reconstruct_study_strategy
 from gemini_trading.strategy.evaluation import (
     BootstrapResult,
     CostStressEvaluation,
@@ -26,6 +25,7 @@ from gemini_trading.strategy.evaluation import (
     NeighborEvaluation,
     deterministic_moving_block_bootstrap,
 )
+from gemini_trading.strategy.evaluator import reconstruct_study_strategy
 from gemini_trading.strategy.features import FeatureRegistry
 from gemini_trading.strategy.handoff import DatasetHandoffManifest
 from gemini_trading.strategy.labels import LabelPolicy

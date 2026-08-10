@@ -1,6 +1,6 @@
-"""Locked structural policy for Candidate Multi-Model Strategy v0.1."""
+"""Locked structural policies for Candidate Multi-Model Strategy research."""
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from decimal import Decimal
 
 from gemini_trading.research.serialization import canonical_json_bytes
@@ -23,7 +23,7 @@ def _finite(value: Decimal, field_name: str) -> None:
 
 @dataclass(frozen=True, slots=True)
 class CandidatePolicy:
-    """Every predeclared structural value for the first strategy candidate."""
+    """Every predeclared structural value for one approved strategy candidate."""
 
     schema_version: str
     strategy_id: str
@@ -213,7 +213,7 @@ class CandidatePolicy:
 
     @classmethod
     def locked_v0_1(cls) -> "CandidatePolicy":
-        """Return the only structural policy approved for Candidate v0.1."""
+        """Return the structural policy approved for Candidate v0.1."""
 
         return cls(
             schema_version="candidate-strategy-policy-v1",
@@ -294,6 +294,29 @@ class CandidatePolicy:
             final_baseline_net_return_tolerance=Decimal("0.02"),
             final_single_trade_profit_fraction=Decimal("0.25"),
         )
+
+    @classmethod
+    def locked_v0_2(cls) -> "CandidatePolicy":
+        """Return the prospectively approved Candidate v0.2 policy."""
+
+        return replace(
+            cls.locked_v0_1(),
+            schema_version="candidate-strategy-policy-v2",
+            strategy_id="candidate.multi_model.v0_2",
+            policy_version="candidate-multi-model-v0.2",
+            trend_max_iterations=50_000,
+            trend_tolerance=Decimal("0.0000001"),
+        )
+
+
+def approved_candidate_policy(strategy_id: str, policy_version: str) -> CandidatePolicy:
+    """Return an exact approved Candidate policy or reject an unapproved identity pair."""
+
+    if strategy_id == "candidate.multi_model.v0_1" and policy_version == "candidate-multi-model-v0.1":
+        return CandidatePolicy.locked_v0_1()
+    if strategy_id == "candidate.multi_model.v0_2" and policy_version == "candidate-multi-model-v0.2":
+        return CandidatePolicy.locked_v0_2()
+    raise ValueError("candidate strategy and policy identity pair is not approved")
 
 
 def serialize_candidate_policy(policy: CandidatePolicy) -> bytes:

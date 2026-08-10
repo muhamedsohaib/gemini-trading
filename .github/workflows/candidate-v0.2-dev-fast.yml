@@ -64,6 +64,7 @@ jobs:
               raise SystemExit('qualification verification block missing')
           qualification.write_text(text)
           PY
+          uv run ruff check --fix .
           uv run ruff format .
           if ! git diff --quiet; then
             git config user.name 'github-actions[bot]'

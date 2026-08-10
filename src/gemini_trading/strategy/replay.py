@@ -72,7 +72,6 @@ _CASE_KEYS = {
 SUPPORTED_REPLAY_STRATEGY_IDS = (
     "fixture.scripted.v1",
     "candidate.multi_model.v0_1",
-    "candidate.multi_model.v0_2",
     "cash.v1",
     "buy_hold.v1",
     "ema_20_50.v1",
@@ -182,182 +181,390 @@ def _required_excluded_rows(
         provider_row_sha256 = row.get("provider_row_sha256")
         if not isinstance(closure_id, str) or not isinstance(provider_row_sha256, str):
             raise StudyReplayMismatchError(f"invalid {description} field: {key}")
-        rows.append(
-            ExcludedProviderRow(
-                closure_id=closure_id,
-                provider_row_sha256=provider_row_sha256,
-            )
-        )
+        try:
+            rows.append(ExcludedProviderRow(closure_id, provider_row_sha256))
+        except Exception:
+            raise StudyReplayMismatchError(f"invalid {description} field: {key}") from None
     return tuple(rows)
 
 
-def _parse_case(row: Mapping[str, object]) -> StudyCaseEvidence:
-    if set(row) != _CASE_KEYS:
-        raise StudyReplayMismatchError("strategy study case fields changed")
-    phase_value = _required_str(row, "phase", "strategy study case")
-    try:
-        phase = StudyPhase(phase_value)
-    except ValueError:
-        raise StudyReplayMismatchError("invalid strategy study phase") from None
-    raw_fold = row.get("fold_number")
-    fold_number = (
-        None if raw_fold is None else _required_int(row, "fold_number", "strategy study case")
-    )
-    try:
-        return StudyCaseEvidence(
-            case_id=_required_str(row, "case_id", "strategy study case"),
-            phase=phase,
-            fold_number=fold_number,
-            terminal_status=_required_str(row, "terminal_status", "strategy study case"),
-            experiment_id=_sha256(
-                _required_str(row, "experiment_id", "strategy study case"),
-                "strategy study experiment identity",
-            ),
-            evidence_sha256=_sha256(
-                _required_str(row, "evidence_sha256", "strategy study case"),
-                "strategy study evidence identity",
-            ),
-        )
-    except ValueError as error:
-        raise StudyReplayMismatchError(str(error)) from None
+@dataclass(frozen=True, slots=True)
+class StoredStrategyStudyManifest:
+    """Strict canonical study-level trust-boundary manifest."""
+
+    study_id: str
+    split_plan_sha256: str
+    policy_sha256: str
+    configuration_sha256: str
+    code_commit: str
+    final_test_receipt_id: str
+    final_evaluation_count: int
+    pre_final_id: str | None = None
+    dataset_handoff_inventory_root: str | None = None
+    durable_final_access_receipt_id: str | None = None
+    dataset_schema_version: str | None = None
+    closure_manifest_sha256: str | None = None
+    exclusion_manifest_sha256: str | None = None
+    segment_manifest_sha256: str | None = None
+    closure_count: int | None = None
+    exclusion_count: int | None = None
+    segment_count: int | None = None
+    closure_ids: tuple[str, ...] = ()
+    excluded_provider_rows: tuple[ExcludedProviderRow, ...] = ()
+    segment_boundary_indices: tuple[int, ...] = ()
 
 
-def _case_payload(case: StudyCaseEvidence) -> dict[str, object]:
-    return {
-        "case_id": case.case_id,
-        "phase": case.phase.value,
-        "fold_number": case.fold_number,
-        "terminal_status": case.terminal_status,
-        "experiment_id": case.experiment_id,
-        "evidence_sha256": case.evidence_sha256,
+def parse_study_manifest(raw: bytes) -> StoredStrategyStudyManifest:
+    """Parse either the exact legacy schema or exact sealed extension."""
+
+    mapping = _json_object(raw, "strategy study manifest")
+    fields = set(mapping)
+    valid_fields = {
+        frozenset(_LEGACY_STUDY_MANIFEST_KEYS),
+        frozenset(_SEALED_STUDY_MANIFEST_KEYS),
     }
+    if frozenset(fields) not in valid_fields:
+        raise StudyReplayMismatchError("strategy study manifest fields do not match schema")
+    sealed = fields == _SEALED_STUDY_MANIFEST_KEYS
+    if _required_str(mapping, "schema_version", "strategy study manifest") != "strategy-study-v1":
+        raise StudyReplayMismatchError("unsupported strategy study manifest schema")
+    manifest = StoredStrategyStudyManifest(
+        study_id=_sha256(
+            _required_str(mapping, "study_id", "strategy study manifest"),
+            "strategy study identity",
+        ),
+        split_plan_sha256=_sha256(
+            _required_str(mapping, "split_plan_sha256", "strategy study manifest"),
+            "split plan identity",
+        ),
+        policy_sha256=_sha256(
+            _required_str(mapping, "policy_sha256", "strategy study manifest"),
+            "policy identity",
+        ),
+        configuration_sha256=_sha256(
+            _required_str(mapping, "configuration_sha256", "strategy study manifest"),
+            "configuration identity",
+        ),
+        code_commit=_required_str(mapping, "code_commit", "strategy study manifest"),
+        final_test_receipt_id=_sha256(
+            _required_str(mapping, "final_test_receipt_id", "strategy study manifest"),
+            "final test receipt identity",
+        ),
+        final_evaluation_count=_required_int(
+            mapping,
+            "final_evaluation_count",
+            "strategy study manifest",
+        ),
+        pre_final_id=(
+            _sha256(
+                _required_str(mapping, "pre_final_id", "strategy study manifest"),
+                "pre-final identity",
+            )
+            if sealed
+            else None
+        ),
+        dataset_handoff_inventory_root=(
+            _sha256(
+                _required_str(
+                    mapping,
+                    "dataset_handoff_inventory_root",
+                    "strategy study manifest",
+                ),
+                "dataset handoff inventory root",
+            )
+            if sealed
+            else None
+        ),
+        durable_final_access_receipt_id=(
+            _sha256(
+                _required_str(
+                    mapping,
+                    "durable_final_access_receipt_id",
+                    "strategy study manifest",
+                ),
+                "durable final-access receipt identity",
+            )
+            if sealed
+            else None
+        ),
+        dataset_schema_version=(
+            _required_str(mapping, "dataset_schema_version", "strategy study manifest")
+            if sealed
+            else None
+        ),
+        closure_manifest_sha256=(
+            _sha256(
+                _required_str(mapping, "closure_manifest_sha256", "strategy study manifest"),
+                "closure manifest identity",
+            )
+            if sealed
+            else None
+        ),
+        exclusion_manifest_sha256=(
+            _sha256(
+                _required_str(mapping, "exclusion_manifest_sha256", "strategy study manifest"),
+                "exclusion manifest identity",
+            )
+            if sealed
+            else None
+        ),
+        segment_manifest_sha256=(
+            _sha256(
+                _required_str(mapping, "segment_manifest_sha256", "strategy study manifest"),
+                "segment manifest identity",
+            )
+            if sealed
+            else None
+        ),
+        closure_count=(
+            _required_int(mapping, "closure_count", "strategy study manifest") if sealed else None
+        ),
+        exclusion_count=(
+            _required_int(mapping, "exclusion_count", "strategy study manifest") if sealed else None
+        ),
+        segment_count=(
+            _required_int(mapping, "segment_count", "strategy study manifest") if sealed else None
+        ),
+        closure_ids=(
+            _required_string_tuple(mapping, "closure_ids", "strategy study manifest")
+            if sealed
+            else ()
+        ),
+        excluded_provider_rows=(
+            _required_excluded_rows(
+                mapping,
+                "excluded_provider_rows",
+                "strategy study manifest",
+            )
+            if sealed
+            else ()
+        ),
+        segment_boundary_indices=(
+            _required_positive_int_tuple(
+                mapping, "segment_boundary_indices", "strategy study manifest"
+            )
+            if sealed
+            else ()
+        ),
+    )
+    if _GIT_COMMIT_PATTERN.fullmatch(manifest.code_commit) is None:
+        raise StudyReplayMismatchError("invalid strategy study code commit")
+    if manifest.final_evaluation_count != 1:
+        raise StudyReplayMismatchError("final-test receipt must record exactly one evaluation")
+    if sealed:
+        if manifest.dataset_schema_version != "candle-dataset-v4":
+            raise StudyReplayMismatchError("sealed study requires candle-dataset-v4")
+        if manifest.closure_count is None or manifest.closure_count < 1:
+            raise StudyReplayMismatchError("invalid sealed study closure count")
+        if manifest.exclusion_count != manifest.closure_count:
+            raise StudyReplayMismatchError("invalid sealed study exclusion count")
+        if manifest.segment_count != manifest.closure_count + 1:
+            raise StudyReplayMismatchError("invalid sealed study segment count")
+        if len(manifest.excluded_provider_rows) != manifest.exclusion_count:
+            raise StudyReplayMismatchError("invalid sealed study excluded row count")
+        if len(manifest.closure_ids) != manifest.closure_count:
+            raise StudyReplayMismatchError("invalid sealed study closure IDs")
+        if (
+            tuple(item.closure_id for item in manifest.excluded_provider_rows)
+            != manifest.closure_ids
+        ):
+            raise StudyReplayMismatchError("invalid sealed study excluded row order")
+        if len({item.provider_row_sha256 for item in manifest.excluded_provider_rows}) != len(
+            manifest.excluded_provider_rows
+        ):
+            raise StudyReplayMismatchError("duplicate sealed study excluded row identity")
+        if len(manifest.segment_boundary_indices) != manifest.closure_count:
+            raise StudyReplayMismatchError("invalid sealed study segment boundaries")
+    if canonical_json_bytes(mapping) != raw:
+        raise StudyReplayMismatchError("strategy study manifest canonical bytes do not match")
+    return manifest
 
 
-def _case_evidence_bytes(case: StudyCaseEvidence) -> bytes:
-    return canonical_json_bytes(_case_payload(case))
+def parse_study_case_evidence(raw: bytes) -> tuple[StudyCaseEvidence, ...]:
+    """Parse and complete-check every referenced development and final case."""
+
+    records: list[StudyCaseEvidence] = []
+    for mapping in _jsonl_objects(raw, "strategy study experiments"):
+        if set(mapping) != _CASE_KEYS:
+            raise StudyReplayMismatchError("strategy study experiment fields do not match schema")
+        fold_value = mapping.get("fold_number")
+        if fold_value is not None and (
+            isinstance(fold_value, bool) or not isinstance(fold_value, int)
+        ):
+            raise StudyReplayMismatchError("invalid strategy study experiment fold_number")
+        try:
+            records.append(
+                StudyCaseEvidence(
+                    case_id=_required_str(mapping, "case_id", "strategy study experiment"),
+                    phase=StudyPhase(_required_str(mapping, "phase", "strategy study experiment")),
+                    fold_number=fold_value,
+                    terminal_status=_required_str(
+                        mapping,
+                        "terminal_status",
+                        "strategy study experiment",
+                    ),
+                    experiment_id=_required_str(
+                        mapping,
+                        "experiment_id",
+                        "strategy study experiment",
+                    ),
+                    evidence_sha256=_required_str(
+                        mapping,
+                        "evidence_sha256",
+                        "strategy study experiment",
+                    ),
+                )
+            )
+        except ValueError as error:
+            raise StudyReplayMismatchError(f"invalid strategy study experiment: {error}") from None
+
+    grouped: dict[int, list[StudyCaseEvidence]] = {}
+    final_records: list[StudyCaseEvidence] = []
+    for record in records:
+        if record.phase is StudyPhase.DEVELOPMENT:
+            if record.fold_number is None:
+                raise StudyReplayMismatchError("development experiment is missing fold identity")
+            grouped.setdefault(record.fold_number, []).append(record)
+        else:
+            final_records.append(record)
+    if not grouped:
+        raise StudyReplayMismatchError("strategy study has no development folds")
+    required_development = set(REQUIRED_DEVELOPMENT_CASE_IDS)
+    for fold_number, fold_records in grouped.items():
+        case_ids = tuple(item.case_id for item in fold_records)
+        if set(case_ids) != required_development or len(case_ids) != len(required_development):
+            raise StudyReplayMismatchError(
+                f"strategy study development evidence is incomplete for fold {fold_number}"
+            )
+    final_case_ids = tuple(item.case_id for item in final_records)
+    if set(final_case_ids) != set(REQUIRED_FINAL_CASE_IDS) or len(final_case_ids) != len(
+        REQUIRED_FINAL_CASE_IDS
+    ):
+        raise StudyReplayMismatchError("strategy study final evidence is incomplete")
+    active_ids = set(SUPPORTED_REPLAY_STRATEGY_IDS) - {"fixture.scripted.v1"}
+    if not active_ids.issubset({item.case_id for item in records}):
+        raise StudyReplayMismatchError("strategy study replay registry evidence is incomplete")
+    for strategy_id in sorted(active_ids):
+        validate_replay_strategy_id(strategy_id)
+    return tuple(records)
 
 
-def _case_evidence_sha256(case: StudyCaseEvidence) -> str:
-    return hashlib.sha256(_case_evidence_bytes(case)).hexdigest()
+def _artifact_hashes(mapping: Mapping[str, object]) -> tuple[tuple[str, str], ...]:
+    raw_artifacts = mapping.get("artifacts")
+    if not isinstance(raw_artifacts, list):
+        raise StudyReplayMismatchError("invalid strategy study result artifacts")
+    values: list[tuple[str, str]] = []
+    for raw_item in cast(list[object], raw_artifacts):
+        if not isinstance(raw_item, list):
+            raise StudyReplayMismatchError("invalid strategy study result artifact entry")
+        pair = cast(list[object], raw_item)
+        if len(pair) != 2 or not all(isinstance(item, str) for item in pair):
+            raise StudyReplayMismatchError("invalid strategy study result artifact entry")
+        values.append(
+            (
+                cast(str, pair[0]),
+                _sha256(cast(str, pair[1]), "strategy study artifact hash"),
+            )
+        )
+    result = tuple(values)
+    if result != tuple(sorted(result)) or len(result) != len(set(result)):
+        raise StudyReplayMismatchError("strategy study result artifacts are not uniquely sorted")
+    expected_names = tuple(
+        name for name in REQUIRED_STUDY_ARTIFACT_NAMES if name != "study-result-manifest.json"
+    )
+    if tuple(name for name, _ in result) != expected_names:
+        raise StudyReplayMismatchError("strategy study result artifact names are incomplete")
+    return result
 
 
 @dataclass(frozen=True, slots=True)
 class StrategyStudyReplayService:
-    """Reconstruct and verify one stored strategy study without a provider."""
+    """Reconstruct one stored study from canonical bytes without provider access."""
 
     root: Path
     current_commit_resolver: Callable[[], str] = _default_current_commit
 
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "root", Path(self.root))
+
     def replay(self, study_id: str) -> StrategyStudyArtifacts:
-        """Replay immutable strategy-study metadata and referenced experiments."""
+        """Fail closed unless every stored artifact and identity is canonical."""
 
-        # Remaining implementation is intentionally unchanged below this file region.
-        return self._replay_existing(study_id)
-
-    def _replay_existing(self, study_id: str) -> StrategyStudyArtifacts:
-        """Internal existing replay implementation."""
-
+        _sha256(study_id, "strategy study identity")
         store = LocalStrategyStudyStore(self.root)
-        result_bytes = store.read_artifact(study_id, "result-manifest.json")
-        result = _json_object(result_bytes, "strategy study result")
-        if set(result) != _RESULT_KEYS:
-            raise StudyReplayMismatchError("strategy study result fields changed")
-        stored_study_id = _sha256(
-            _required_str(result, "study_id", "strategy study result"),
-            "strategy study identity",
-        )
-        if stored_study_id != study_id:
-            raise StudyReplayMismatchError("strategy study identity changed")
-        classification_value = _required_str(result, "classification", "strategy study result")
+        files: list[tuple[str, bytes]] = []
+        for name in REQUIRED_STUDY_ARTIFACT_NAMES:
+            try:
+                files.append((name, store.read_artifact(study_id, name)))
+            except (OSError, ValueError):
+                raise StudyReplayMismatchError(
+                    f"required strategy study replay artifact is missing: {name}"
+                ) from None
+        file_mapping = dict(files)
+        result_bytes = file_mapping["study-result-manifest.json"]
+        result_mapping = _json_object(result_bytes, "strategy study result manifest")
+        if set(result_mapping) != _RESULT_KEYS:
+            raise StudyReplayMismatchError(
+                "strategy study result manifest fields do not match schema"
+            )
+        if (
+            _required_str(result_mapping, "schema_version", "strategy study result manifest")
+            != "strategy-study-result-v1"
+        ):
+            raise StudyReplayMismatchError("unsupported strategy study result schema")
+        if _required_str(result_mapping, "study_id", "strategy study result manifest") != study_id:
+            raise StudyReplayMismatchError("strategy study result identity does not match study")
         try:
-            classification = PromotionClassification(classification_value)
+            classification = PromotionClassification(
+                _required_str(result_mapping, "classification", "strategy study result manifest")
+            )
         except ValueError:
             raise StudyReplayMismatchError("invalid strategy study classification") from None
-        artifacts_value = result.get("artifacts")
-        if not isinstance(artifacts_value, list):
-            raise StudyReplayMismatchError("invalid strategy study result artifacts")
-        artifact_rows = cast(list[object], artifacts_value)
-        artifact_hashes: dict[str, str] = {}
-        for raw_row in artifact_rows:
-            if not isinstance(raw_row, dict):
-                raise StudyReplayMismatchError("invalid strategy study artifact identity")
-            row = cast(dict[object, object], raw_row)
-            if set(row) != {"name", "sha256"}:
-                raise StudyReplayMismatchError("invalid strategy study artifact identity")
-            name = row.get("name")
-            sha256 = row.get("sha256")
-            if not isinstance(name, str) or not isinstance(sha256, str):
-                raise StudyReplayMismatchError("invalid strategy study artifact identity")
-            artifact_hashes[name] = _sha256(sha256, "strategy study artifact SHA-256")
-        expected_names = tuple(
-            name for name in REQUIRED_STUDY_ARTIFACT_NAMES if name != "result-manifest.json"
-        )
-        if tuple(artifact_hashes) != expected_names:
-            raise StudyReplayMismatchError("strategy study artifact inventory changed")
-        for name, expected_hash in artifact_hashes.items():
-            if hashlib.sha256(store.read_artifact(study_id, name)).hexdigest() != expected_hash:
-                raise StudyReplayMismatchError(f"strategy study artifact changed: {name}")
-        study_manifest = _json_object(
-            store.read_artifact(study_id, "study-manifest.json"),
-            "strategy study manifest",
-        )
-        if set(study_manifest) not in {_LEGACY_STUDY_MANIFEST_KEYS, _SEALED_STUDY_MANIFEST_KEYS}:
-            raise StudyReplayMismatchError("strategy study manifest fields changed")
-        manifest_code_commit = _required_str(
-            study_manifest,
-            "code_commit",
-            "strategy study manifest",
-        )
-        if _GIT_COMMIT_PATTERN.fullmatch(manifest_code_commit) is None:
-            raise StudyReplayMismatchError("invalid strategy study code commit")
-        if self.current_commit_resolver() != manifest_code_commit:
-            raise StudyReplayMismatchError("strategy study code commit changed")
-        experiment_rows = _jsonl_objects(
-            store.read_artifact(study_id, "experiments.jsonl"),
-            "strategy study experiments",
-        )
-        cases = tuple(_parse_case(row) for row in experiment_rows)
-        for case in cases:
-            if _case_evidence_sha256(case) != case.evidence_sha256:
-                raise StudyReplayMismatchError("strategy study case evidence identity changed")
-        development_ids = tuple(
-            case.case_id for case in cases if case.phase is StudyPhase.DEVELOPMENT
-        )
-        final_ids = tuple(case.case_id for case in cases if case.phase is StudyPhase.FINAL)
-        if development_ids and len(development_ids) % len(REQUIRED_DEVELOPMENT_CASE_IDS) == 0:
-            for offset in range(0, len(development_ids), len(REQUIRED_DEVELOPMENT_CASE_IDS)):
-                if development_ids[offset : offset + len(REQUIRED_DEVELOPMENT_CASE_IDS)] != (
-                    REQUIRED_DEVELOPMENT_CASE_IDS
-                ):
-                    raise StudyReplayMismatchError("development study cases changed")
-        if final_ids and final_ids != REQUIRED_FINAL_CASE_IDS:
-            raise StudyReplayMismatchError("final study cases changed")
-        study_result_id = _sha256(
-            _required_str(result, "study_result_id", "strategy study result"),
-            "strategy study result identity",
-        )
-        expected_result_payload = {
-            "schema_version": _required_str(result, "schema_version", "strategy study result"),
-            "study_id": stored_study_id,
-            "artifacts": artifact_rows,
+        artifact_hashes = _artifact_hashes(result_mapping)
+        for name, expected_hash in artifact_hashes:
+            if hashlib.sha256(file_mapping[name]).hexdigest() != expected_hash:
+                raise StudyReplayMismatchError(
+                    f"strategy study artifact hash does not match: {name}"
+                )
+        identity_payload: dict[str, object] = {
+            "schema_version": "strategy-study-result-v1",
+            "study_id": study_id,
+            "artifacts": [list(item) for item in artifact_hashes],
             "classification": classification.value,
         }
-        if (
-            hashlib.sha256(canonical_json_bytes(expected_result_payload)).hexdigest()
-            != study_result_id
-        ):
-            raise StudyReplayMismatchError("strategy study result identity changed")
-        files = tuple((name, store.read_artifact(study_id, name)) for name in expected_names)
+        result_id = hashlib.sha256(canonical_json_bytes(identity_payload)).hexdigest()
+        recorded_result_id = _required_str(
+            result_mapping,
+            "study_result_id",
+            "strategy study result manifest",
+        )
+        if result_id != recorded_result_id:
+            raise StudyReplayMismatchError(
+                "strategy study result identity does not match artifacts"
+            )
+        if canonical_json_bytes({**identity_payload, "study_result_id": result_id}) != result_bytes:
+            raise StudyReplayMismatchError(
+                "strategy study result manifest canonical bytes do not match"
+            )
+        manifest = parse_study_manifest(file_mapping["study-manifest.json"])
+        if manifest.study_id != study_id:
+            raise StudyReplayMismatchError("strategy study identity does not match manifest")
+        if self.current_commit_resolver() != manifest.code_commit:
+            raise StudyReplayMismatchError("code commit does not match strategy study manifest")
+        parse_study_case_evidence(file_mapping["experiments.jsonl"])
         return StrategyStudyArtifacts(
-            study_id=stored_study_id,
-            study_result_id=study_result_id,
+            study_id=study_id,
+            study_result_id=result_id,
             classification=classification,
-            files=files,
+            files=tuple(files),
         )
 
 
 __all__ = [
     "SUPPORTED_REPLAY_STRATEGY_IDS",
+    "StoredStrategyStudyManifest",
     "StrategyStudyReplayService",
+    "parse_study_case_evidence",
+    "parse_study_manifest",
     "validate_replay_strategy_id",
 ]

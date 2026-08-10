@@ -121,18 +121,26 @@ def fit_verified_prediction_bundle(
     ):
         raise ModelDeterminismError("v0.2 determinism receipt requires Candidate v0.2 policy")
 
-    arguments = {
-        "phase": phase,
-        "fold_number": fold_number,
-        "matrix": matrix,
-        "labels": labels,
-        "policy": policy,
-        "training_indices": training_indices,
-        "calibration_indices": calibration_indices,
-        "prediction_indices": prediction_indices,
-    }
-    first = fit_prediction_bundle(**arguments)
-    second = fit_prediction_bundle(**arguments)
+    first = fit_prediction_bundle(
+        phase=phase,
+        fold_number=fold_number,
+        matrix=matrix,
+        labels=labels,
+        policy=policy,
+        training_indices=training_indices,
+        calibration_indices=calibration_indices,
+        prediction_indices=prediction_indices,
+    )
+    second = fit_prediction_bundle(
+        phase=phase,
+        fold_number=fold_number,
+        matrix=matrix,
+        labels=labels,
+        policy=policy,
+        training_indices=training_indices,
+        calibration_indices=calibration_indices,
+        prediction_indices=prediction_indices,
+    )
     if not isinstance(first.trend_model, LinearModelArtifact) or not isinstance(
         second.trend_model, LinearModelArtifact
     ):

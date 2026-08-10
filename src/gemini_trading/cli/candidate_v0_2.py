@@ -59,11 +59,7 @@ def _utc_timestamp(arguments: argparse.Namespace, name: str) -> datetime:
         raise CliUsageError(
             f"--{name.replace('_', '-')} must be an ISO-8601 UTC timestamp"
         ) from None
-    if (
-        value.tzinfo is None
-        or value.utcoffset() is None
-        or value.utcoffset().total_seconds() != 0
-    ):
+    if value.tzinfo is None or value.utcoffset() is None or value.utcoffset().total_seconds() != 0:
         raise CliUsageError(f"--{name.replace('_', '-')} must be an ISO-8601 UTC timestamp")
     return value.astimezone(UTC)
 
@@ -82,11 +78,7 @@ def _qualification_root(handoff_path: Path, output_root: Path) -> Path:
             "dataset handoff path is outside the Stage 1 artifact root"
         ) from None
     parts = relative.parts
-    if (
-        len(parts) != 5
-        or parts[:3] != _HANDOFF_PREFIX
-        or parts[-1] != "dataset-handoff.json"
-    ):
+    if len(parts) != 5 or parts[:3] != _HANDOFF_PREFIX or parts[-1] != "dataset-handoff.json":
         raise DatasetHandoffError("dataset handoff path does not match the fixed artifact layout")
     return resolved_root
 

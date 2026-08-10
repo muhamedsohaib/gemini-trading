@@ -200,7 +200,9 @@ def _parse_case(row: Mapping[str, object]) -> StudyCaseEvidence:
     except ValueError:
         raise StudyReplayMismatchError("invalid strategy study phase") from None
     raw_fold = row.get("fold_number")
-    fold_number = None if raw_fold is None else _required_int(row, "fold_number", "strategy study case")
+    fold_number = (
+        None if raw_fold is None else _required_int(row, "fold_number", "strategy study case")
+    )
     try:
         return StudyCaseEvidence(
             case_id=_required_str(row, "case_id", "strategy study case"),
@@ -340,7 +342,10 @@ class StrategyStudyReplayService:
             "artifacts": artifact_rows,
             "classification": classification.value,
         }
-        if hashlib.sha256(canonical_json_bytes(expected_result_payload)).hexdigest() != study_result_id:
+        if (
+            hashlib.sha256(canonical_json_bytes(expected_result_payload)).hexdigest()
+            != study_result_id
+        ):
             raise StudyReplayMismatchError("strategy study result identity changed")
         files = tuple((name, store.read_artifact(study_id, name)) for name in expected_names)
         return StrategyStudyArtifacts(

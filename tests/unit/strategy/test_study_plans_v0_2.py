@@ -1,4 +1,4 @@
-"""RED tests for Candidate v0.2 development qualification case planning."""
+"""Tests for Candidate v0.2 development qualification case planning."""
 
 from decimal import Decimal
 from types import SimpleNamespace
@@ -103,14 +103,16 @@ def test_v0_2_development_qualification_prepares_full_robustness_case_set() -> N
         include_qualification_robustness=True,
     )
 
-    assert (
-        tuple(
-            case_id
-            for phase, fold_number, case_id in plans
-            if phase is StudyPhase.DEVELOPMENT and fold_number == 1
-        )
-        == REQUIRED_FINAL_CASE_IDS
+    expected = tuple(
+        policy.strategy_id if case_id == "candidate.multi_model.v0_1" else case_id
+        for case_id in REQUIRED_FINAL_CASE_IDS
     )
+    actual = tuple(
+        case_id
+        for phase, fold_number, case_id in plans
+        if phase is StudyPhase.DEVELOPMENT and fold_number == 1
+    )
+    assert actual == expected
     assert plans[(StudyPhase.DEVELOPMENT, 1, policy.strategy_id)].strategy.strategy_id == (
         "candidate.multi_model.v0_2"
     )

@@ -312,9 +312,15 @@ class CandidatePolicy:
 def approved_candidate_policy(strategy_id: str, policy_version: str) -> CandidatePolicy:
     """Return an exact approved Candidate policy or reject an unapproved identity pair."""
 
-    if strategy_id == "candidate.multi_model.v0_1" and policy_version == "candidate-multi-model-v0.1":
+    if (
+        strategy_id == "candidate.multi_model.v0_1"
+        and policy_version == "candidate-multi-model-v0.1"
+    ):
         return CandidatePolicy.locked_v0_1()
-    if strategy_id == "candidate.multi_model.v0_2" and policy_version == "candidate-multi-model-v0.2":
+    if (
+        strategy_id == "candidate.multi_model.v0_2"
+        and policy_version == "candidate-multi-model-v0.2"
+    ):
         return CandidatePolicy.locked_v0_2()
     raise ValueError("candidate strategy and policy identity pair is not approved")
 

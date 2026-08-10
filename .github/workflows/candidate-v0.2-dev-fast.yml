@@ -21,7 +21,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync --all-groups --frozen
-      - run: uv run ruff format --check .
+      - run: uv run ruff format --diff .
       - run: uv run ruff check .
       - run: uv run pyright
       - name: Run focused Candidate v0.2 tests

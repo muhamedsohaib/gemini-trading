@@ -2,7 +2,6 @@
 
 from pathlib import Path
 
-
 _ROOT = Path(__file__).resolve().parents[2]
 _WORKFLOW = _ROOT / ".github" / "workflows" / "candidate-v0.2-qualification.yml"
 

@@ -41,9 +41,7 @@ def test_locked_v0_2_changes_only_approved_identity_and_convergence() -> None:
     assert new.trend_max_iterations == 50_000
     assert new.trend_tolerance == Decimal("0.0000001")
     differing = {
-        name
-        for name in old.__dataclass_fields__
-        if getattr(old, name) != getattr(new, name)
+        name for name in old.__dataclass_fields__ if getattr(old, name) != getattr(new, name)
     }
     assert differing == {
         "schema_version",

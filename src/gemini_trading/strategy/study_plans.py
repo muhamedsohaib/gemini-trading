@@ -108,11 +108,14 @@ def prepare_phase(
     matrix: FeatureMatrix,
     baseline_schedules: dict[str, BaselineSchedule],
     plans: dict[tuple[StudyPhase, int | None, str], CasePlan],
+    include_qualification_robustness: bool = False,
 ) -> None:
     """Prepare every required comparator, control, stress, and sensitivity case."""
 
     if not indices:
         raise StudyArtifactError("study phase requires at least one decision index")
+    if include_qualification_robustness and phase is not StudyPhase.DEVELOPMENT:
+        raise StudyArtifactError("qualification robustness is development-only")
     evaluation_end_exclusive = min(
         len(dataset.candles),
         indices[-1] + 2 + simulation.latency_bars,
@@ -126,7 +129,7 @@ def prepare_phase(
         policy=policy,
     )
     event_by_case: dict[str, tuple[tuple[int, ScheduledAction], ...]] = {
-        "candidate.multi_model.v0_1": base_events,
+        policy.strategy_id: base_events,
         "trend.specialist.v1": threshold_events(
             bundle,
             specialist=SpecialistKind.TREND,
@@ -204,7 +207,7 @@ def prepare_phase(
             actions=baseline_schedules[baseline_id].actions,
             indices=indices,
         )
-    if phase is StudyPhase.FINAL:
+    if phase is StudyPhase.FINAL or include_qualification_robustness:
         event_by_case.update(
             {
                 "cost.1_5x": base_events,
@@ -284,13 +287,20 @@ def prepare_phase(
                 "bootstrap.seed_1788": base_events,
             }
         )
-    required = (
-        REQUIRED_DEVELOPMENT_CASE_IDS
-        if phase is StudyPhase.DEVELOPMENT
-        else REQUIRED_FINAL_CASE_IDS
-    )
+    if include_qualification_robustness:
+        required = tuple(
+            policy.strategy_id if case_id == "candidate.multi_model.v0_1" else case_id
+            for case_id in REQUIRED_FINAL_CASE_IDS
+        )
+    elif phase is StudyPhase.DEVELOPMENT:
+        required = tuple(
+            policy.strategy_id if case_id == "candidate.multi_model.v0_1" else case_id
+            for case_id in REQUIRED_DEVELOPMENT_CASE_IDS
+        )
+    else:
+        required = REQUIRED_FINAL_CASE_IDS
     for case_id in required:
-        strategy_id = case_id if case_id in baseline_schedules else "candidate.multi_model.v0_1"
+        strategy_id = case_id if case_id in baseline_schedules else policy.strategy_id
         case_simulation = simulation
         if case_id == "cost.1_5x":
             case_simulation = _cost_config(simulation, Decimal("1.5"))

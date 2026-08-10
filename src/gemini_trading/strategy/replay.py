@@ -72,6 +72,7 @@ _CASE_KEYS = {
 SUPPORTED_REPLAY_STRATEGY_IDS = (
     "fixture.scripted.v1",
     "candidate.multi_model.v0_1",
+    "candidate.multi_model.v0_2",
     "cash.v1",
     "buy_hold.v1",
     "ema_20_50.v1",

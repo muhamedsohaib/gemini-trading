@@ -26,12 +26,11 @@ jobs:
     steps:
       - name: Assert current main is exact verified source
         run: |
-          ACTUAL_MAIN_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq '.object.sha')"
+          ACTUAL_MAIN_SHA="$(gh api --repo "${GITHUB_REPOSITORY}" "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq '.object.sha')"
           test "${ACTUAL_MAIN_SHA}" = "${SOURCE_COMMIT}"
       - name: Require exact owner approval marker
         run: |
-          MARKER="<!-- sealed-dataset-approved:${SOURCE_COMMIT}:${DATASET_RUN_ID}:${DATASET_ID} -->"
-          gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/issues/22/comments" > "${RUNNER_TEMP}/comments.json"
+          gh api --repo "${GITHUB_REPOSITORY}" --paginate --slurp "repos/${GITHUB_REPOSITORY}/issues/22/comments" > "${RUNNER_TEMP}/comments.json"
           python - <<'PY'
           import json, os
           from pathlib import Path
@@ -44,7 +43,7 @@ jobs:
           PY
       - name: Dispatch sealed Stage 2
         run: |
-          gh workflow run sealed-btcusdt-study.yml --ref main \
+          gh workflow run sealed-btcusdt-study.yml --repo "${GITHUB_REPOSITORY}" --ref main \
             -f source_commit="${SOURCE_COMMIT}" \
             -f dataset_run_id="${DATASET_RUN_ID}" \
             -f dataset_artifact_name="${DATASET_ARTIFACT_NAME}" \

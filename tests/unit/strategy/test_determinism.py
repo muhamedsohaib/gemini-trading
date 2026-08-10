@@ -12,6 +12,8 @@ from gemini_trading.strategy.determinism import (
     fit_verified_prediction_bundle,
 )
 from gemini_trading.strategy.errors import ModelDeterminismError
+from gemini_trading.strategy.features import FeatureMatrix
+from gemini_trading.strategy.labels import LabelVector
 from gemini_trading.strategy.models import MeanReversionSpecialistTrainer, TrendSpecialistTrainer
 from gemini_trading.strategy.policy import CandidatePolicy
 from gemini_trading.strategy.regimes import RegimeObservation
@@ -20,7 +22,7 @@ from gemini_trading.strategy.study_predictions import Prediction, PredictionBund
 from strategy_fixture_support import deterministic_model_fixture
 
 
-def _bundle() -> tuple[PredictionBundle, object, object, tuple[int, ...]]:
+def _bundle() -> tuple[PredictionBundle, FeatureMatrix, LabelVector, tuple[int, ...]]:
     matrix, labels, indices = deterministic_model_fixture()
     policy = CandidatePolicy.locked_v0_2()
     trend = TrendSpecialistTrainer(policy).fit(matrix, labels, indices)

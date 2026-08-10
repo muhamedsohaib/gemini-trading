@@ -63,6 +63,18 @@ jobs:
           elif new_verify not in text:
               raise SystemExit('qualification verification block missing')
           qualification.write_text(text)
+
+          artifacts = Path('src/gemini_trading/strategy/qualification_artifacts.py')
+          text = artifacts.read_text()
+          text = text.replace(
+              '        return self.root / "data" / "historical-validation" / "v0-2-qualification" / qualification_id\n',
+              '        return (\n            self.root\n            / "data"\n            / "historical-validation"\n            / "v0-2-qualification"\n            / qualification_id\n        )\n',
+          )
+          text = text.replace(
+              '    if result.get("schema_version") != _SCHEMA or result.get("qualification_id") != qualification_id:\n',
+              '    if (\n        result.get("schema_version") != _SCHEMA\n        or result.get("qualification_id") != qualification_id\n    ):\n',
+          )
+          artifacts.write_text(text)
           PY
           uv run ruff check --fix .
           uv run ruff format .
@@ -70,7 +82,7 @@ jobs:
             git config user.name 'github-actions[bot]'
             git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
             git add .
-            git commit -m 'fix: complete v0.2 qualification replay support'
+            git commit -m 'fix: normalize v0.2 qualification implementation'
             git push origin HEAD:${{ github.event.pull_request.head.ref }}
           fi
       - run: uv run ruff format --check .

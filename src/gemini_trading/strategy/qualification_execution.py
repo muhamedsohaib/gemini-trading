@@ -109,9 +109,7 @@ def aggregate_path_metrics(period_returns: tuple[Decimal, ...]) -> AggregatePath
             if peak > _ZERO:
                 maximum_drawdown = max(maximum_drawdown, (peak - wealth) / peak)
         net_return = wealth - _ONE
-        return_to_drawdown = (
-            None if maximum_drawdown == _ZERO else net_return / maximum_drawdown
-        )
+        return_to_drawdown = None if maximum_drawdown == _ZERO else net_return / maximum_drawdown
     return AggregatePathMetrics(
         net_return=net_return,
         maximum_drawdown=maximum_drawdown,
@@ -190,9 +188,7 @@ def _case_period_returns(
     case_id: str,
 ) -> tuple[Decimal, ...]:
     return tuple(
-        value
-        for fold in plan.folds
-        for value in _fold_oos_returns(executor, fold, case_id)
+        value for fold in plan.folds for value in _fold_oos_returns(executor, fold, case_id)
     )
 
 
@@ -240,7 +236,9 @@ def _fold_evaluations(
 def _strongest_rtd(
     metrics: tuple[AggregatePathMetrics, ...],
 ) -> Decimal | None:
-    values = tuple(item.return_to_drawdown for item in metrics if item.return_to_drawdown is not None)
+    values = tuple(
+        item.return_to_drawdown for item in metrics if item.return_to_drawdown is not None
+    )
     return max(values) if values else None
 
 
@@ -267,7 +265,9 @@ def _build_qualification_evidence(
     cost_one_half = _aggregate_case(executor, plan, "cost.1_5x")
     cost_double = _aggregate_case(executor, plan, "cost.2x")
 
-    neighbor_ids = tuple(case_id for case_id in qualification_case_ids(policy) if case_id.startswith("sensitivity."))
+    neighbor_ids = tuple(
+        case_id for case_id in qualification_case_ids(policy) if case_id.startswith("sensitivity.")
+    )
     neighbors = tuple(
         NeighborEvaluation(
             net_return=(metrics := _aggregate_case(executor, plan, case_id)).net_return,

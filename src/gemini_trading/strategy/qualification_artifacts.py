@@ -75,16 +75,11 @@ def _context_payload(context: QualificationArtifactContext) -> dict[str, object]
 
 
 def _inventory_payload(files: tuple[tuple[str, bytes], ...]) -> list[dict[str, object]]:
-    return [
-        {"name": name, "sha256": _sha(raw), "size": len(raw)}
-        for name, raw in sorted(files)
-    ]
+    return [{"name": name, "sha256": _sha(raw), "size": len(raw)} for name, raw in sorted(files)]
 
 
 def _inventory_root(files: tuple[tuple[str, bytes], ...]) -> str:
-    return hashlib.sha256(
-        canonical_json_bytes({"files": _inventory_payload(files)})
-    ).hexdigest()
+    return hashlib.sha256(canonical_json_bytes({"files": _inventory_payload(files)})).hexdigest()
 
 
 def build_qualification_artifacts(
@@ -173,7 +168,9 @@ class LocalQualificationStore:
     def _directory(self, qualification_id: str) -> Path:
         if _SHA256.fullmatch(qualification_id) is None:
             raise StudyArtifactError("invalid qualification ID")
-        return self.root / "data" / "historical-validation" / "v0-2-qualification" / qualification_id
+        return (
+            self.root / "data" / "historical-validation" / "v0-2-qualification" / qualification_id
+        )
 
     def write(self, artifacts: QualificationArtifacts) -> None:
         directory = self._directory(artifacts.qualification_id)
@@ -200,7 +197,10 @@ def verify_qualification_artifacts(root: Path, qualification_id: str) -> Qualifi
     except OSError:
         raise StudyArtifactError("qualification artifact result is missing") from None
     result = _load_json(result_raw, "result")
-    if result.get("schema_version") != _SCHEMA or result.get("qualification_id") != qualification_id:
+    if (
+        result.get("schema_version") != _SCHEMA
+        or result.get("qualification_id") != qualification_id
+    ):
         raise StudyArtifactError("qualification artifact result identity changed")
     raw_inventory = result.get("artifacts")
     if not isinstance(raw_inventory, list):
@@ -213,8 +213,10 @@ def verify_qualification_artifacts(root: Path, qualification_id: str) -> Qualifi
         name = entry.get("name")
         expected_sha = entry.get("sha256")
         expected_size = entry.get("size")
-        if not isinstance(name, str) or not isinstance(expected_sha, str) or not isinstance(
-            expected_size, int
+        if (
+            not isinstance(name, str)
+            or not isinstance(expected_sha, str)
+            or not isinstance(expected_size, int)
         ):
             raise StudyArtifactError("qualification artifact inventory is invalid")
         try:

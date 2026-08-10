@@ -184,9 +184,7 @@ class LocalProspectiveFinalSealStore:
                 seal_id=cast(str, mapping["seal_id"]),
                 code_commit=cast(str, mapping["code_commit"]),
                 dataset_id=cast(str, mapping["dataset_id"]),
-                dataset_handoff_inventory_root=cast(
-                    str, mapping["dataset_handoff_inventory_root"]
-                ),
+                dataset_handoff_inventory_root=cast(str, mapping["dataset_handoff_inventory_root"]),
                 qualification_id=cast(str, mapping["qualification_id"]),
                 qualification_inventory_root=cast(str, mapping["qualification_inventory_root"]),
                 workflow_run_id=cast(int, mapping["workflow_run_id"]),

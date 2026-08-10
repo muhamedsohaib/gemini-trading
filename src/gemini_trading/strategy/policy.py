@@ -251,7 +251,7 @@ class CandidatePolicy:
             calibration_minimum_negative=40,
             trend_regularization_c=Decimal("1.0"),
             trend_l1_ratio=Decimal("0.5"),
-            trend_max_iterations=5000,
+            trend_max_iterations=10000,
             trend_tolerance=Decimal("0.00000001"),
             trend_seed=1701,
             mean_reversion_estimators=150,

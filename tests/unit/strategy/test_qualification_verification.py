@@ -121,7 +121,11 @@ def test_portable_verification_rechecks_handoff_and_every_experiment(
 
     import gemini_trading.strategy.qualification_verification as module
 
-    monkeypatch.setattr(module, "load_dataset_handoff", lambda raw: _Handoff())
+    def fake_load_dataset_handoff(raw: bytes) -> _Handoff:
+        assert raw == b"fixture"
+        return _Handoff()
+
+    monkeypatch.setattr(module, "load_dataset_handoff", fake_load_dataset_handoff)
     handoff_calls: list[tuple[str, str, int]] = []
 
     def fake_handoff_verify(

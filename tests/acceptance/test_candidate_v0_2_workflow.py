@@ -23,7 +23,7 @@ def test_v0_2_qualification_workflow_is_manual_narrow_and_prefinal_only() -> Non
     assert "candidate-v0.2-dataset-approved:" in text
     assert "strategy-v0-2-qualify" in text
     assert "strategy-v0-2-qualification-verify" in text
-    assert "--project-root \"${GITHUB_WORKSPACE}\"" in text
+    assert '--project-root "${GITHUB_WORKSPACE}"' in text
     assert "strategy-v0-2-seal-prospective-final" not in text
     assert "strategy-finalize" not in text
     assert "strategy-authorize-final" not in text

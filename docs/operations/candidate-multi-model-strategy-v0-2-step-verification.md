@@ -2,73 +2,78 @@
 
 ## Completion boundary
 
-This document defines completion of the Candidate v0.2 **pre-final implementation milestone**. It does not claim completion of the future 18-month market test. The prospective final era cannot be evaluated until its sealed future interval actually exists.
+This document defines completion of the Candidate v0.2 **pre-final implementation milestone**. It does not claim completion of the future 18-month market test. The prospective final era cannot be evaluated until its sealed future interval exists.
 
-The entire sequence remains `RESEARCH_ONLY` and carries no paper, demo, live, or real-capital execution authority.
+The entire sequence remains `RESEARCH_ONLY`, with **no execution authority** for paper, demo, live, production, or real capital. Future profitability is not established.
 
 ## Required implementation sequence
 
 1. **Approved design and plan**
-   - Issue #61 contains the approved v0.2 design decisions.
-   - Strategy identity is `candidate.multi_model.v0_2` and policy identity is `candidate-multi-model-v0.2`.
-   - Trend convergence is frozen at `tol=1e-7`, `max_iter=50000` with Elastic-Net + `saga`, `C=1.0`, `l1_ratio=0.5`, seed `1701`, and single-thread execution.
+   - Issue #61 contains the approved v0.2 decisions.
+   - Strategy identity is `candidate.multi_model.v0_2`; policy identity is `candidate-multi-model-v0.2`.
+   - Trend convergence is frozen at `tol=1e-7`, `max_iter=50000`, Elastic-Net + `saga`, `C=1.0`, `l1_ratio=0.5`, seed `1701`, single thread.
 2. **Development-only split contract**
    - Dataset window is exactly `[2018-01-01T00:00:00Z, 2026-07-01T00:00:00Z)`.
-   - Exactly 12 complete walk-forward development folds are required.
-   - No prospective final rows are constructed or read by qualification.
+   - Exactly 12 complete walk-forward development folds are mandatory.
+   - Qualification constructs or reads no prospective-final rows.
 3. **Determinism and qualification implementation**
-   - Every fold requires convergence strictly before 50,000 iterations.
-   - Repeated trend model and complete prediction-bundle identities must match exactly.
-   - All integrity, calibration, development-stability, controls, cost, sensitivity, bootstrap, replay, and independent-verification gates must be present.
+   - Every fold must converge strictly before 50,000 iterations.
+   - Repeated trend-model and complete prediction-bundle identities must match exactly.
+   - Integrity, calibration, stability, controls, cost, sensitivity, bootstrap, replay, and independent-verification gates must all exist.
 4. **Classification semantics**
    - `QUALIFIED` requires every mandatory pre-final gate to pass.
    - `REJECTED` is terminal for v0.2 and cannot be rescued by tuning.
    - `INCONCLUSIVE` fails closed unless a pure evidence/infrastructure continuation preserves the frozen candidate.
 5. **Immutable evidence and seal**
-   - Qualification files and structural identities are content-addressed.
-   - Only verified `QUALIFIED` evidence can create a prospective seal.
-   - The bridge starts at `2026-07-01T00:00:00Z` and ends at the prospective final start.
+   - Qualification evidence contains canonical `policy.json`, `configuration.json`, and `development-plan.json` plus the complete result inventory.
+   - Qualification identity binds the core artifact inventory root.
+   - Only fully verified `QUALIFIED` evidence can create a prospective seal.
+   - The bridge starts at `2026-07-01T00:00:00Z` and ends at prospective final start.
    - Final start is the first UTC calendar-month boundary strictly after successful frozen-source/pre-final verification.
    - Final end is exactly 18 calendar months later.
-6. **Documentation acceptance**
-   - README and v0.2 operations documents must state the safety boundary, exact identities, convergence contract, development cutoff, 12 folds, closed classifications, bridge quarantine, 18-month future final era, future-profitability limitation, and no execution authority.
-7. **Complete quality/security checkpoint**
-   - Ruff formatting and lint, strict Pyright, full pytest, package build, dependency audit, tracked-file policy, detect-secrets, and Gitleaks must pass on the exact PR head.
-8. **Exact-head review**
+6. **Portable verification contract**
+   - The qualification artifact must include referenced `data/research` experiments and v0.2 qualification evidence.
+   - The separately retained Stage 1 artifact must be rehydrated into the same output root for independent verification.
+   - Verification and seal creation require `--project-root` pointing at a clean checkout of the exact source commit.
+   - Every referenced experiment/result and the exact Stage 1 handoff must independently reverify provider-free.
+7. **Documentation acceptance**
+   - README and v0.2 operations docs state the safety boundary, identities, convergence contract, development cutoff, 12 folds, classifications, bridge quarantine, future final era, rehydration protocol, future-profitability limitation, and no execution authority.
+8. **Complete quality/security checkpoint**
+   - Ruff formatting/lint, strict Pyright, full pytest, package build, dependency audit, tracked-file policy, detect-secrets, and Gitleaks pass on the exact PR head.
+9. **Exact-head review**
    - Review the cumulative diff against the approved design.
    - Confirm v0.1 behavior and rejection evidence remain valid.
-   - Confirm no credentials, private endpoint, broker, order-submission, leverage, short, futures, autonomous allocation, or future-final market-read capability was introduced.
-9. **Protected merge**
-   - Mark the PR ready only after the exact unchanged head is green and review-complete.
-   - Merge through protected `main` with expected-head protection.
-10. **Exact merged-main verification**
-    - Require the full CI/security suite on the exact merged-main SHA before any real qualification operation.
-11. **Fresh Stage 1**
+   - Confirm no credentials, private endpoint, broker/order submission, leverage, shorting, futures, autonomous allocation, or future-final market-read capability was introduced.
+10. **Protected merge**
+    - Mark the PR ready only after the exact unchanged head is green and review-complete.
+    - Merge through protected `main` with expected-head protection.
+11. **Exact merged-main verification**
+    - Require the complete CI/security suite on the exact merged-main SHA before real qualification operations.
+12. **Fresh Stage 1**
     - Dispatch `Sealed BTCUSDT Dataset` from exact merged `main`.
-    - Download the artifact immediately.
-    - Independently verify every dataset/handoff identity and hash.
-    - Do not reuse an old v0.1 Stage 1 artifact.
-12. **Owner approval marker**
-    - Add to Issue #61 only after independent Stage 1 verification:
+    - Download the artifact immediately and independently verify all dataset/handoff identities and hashes.
+    - Do not reuse a v0.1 Stage 1 artifact.
+13. **Owner approval marker**
+    - Only after independent Stage 1 verification, add to Issue #61:
 
 ```text
 <!-- candidate-v0.2-dataset-approved:<source-commit>:<dataset-run-id>:<dataset-id> -->
 ```
 
-13. **One development qualification run**
-    - Dispatch `Candidate v0.2 Development Qualification` with only the four fixed identity inputs.
-    - Preserve the first complete valid classification.
-    - Do not tune or rerun to improve performance.
-14. **Independent qualification verification**
-    - Download the artifact and recompute qualification identities/hashes provider-free.
-    - Confirm the recorded classification and every mandatory gate.
-15. **Prospective seal only after `QUALIFIED`**
-    - Run `strategy-v0-2-seal-prospective-final` only if independent verification confirms `QUALIFIED`.
-    - Record `seal_id`, bridge interval, prospective final interval, qualification identity, and verification timestamp.
-    - If `REJECTED` or `INCONCLUSIVE`, no seal is created.
-16. **Compact pre-final report**
-    - Commit exact source/run/artifact/dataset/qualification/seal identities and limitations through a small report PR.
-    - Keep Issue #61 open or cross-link a dedicated future-final issue so the eventual prospective result cannot be confused with pre-final qualification.
+14. **One development qualification run**
+    - Dispatch `Candidate v0.2 Development Qualification` using only the four fixed identity inputs.
+    - Preserve the first complete valid classification; do not tune or rerun to improve performance.
+15. **Independent qualification verification**
+    - Rehydrate exact Stage 1 and qualification bundle evidence into one output root.
+    - Verify from a clean checkout at the exact qualification source commit.
+    - Confirm classification, core inventory/qualification identity, Stage 1 identity, all mandatory evidence, and every referenced experiment result.
+16. **Prospective seal only after `QUALIFIED`**
+    - Run `strategy-v0-2-seal-prospective-final` only after independent verification confirms `QUALIFIED`.
+    - Seal creation reruns full bundle verification and binds the candidate identity and future interval.
+    - If `REJECTED` or `INCONCLUSIVE`, create no seal.
+17. **Compact pre-final report**
+    - Commit exact source/run/artifact/dataset/qualification/verification/seal identities and limitations through a small report PR.
+    - Keep Issue #61 open or cross-link a dedicated future-final issue so pre-final qualification cannot be confused with the future market result.
 
 ## Exact implementation checkpoint
 
@@ -99,38 +104,28 @@ uv run pytest \
   tests/unit/strategy/test_determinism.py \
   tests/unit/strategy/test_qualification.py \
   tests/unit/strategy/test_qualification_artifacts.py \
-  tests/unit/strategy/test_prospective_seal.py \
   tests/unit/strategy/test_qualification_execution.py \
+  tests/unit/strategy/test_qualification_verification.py \
+  tests/unit/strategy/test_prospective_seal.py \
   tests/unit/strategy/test_study_plans_v0_2.py \
   tests/integration/test_candidate_v0_2_cli.py \
   tests/acceptance/test_candidate_v0_2_workflow.py \
   tests/acceptance/test_candidate_v0_2_documentation.py -v
 ```
 
-Also run the legacy v0.1 acceptance and sealed-validation tests to prove that adding v0.2 did not make v0.1 evidence require a v0.2 case.
+Also run legacy v0.1 acceptance and sealed-validation tests to prove that adding v0.2 did not make v0.1 evidence require a v0.2 case.
 
 ## Stage 1 operational checkpoint
 
-Dispatch only after the exact merged-main CI is green:
+Dispatch only after exact merged-main CI is green:
 
 ```bash
 gh workflow run sealed-btcusdt-dataset.yml --ref main
 ```
 
-Required Stage 1 report fields:
+Record merged-main source SHA, workflow run/attempt, artifact ID/name/SHA-256, dataset ID/inventory root, support hashes, raw/provider counts, unavailable/excluded counts, canonical candle count, segment count, first/last candle boundaries, replay, and independent-verification results.
 
-- merged-main source SHA;
-- workflow run ID and attempt;
-- artifact ID/name and artifact SHA-256;
-- dataset ID and inventory root;
-- canonical candle, closure, exclusion, segment, provenance, and retrieval hashes;
-- raw page count and provider-row count;
-- missing slots, partial exclusions, canonical candle count, and segment count;
-- first/last candle open times;
-- provider-free replay result;
-- independent verification result.
-
-Do not post the Issue #61 approval marker until all required Stage 1 checks agree.
+Do not post the Issue #61 approval marker until all Stage 1 checks agree.
 
 ## Qualification operational checkpoint
 
@@ -151,30 +146,44 @@ The artifact must be named:
 candidate-v0.2-qualification-<workflow-run-id>
 ```
 
-The workflow must contain `strategy-v0-2-qualify` and `strategy-v0-2-qualification-verify` but must not contain `strategy-v0-2-seal-prospective-final`, `strategy-authorize-final`, or `strategy-finalize`.
+The workflow contains `strategy-v0-2-qualify` and `strategy-v0-2-qualification-verify`, but not `strategy-v0-2-seal-prospective-final`, `strategy-authorize-final`, or `strategy-finalize`.
+
+The qualification bundle must contain referenced `data/research` experiments and `data/historical-validation/v0-2-qualification`. Stage 1 remains a separately retained artifact.
+
+## Rehydrate provider-free evidence
+
+Extract the exact Stage 1 artifact and exact qualification bundle into the same `$OUTPUT_ROOT`. The resulting root must contain the Stage 1 handoff/canonical dataset plus the qualification bundle's research experiments and qualification directory.
+
+Use a clean checkout at the exact source commit:
+
+```bash
+export GEMINI_TRADING_MODE=research
+export PROJECT_ROOT='<clean-checkout-at-exact-source-commit>'
+export OUTPUT_ROOT='<rehydrated-evidence-root>'
+```
 
 ## Provider-free qualification verification
 
 ```bash
-export GEMINI_TRADING_MODE=research
 uv run gemini-trading research strategy-v0-2-qualification-verify \
   --qualification-id "$QUALIFICATION_ID" \
+  --project-root "$PROJECT_ROOT" \
   --output-root "$OUTPUT_ROOT"
 ```
 
-Required agreement:
+Required agreement includes:
 
-- classification;
-- qualification ID;
-- qualification inventory root;
-- exact code commit;
-- dataset ID and Stage 1 inventory root;
-- workflow run and attempt;
-- policy/configuration/development-plan identities;
-- all determinism receipts;
-- every mandatory qualification gate;
+- exact clean code commit;
+- classification and qualification ID;
+- qualification core inventory root;
+- `policy.json`, `configuration.json`, and `development-plan.json` identities;
+- dataset ID and Stage 1 handoff inventory root;
+- Stage 1 run identity;
+- workflow run/attempt;
+- all determinism receipts and mandatory gates;
 - bootstrap evidence;
-- referenced experiment identities.
+- exact complete 12-fold case set;
+- every referenced experiment/result identity.
 
 Any missing or changed byte fails closed.
 
@@ -186,39 +195,19 @@ Only after independently verified `QUALIFIED` evidence:
 uv run gemini-trading research strategy-v0-2-seal-prospective-final \
   --qualification-id "$QUALIFICATION_ID" \
   --verified-at "$VERIFIED_AT" \
+  --project-root "$PROJECT_ROOT" \
   --output-root "$OUTPUT_ROOT"
 ```
 
-Verify:
-
-- exactly one active seal exists;
-- `development_cutoff` is `2026-07-01T00:00:00Z`;
-- `bridge_start` equals the development cutoff;
-- `bridge_end` equals `final_start`;
-- `final_start` is the first UTC calendar-month boundary strictly after `verified_at`;
-- `final_end` is exactly 18 calendar months after `final_start`;
-- `execution_authorized` is false;
-- no market provider was constructed.
+Verify exactly one active seal exists; candidate identity remains v0.2; `development_cutoff` is `2026-07-01T00:00:00Z`; `bridge_start` equals the cutoff; `bridge_end` equals `final_start`; `final_start` is the first UTC calendar-month boundary strictly after `verified_at`; `final_end` is exactly 18 calendar months later; and `execution_authorized` remains false.
 
 ## Pre-final report evidence
 
-Record at minimum:
-
-- exact approved design and implementation plan paths;
-- exact PR head SHA and PR CI run;
-- exact merged-main SHA and exact-main CI run;
-- Stage 1 run/artifact/dataset/inventory identities;
-- Issue #61 owner approval marker comment ID;
-- qualification run/artifact/qualification identities;
-- classification and every failed gate, if any;
-- provider-free verification result;
-- prospective seal identity and interval only if `QUALIFIED`;
-- explicit statement that future profitability is not established;
-- explicit statement that no execution authority was introduced.
+Record the approved design/plan paths, exact PR head/CI, exact merged-main SHA/CI, Stage 1 identities, Issue #61 approval comment, qualification identities/classification/gates, provider-free verification result, and prospective seal identity/interval only if `QUALIFIED`. Explicitly state that future profitability is not established and that the milestone grants no execution authority.
 
 ## Permitted completion claim
 
-After Tasks 1-16 above are satisfied, the permitted claim is:
+After the steps above are satisfied, the permitted claim is:
 
 > Candidate v0.2's pre-final implementation and qualification protocol are complete and independently evidenced. If it qualified, its future 18-month prospective window is sealed. No future profitability or execution readiness is established until the future market test itself is completed under a separate governed operation.
 

@@ -189,7 +189,6 @@ def build_parser() -> SafeArgumentParser:
         help="seal the future final era from verified QUALIFIED evidence",
     )
     seal_v0_2.add_argument("--qualification-id", required=True)
-    seal_v0_2.add_argument("--verified-at", required=True)
     seal_v0_2.add_argument("--project-root", required=True)
     seal_v0_2.add_argument("--output-root", required=True)
     return parser

@@ -31,6 +31,7 @@ The entire sequence remains `RESEARCH_ONLY`, with **no execution authority** for
    - The bridge starts at `2026-07-01T00:00:00Z` and ends at prospective final start.
    - Final start is the first UTC calendar-month boundary strictly after successful frozen-source/pre-final verification.
    - Final end is exactly 18 calendar months later.
+   - The seal operation derives its verification milestone from the UTC operation clock after full verification; no caller-supplied past timestamp is accepted.
 6. **Portable verification contract**
    - The qualification artifact must include referenced `data/research` experiments and v0.2 qualification evidence.
    - The separately retained Stage 1 artifact must be rehydrated into the same output root for independent verification.
@@ -69,7 +70,7 @@ The entire sequence remains `RESEARCH_ONLY`, with **no execution authority** for
     - Confirm classification, core inventory/qualification identity, Stage 1 identity, all mandatory evidence, and every referenced experiment result.
 16. **Prospective seal only after `QUALIFIED`**
     - Run `strategy-v0-2-seal-prospective-final` only after independent verification confirms `QUALIFIED`.
-    - Seal creation reruns full bundle verification and binds the candidate identity and future interval.
+    - Seal creation reruns full bundle verification, captures the UTC milestone internally, and binds the candidate identity and future interval.
     - If `REJECTED` or `INCONCLUSIVE`, create no seal.
 17. **Compact pre-final report**
     - Commit exact source/run/artifact/dataset/qualification/verification/seal identities and limitations through a small report PR.
@@ -113,7 +114,7 @@ uv run pytest \
   tests/acceptance/test_candidate_v0_2_documentation.py -v
 ```
 
-Also run legacy v0.1 acceptance and sealed-validation tests to prove that adding v0.2 did not make v0.1 evidence require a v0.2 case.
+Also run legacy v0.1 acceptance and sealed-validation tests to prove that adding v0.2 did not make v0.1 evidence require a v0.2 case and that legacy `strategy-evaluate` remains explicitly v0.1-only.
 
 ## Stage 1 operational checkpoint
 
@@ -140,7 +141,7 @@ gh workflow run candidate-v0.2-qualification.yml \
   -f dataset_id="$DATASET_ID"
 ```
 
-The artifact must be named:
+The workflow must reject dispatches whose workflow ref or supplied `source_commit` is not the exact current merged-main commit. The artifact must be named:
 
 ```text
 candidate-v0.2-qualification-<workflow-run-id>
@@ -152,9 +153,7 @@ The qualification bundle must contain referenced `data/research` experiments and
 
 ## Rehydrate provider-free evidence
 
-Extract the exact Stage 1 artifact and exact qualification bundle into the same `$OUTPUT_ROOT`. The resulting root must contain the Stage 1 handoff/canonical dataset plus the qualification bundle's research experiments and qualification directory.
-
-Use a clean checkout at the exact source commit:
+Extract the exact Stage 1 artifact and exact qualification bundle into the same `$OUTPUT_ROOT`. Use a clean checkout at the exact source commit:
 
 ```bash
 export GEMINI_TRADING_MODE=research
@@ -171,19 +170,7 @@ uv run gemini-trading research strategy-v0-2-qualification-verify \
   --output-root "$OUTPUT_ROOT"
 ```
 
-Required agreement includes:
-
-- exact clean code commit;
-- classification and qualification ID;
-- qualification core inventory root;
-- `policy.json`, `configuration.json`, and `development-plan.json` identities;
-- dataset ID and Stage 1 handoff inventory root;
-- Stage 1 run identity;
-- workflow run/attempt;
-- all determinism receipts and mandatory gates;
-- bootstrap evidence;
-- exact complete 12-fold case set;
-- every referenced experiment/result identity.
+Required agreement includes exact clean code commit; classification and qualification ID; core inventory root; `policy.json`, `configuration.json`, and `development-plan.json` identities; dataset/Stage 1 identities; workflow identities; determinism receipts; mandatory gates; bootstrap evidence; exact complete 12-fold case set; and every referenced experiment/result identity.
 
 Any missing or changed byte fails closed.
 
@@ -194,12 +181,11 @@ Only after independently verified `QUALIFIED` evidence:
 ```bash
 uv run gemini-trading research strategy-v0-2-seal-prospective-final \
   --qualification-id "$QUALIFICATION_ID" \
-  --verified-at "$VERIFIED_AT" \
   --project-root "$PROJECT_ROOT" \
   --output-root "$OUTPUT_ROOT"
 ```
 
-Verify exactly one active seal exists; candidate identity remains v0.2; `development_cutoff` is `2026-07-01T00:00:00Z`; `bridge_start` equals the cutoff; `bridge_end` equals `final_start`; `final_start` is the first UTC calendar-month boundary strictly after `verified_at`; `final_end` is exactly 18 calendar months later; and `execution_authorized` remains false.
+The command reruns full bundle verification and captures `verified_at` internally. Verify exactly one active seal exists; candidate identity remains v0.2; `development_cutoff` is `2026-07-01T00:00:00Z`; `bridge_start` equals the cutoff; `bridge_end` equals `final_start`; `final_start` is the first UTC calendar-month boundary strictly after recorded `verified_at`; `final_end` is exactly 18 calendar months later; and `execution_authorized` remains false.
 
 ## Pre-final report evidence
 

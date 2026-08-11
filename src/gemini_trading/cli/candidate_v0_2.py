@@ -52,22 +52,14 @@ def _positive_integer(arguments: argparse.Namespace, name: str) -> int:
     return value
 
 
-def _utc_timestamp(arguments: argparse.Namespace, name: str) -> datetime:
-    raw = _argument(arguments, name)
-    try:
-        value = datetime.fromisoformat(raw.replace("Z", "+00:00"))
-    except ValueError:
-        raise CliUsageError(
-            f"--{name.replace('_', '-')} must be an ISO-8601 UTC timestamp"
-        ) from None
-    offset = value.utcoffset()
-    if value.tzinfo is None or offset is None or offset.total_seconds() != 0:
-        raise CliUsageError(f"--{name.replace('_', '-')} must be an ISO-8601 UTC timestamp")
-    return value.astimezone(UTC)
-
-
 def _timestamp(value: datetime) -> str:
     return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
+def _verification_milestone_utc() -> datetime:
+    """Return the seal operation time after full independent verification succeeds."""
+
+    return datetime.now(UTC)
 
 
 def _qualification_root(handoff_path: Path, output_root: Path) -> Path:
@@ -165,6 +157,7 @@ def _seal(arguments: argparse.Namespace) -> dict[str, object]:
     verified = _verified_bundle(arguments)
     if verified.classification is not QualificationClassification.QUALIFIED:
         raise FinalAccessError("prospective final seal requires QUALIFIED evidence")
+    verified_at = _verification_milestone_utc()
     seal = LocalProspectiveFinalSealStore(output_root).create(
         ProspectiveFinalSealRequest(
             code_commit=verified.context.code_commit,
@@ -175,7 +168,7 @@ def _seal(arguments: argparse.Namespace) -> dict[str, object]:
             qualification_classification=verified.classification,
             workflow_run_id=verified.context.workflow_run_id,
             workflow_run_attempt=verified.context.workflow_run_attempt,
-            verified_at=_utc_timestamp(arguments, "verified_at"),
+            verified_at=verified_at,
             development_cutoff=_DEVELOPMENT_CUTOFF,
         )
     )
@@ -188,6 +181,7 @@ def _seal(arguments: argparse.Namespace) -> dict[str, object]:
         "promotable": False,
         "seal_id": seal.seal_id,
         "status": "sealed",
+        "verified_at": _timestamp(seal.verified_at),
     }
 
 

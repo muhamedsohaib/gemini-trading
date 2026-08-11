@@ -114,7 +114,7 @@ The **bridge interval** is:
 
 Bridge candles are used for neither v0.2 development nor prospective final evaluation. Example only: if final pre-final verification completes on 2026-08-11, the seal is `[2026-09-01T00:00:00Z, 2028-03-01T00:00:00Z)`.
 
-Seal creation reads no future market rows. The seal explicitly binds `candidate.multi_model.v0_2`, `candidate-multi-model-v0.2`, exact code/data/qualification identities, and the computed future interval.
+Seal creation reruns full verification and then derives `verified_at` from the operation clock. There is no user-supplied verification timestamp, so an operator cannot backdate the final boundary. The seal reads no future market rows and explicitly binds `candidate.multi_model.v0_2`, `candidate-multi-model-v0.2`, exact code/data/qualification identities, and the computed future interval.
 
 ## Prerequisites
 
@@ -192,7 +192,7 @@ gh workflow run candidate-v0.2-qualification.yml \
   -f dataset_id="$DATASET_ID"
 ```
 
-The workflow checks out the exact source, requires the exact owner approval marker, downloads and verifies the Stage 1 handoff, runs the 12-fold development-only qualification, verifies the qualification provider-free inside the complete workspace, and uploads:
+The workflow checks out the exact merged-main source, requires the exact owner approval marker, downloads and verifies the Stage 1 handoff, runs the 12-fold development-only qualification, verifies the qualification provider-free inside the complete workspace, and uploads:
 
 ```text
 candidate-v0.2-qualification-<qualification-workflow-run-id>
@@ -248,16 +248,13 @@ Full verification checks the exact clean Git commit, qualification core inventor
 
 ## Prospective seal creation
 
-Only if the fully rehydrated independent verification is `QUALIFIED`, create one exclusive prospective seal using the successful verification timestamp in UTC. Seal creation reruns the same full bundle verification before writing the seal.
+Only if the fully rehydrated independent verification is `QUALIFIED`, create one exclusive prospective seal. The command reruns the same full bundle verification and captures its own UTC verification milestone; it accepts no timestamp argument.
 
 ### POSIX
 
 ```bash
-export VERIFIED_AT='<ISO-8601-UTC-verification-timestamp>'
-
 uv run gemini-trading research strategy-v0-2-seal-prospective-final \
   --qualification-id "$QUALIFICATION_ID" \
-  --verified-at "$VERIFIED_AT" \
   --project-root "$PROJECT_ROOT" \
   --output-root "$OUTPUT_ROOT"
 ```
@@ -265,16 +262,13 @@ uv run gemini-trading research strategy-v0-2-seal-prospective-final \
 ### PowerShell
 
 ```powershell
-$VerifiedAt = '<ISO-8601-UTC-verification-timestamp>'
-
 uv run gemini-trading research strategy-v0-2-seal-prospective-final `
   --qualification-id $QualificationId `
-  --verified-at $VerifiedAt `
   --project-root $ProjectRoot `
   --output-root $OutputRoot
 ```
 
-The result records `seal_id`, bridge start/end, prospective final start/end, `promotable:false`, and `execution_authorized:false`. A second seal creation fails closed. If qualification is `REJECTED` or `INCONCLUSIVE`, do not create a seal.
+The result records `seal_id`, `verified_at`, bridge start/end, prospective final start/end, `promotable:false`, and `execution_authorized:false`. A second seal creation fails closed. If qualification is `REJECTED` or `INCONCLUSIVE`, do not create a seal.
 
 ## Evidence retention and reporting
 

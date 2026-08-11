@@ -27,7 +27,7 @@ from gemini_trading.cli.main import main
         ),
         (
             "strategy-v0-2-seal-prospective-final",
-            ("--qualification-id", "--verified-at", "--project-root", "--output-root"),
+            ("--qualification-id", "--project-root", "--output-root"),
         ),
     ],
 )
@@ -48,6 +48,7 @@ def test_v0_2_cli_help_is_narrow_and_identity_based(
     assert "--start" not in captured.out
     assert "--end" not in captured.out
     assert "--command" not in captured.out
+    assert "--verified-at" not in captured.out
 
 
 def test_v0_2_locked_config_exists() -> None:

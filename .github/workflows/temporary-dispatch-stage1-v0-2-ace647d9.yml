@@ -1,0 +1,61 @@
+name: Temporary dispatch Candidate v0.2 Stage 1 ace647d9
+
+on:
+  pull_request:
+
+permissions:
+  actions: write
+  contents: read
+  issues: write
+
+defaults:
+  run:
+    shell: bash --noprofile --norc -e -o pipefail {0}
+
+jobs:
+  dispatch:
+    if: github.event.pull_request.head.ref == 'ops/dispatch-stage1-v0-2-ace647d9'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      EXPECTED_MAIN_SHA: ace647d9de45f26fa02cfed1e5a2c82b83bbe71f
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Assert current main is exact verified v0.2 implementation
+        run: |
+          ACTUAL_MAIN_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq '.object.sha')"
+          test "${ACTUAL_MAIN_SHA}" = "${EXPECTED_MAIN_SHA}"
+
+      - name: Refuse duplicate exact-source Stage 1
+        run: |
+          EXISTING_ID="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/sealed-btcusdt-dataset.yml/runs?event=workflow_dispatch&branch=main&per_page=100" --jq --arg sha "${EXPECTED_MAIN_SHA}" '[.workflow_runs[] | select(.head_sha == $sha) | select(.status == "queued" or .status == "in_progress" or .conclusion == "success")][0].id // empty')"
+          if [ -n "${EXISTING_ID}" ]; then
+            echo "Exact-source Stage 1 already exists: ${EXISTING_ID}" >&2
+            exit 1
+          fi
+
+      - name: Dispatch fresh Candidate v0.2 Stage 1 from main
+        id: dispatch
+        run: |
+          BEFORE_IDS="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/sealed-btcusdt-dataset.yml/runs?event=workflow_dispatch&branch=main&per_page=100" --jq '[.workflow_runs[].id] | join(" ")')"
+          gh workflow run sealed-btcusdt-dataset.yml --ref main
+          for _ in $(seq 1 45); do
+            RUN_JSON="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/sealed-btcusdt-dataset.yml/runs?event=workflow_dispatch&branch=main&per_page=100")"
+            RUN_ID="$(printf '%s' "${RUN_JSON}" | jq -r --arg sha "${EXPECTED_MAIN_SHA}" --arg before " ${BEFORE_IDS} " '[.workflow_runs[] | select(.head_sha == $sha) | select(($before | contains(" " + (.id|tostring) + " ")) | not)][0].id // empty')"
+            if [ -n "${RUN_ID}" ]; then
+              echo "run_id=${RUN_ID}" >> "${GITHUB_OUTPUT}"
+              echo "Fresh Candidate v0.2 Stage 1 run: ${RUN_ID}"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Unable to identify newly dispatched Stage 1 run" >&2
+          exit 1
+
+      - name: Record dispatch in Issue 61
+        run: |
+          gh issue comment 61 --body "Fresh Candidate v0.2 Stage 1 dispatched after exact merged-main verification. Source commit: \`${EXPECTED_MAIN_SHA}\`. Stage 1 workflow run: \`${{ steps.dispatch.outputs.run_id }}\`. Dataset production only: no dataset approval, qualification authorization, prospective-final access, or execution/capital authority is implied. Boundary: \`RESEARCH_ONLY\`."

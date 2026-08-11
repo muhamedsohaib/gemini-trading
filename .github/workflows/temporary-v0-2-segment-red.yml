@@ -1,0 +1,25 @@
+name: Temporary v0.2 segment RED
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  focused-red:
+    if: github.event.pull_request.head.ref == 'fix/v0-2-segment-boundary-qualification'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.11.25"
+          enable-cache: true
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - name: Prove protected-gap regression is RED
+        run: uv run pytest -q tests/unit/strategy/test_study_predictions.py

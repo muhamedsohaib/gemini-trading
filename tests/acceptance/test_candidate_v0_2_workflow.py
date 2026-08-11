@@ -20,6 +20,8 @@ def test_v0_2_qualification_workflow_is_manual_narrow_and_prefinal_only() -> Non
     ):
         assert text.count(name) >= 1
     assert "permissions:\n  contents: read\n  issues: read" in text
+    assert 'test "${GITHUB_REF_NAME}" = "main"' in text
+    assert 'test "${{ inputs.source_commit }}" = "${GITHUB_SHA}"' in text
     assert "candidate-v0.2-dataset-approved:" in text
     assert "strategy-v0-2-qualify" in text
     assert "strategy-v0-2-qualification-verify" in text

@@ -17,9 +17,9 @@ on:
         type: string
 
 permissions:
-  actions: read
   contents: read
   issues: read
+  actions: read
 
 concurrency:
   group: candidate-v0-2-development-qualification

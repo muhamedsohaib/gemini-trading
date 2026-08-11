@@ -55,10 +55,13 @@ class ProspectiveFinalSealRequest:
                 raise FinalAccessError(f"invalid prospective seal {field_name}")
         if self.qualification_classification is not QualificationClassification.QUALIFIED:
             raise FinalAccessError("prospective final seal requires QUALIFIED evidence")
-        ProspectiveFinalWindow.from_verified_at(
-            development_cutoff=self.development_cutoff,
-            verified_at=self.verified_at,
-        )
+        try:
+            ProspectiveFinalWindow.from_verified_at(
+                development_cutoff=self.development_cutoff,
+                verified_at=self.verified_at,
+            )
+        except ValueError as error:
+            raise FinalAccessError(str(error)) from None
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,6 +91,34 @@ class ProspectiveFinalSeal:
             raise FinalAccessError("unsupported prospective final seal schema")
         if self.strategy_id != _STRATEGY_ID or self.policy_version != _POLICY_VERSION:
             raise FinalAccessError("prospective final seal candidate identity changed")
+        if _GIT_SHA.fullmatch(self.code_commit) is None:
+            raise FinalAccessError("invalid prospective final seal code commit")
+        for field_name in (
+            "dataset_id",
+            "dataset_handoff_inventory_root",
+            "qualification_id",
+            "qualification_inventory_root",
+        ):
+            if _SHA256.fullmatch(getattr(self, field_name)) is None:
+                raise FinalAccessError(f"invalid prospective final seal {field_name}")
+        for field_name in ("workflow_run_id", "workflow_run_attempt"):
+            value = getattr(self, field_name)
+            if isinstance(value, bool) or value < 1:
+                raise FinalAccessError(f"invalid prospective final seal {field_name}")
+        try:
+            expected = ProspectiveFinalWindow.from_verified_at(
+                development_cutoff=self.development_cutoff,
+                verified_at=self.verified_at,
+            )
+        except ValueError as error:
+            raise FinalAccessError(str(error)) from None
+        if (
+            self.bridge_start != expected.bridge_start
+            or self.bridge_end != expected.bridge_end
+            or self.final_start != expected.final_start
+            or self.final_end != expected.final_end
+        ):
+            raise FinalAccessError("prospective final seal window changed")
         if _SHA256.fullmatch(self.seal_id) is None:
             raise FinalAccessError("invalid prospective final seal ID")
         if _seal_id(_seal_core(self)) != self.seal_id:
@@ -95,10 +126,13 @@ class ProspectiveFinalSeal:
 
 
 def _request_core(request: ProspectiveFinalSealRequest) -> dict[str, object]:
-    window = ProspectiveFinalWindow.from_verified_at(
-        development_cutoff=request.development_cutoff,
-        verified_at=request.verified_at,
-    )
+    try:
+        window = ProspectiveFinalWindow.from_verified_at(
+            development_cutoff=request.development_cutoff,
+            verified_at=request.verified_at,
+        )
+    except ValueError as error:
+        raise FinalAccessError(str(error)) from None
     return {
         "schema_version": _SCHEMA,
         "strategy_id": _STRATEGY_ID,
@@ -131,10 +165,13 @@ def build_prospective_final_seal(request: ProspectiveFinalSealRequest) -> Prospe
     """Build a future-window seal without reading or constructing market evidence."""
 
     core = _request_core(request)
-    window = ProspectiveFinalWindow.from_verified_at(
-        development_cutoff=request.development_cutoff,
-        verified_at=request.verified_at,
-    )
+    try:
+        window = ProspectiveFinalWindow.from_verified_at(
+            development_cutoff=request.development_cutoff,
+            verified_at=request.verified_at,
+        )
+    except ValueError as error:
+        raise FinalAccessError(str(error)) from None
     return ProspectiveFinalSeal(
         schema_version=_SCHEMA,
         seal_id=_seal_id(core),
@@ -237,7 +274,7 @@ class LocalProspectiveFinalSealStore:
                     cast(str, mapping["final_end"]).replace("Z", "+00:00")
                 ),
             )
-        except (KeyError, ValueError):
+        except (KeyError, TypeError, ValueError):
             raise FinalAccessError("invalid prospective final seal fields") from None
         if seal.seal_id != seal_id or serialize_prospective_final_seal(seal) != raw:
             raise FinalAccessError("prospective final seal encoding changed")

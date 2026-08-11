@@ -1,5 +1,6 @@
 """Tests for Candidate v0.2 prospective final seal."""
 
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -44,6 +45,14 @@ def test_qualified_evidence_creates_exactly_one_future_seal(tmp_path: Path) -> N
     assert seal.bridge_end == seal.final_start
     with pytest.raises(FinalAccessError, match="prospective final seal already exists"):
         store.create(_request(QualificationClassification.QUALIFIED))
+
+
+def test_seal_request_rejects_changed_development_cutoff() -> None:
+    with pytest.raises(FinalAccessError, match="development cutoff changed"):
+        replace(
+            _request(QualificationClassification.QUALIFIED),
+            development_cutoff=datetime(2026, 8, 1, tzinfo=UTC),
+        )
 
 
 def test_seal_rejects_window_that_does_not_match_verification_milestone() -> None:

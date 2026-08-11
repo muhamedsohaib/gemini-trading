@@ -11,7 +11,12 @@ from typing import cast
 
 from gemini_trading.data.storage.local_immutable import write_immutable
 from gemini_trading.research.serialization import canonical_json_bytes, canonical_jsonl_bytes
+from gemini_trading.strategy.calibration_evidence import (
+    calibration_evidence_complete,
+    parse_calibration_diagnostics,
+)
 from gemini_trading.strategy.errors import StudyArtifactError
+from gemini_trading.strategy.policy import CandidatePolicy
 from gemini_trading.strategy.qualification import QualificationClassification
 from gemini_trading.strategy.qualification_execution import QualificationRun
 
@@ -23,6 +28,7 @@ _MANIFEST = "qualification-manifest.json"
 _POLICY = "policy.json"
 _CONFIGURATION = "configuration.json"
 _DEVELOPMENT_PLAN = "development-plan.json"
+_CALIBRATION = "calibration-diagnostics.jsonl"
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,6 +100,11 @@ def _validate_run_identity_bytes(run: QualificationRun) -> None:
     ):
         if _sha(raw) != expected:
             raise StudyArtifactError(f"qualification {description} identity changed")
+    if not calibration_evidence_complete(
+        run.calibration_diagnostics,
+        CandidatePolicy.locked_v0_2(),
+    ):
+        raise StudyArtifactError("qualification calibration evidence is incomplete")
 
 
 def _structural_identity(
@@ -135,6 +146,10 @@ def build_qualification_artifacts(
         sorted(
             (
                 ("bootstrap.json", canonical_json_bytes(asdict(run.bootstrap))),
+                (
+                    _CALIBRATION,
+                    canonical_jsonl_bytes(asdict(item) for item in run.calibration_diagnostics),
+                ),
                 (
                     "case-evidence.jsonl",
                     canonical_jsonl_bytes(
@@ -279,6 +294,7 @@ def verify_qualification_artifacts(root: Path, qualification_id: str) -> Qualifi
     core = tuple(sorted(core_files))
     expected_names = (
         "bootstrap.json",
+        _CALIBRATION,
         "case-evidence.jsonl",
         _CONFIGURATION,
         "determinism-receipts.jsonl",
@@ -294,6 +310,9 @@ def verify_qualification_artifacts(root: Path, qualification_id: str) -> Qualifi
     if result.get("inventory_root_sha256") != root_sha:
         raise StudyArtifactError("qualification artifact inventory root changed")
     mapping = dict(core)
+    diagnostics = parse_calibration_diagnostics(mapping[_CALIBRATION])
+    if not calibration_evidence_complete(diagnostics, CandidatePolicy.locked_v0_2()):
+        raise StudyArtifactError("qualification calibration evidence is incomplete")
     manifest = _load_json(mapping[_MANIFEST], "manifest")
     if manifest.get("schema_version") != _SCHEMA:
         raise StudyArtifactError("qualification artifact manifest schema changed")

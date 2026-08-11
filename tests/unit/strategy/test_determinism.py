@@ -6,6 +6,7 @@ import pytest
 
 import gemini_trading.strategy.determinism as determinism
 from gemini_trading.strategy.calibration import ExpectedReturnMap, PlattArtifact
+from gemini_trading.strategy.calibration_evidence import build_calibration_diagnostics
 from gemini_trading.strategy.contracts import RegimeState
 from gemini_trading.strategy.determinism import (
     TrendDeterminismReceipt,
@@ -27,15 +28,17 @@ def _bundle() -> tuple[PredictionBundle, FeatureMatrix, LabelVector, tuple[int, 
     policy = CandidatePolicy.locked_v0_2()
     trend = TrendSpecialistTrainer(policy).fit(matrix, labels, indices)
     mean_reversion = MeanReversionSpecialistTrainer(policy).fit(matrix, labels, indices)
+    positive_count = sum(labels.for_index(index).positive for index in indices)
+    negative_count = len(indices) - positive_count
     platt = PlattArtifact(
         schema_version="candidate-platt-v1",
         slope_hex=(1.0).hex(),
         intercept_hex=(0.0).hex(),
         minimum_probability_hex=(0.1).hex(),
         maximum_probability_hex=(0.9).hex(),
-        observation_count=200,
-        positive_count=100,
-        negative_count=100,
+        observation_count=len(indices),
+        positive_count=positive_count,
+        negative_count=negative_count,
     )
     expected = ExpectedReturnMap(
         schema_version="candidate-expected-return-map-v1",
@@ -43,7 +46,7 @@ def _bundle() -> tuple[PredictionBundle, FeatureMatrix, LabelVector, tuple[int, 
         slope=Decimal("0.01"),
         minimum_probability=Decimal("0.1"),
         maximum_probability=Decimal("0.9"),
-        observation_count=200,
+        observation_count=len(indices),
     )
     prediction = Prediction(
         candle_index=indices[-1],
@@ -108,6 +111,26 @@ def test_v0_2_repeated_fit_produces_exact_model_and_prediction_identity(
     assert receipt.first_model_sha256 == receipt.second_model_sha256
     assert receipt.first_bundle_sha256 == receipt.second_bundle_sha256
     assert receipt.exact_match is True
+
+
+def test_v0_2_calibration_receipt_stores_artifacts_ranges_and_metrics() -> None:
+    bundle, matrix, labels, indices = _bundle()
+
+    diagnostics = build_calibration_diagnostics(
+        fold_number=1,
+        bundle=bundle,
+        matrix=matrix,
+        labels=labels,
+        calibration_indices=indices,
+    )
+
+    assert tuple(item.specialist for item in diagnostics) == ("trend", "mean_reversion")
+    assert all(item.observation_count == len(indices) for item in diagnostics)
+    assert all(item.positive_count + item.negative_count == len(indices) for item in diagnostics)
+    assert all(item.brier_score.is_finite() for item in diagnostics)
+    assert all(item.log_loss.is_finite() for item in diagnostics)
+    assert all(item.expected_calibration_error.is_finite() for item in diagnostics)
+    assert all(len(item.calibration_rows_sha256) == 64 for item in diagnostics)
 
 
 def test_determinism_receipt_rejects_mismatched_model_identity() -> None:

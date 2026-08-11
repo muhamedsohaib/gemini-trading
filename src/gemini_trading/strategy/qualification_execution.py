@@ -13,6 +13,11 @@ from gemini_trading.research.metrics import calculate_metrics, completed_trades
 from gemini_trading.research.serialization import canonical_json_bytes
 from gemini_trading.research.verification import ResearchVerificationService
 from gemini_trading.strategy.baselines import build_baseline_schedules
+from gemini_trading.strategy.calibration_evidence import (
+    CalibrationDiagnostic,
+    build_calibration_diagnostics,
+    calibration_evidence_complete,
+)
 from gemini_trading.strategy.determinism import (
     TrendDeterminismReceipt,
     fit_verified_prediction_bundle,
@@ -43,7 +48,6 @@ from gemini_trading.strategy.study_execution import (
     shuffled_labels_passes_any_economic_gate,
 )
 from gemini_trading.strategy.study_plans import prepare_phase
-from gemini_trading.strategy.study_predictions import PredictionBundle
 
 _ZERO = Decimal("0")
 _ONE = Decimal("1")
@@ -78,6 +82,7 @@ class QualificationRun:
     report: QualificationReport
     bootstrap: BootstrapResult
     determinism_receipts: tuple[TrendDeterminismReceipt, ...]
+    calibration_diagnostics: tuple[CalibrationDiagnostic, ...]
     case_evidence: tuple[StudyCaseEvidence, ...]
 
 
@@ -270,6 +275,7 @@ def _build_qualification_evidence(
     plan: DevelopmentQualificationPlan,
     policy: CandidatePolicy,
     receipts: tuple[TrendDeterminismReceipt, ...],
+    calibration_diagnostics: tuple[CalibrationDiagnostic, ...],
     replay_verified: bool,
     independent_verified: bool,
 ) -> tuple[QualificationEvidence, BootstrapResult]:
@@ -319,7 +325,7 @@ def _build_qualification_evidence(
     evidence = QualificationEvidence(
         integrity_verified=True,
         trend_determinism=receipts,
-        calibration_complete=True,
+        calibration_complete=calibration_evidence_complete(calibration_diagnostics, policy),
         development_folds=_fold_evaluations(executor, plan, policy),
         shuffled_labels_safe=not shuffled_labels_passes_any_economic_gate(
             net_return=shuffled.net_return,
@@ -416,7 +422,7 @@ def execute_candidate_v0_2_qualification(
         evidence={},
     )
     receipts: list[TrendDeterminismReceipt] = []
-    bundles: dict[int, PredictionBundle] = {}
+    diagnostics: list[CalibrationDiagnostic] = []
     for fold in development_plan.folds:
         bundle, receipt = fit_verified_prediction_bundle(
             phase=StudyPhase.DEVELOPMENT,
@@ -429,7 +435,15 @@ def execute_candidate_v0_2_qualification(
             prediction_indices=fold.development_test_indices,
         )
         receipts.append(receipt)
-        bundles[fold.fold_number] = bundle
+        diagnostics.extend(
+            build_calibration_diagnostics(
+                fold_number=fold.fold_number,
+                bundle=bundle,
+                matrix=matrix,
+                labels=labels,
+                calibration_indices=fold.calibration_indices,
+            )
+        )
         prepare_phase(
             phase=StudyPhase.DEVELOPMENT,
             fold_number=fold.fold_number,
@@ -472,11 +486,13 @@ def execute_candidate_v0_2_qualification(
     replay_verified = True
     independent_verified = True
 
+    calibration_diagnostics = tuple(diagnostics)
     qualification_evidence, bootstrap = _build_qualification_evidence(
         executor=executor,
         plan=development_plan,
         policy=policy,
         receipts=tuple(receipts),
+        calibration_diagnostics=calibration_diagnostics,
         replay_verified=replay_verified,
         independent_verified=independent_verified,
     )
@@ -499,6 +515,7 @@ def execute_candidate_v0_2_qualification(
         report=report,
         bootstrap=bootstrap,
         determinism_receipts=tuple(receipts),
+        calibration_diagnostics=calibration_diagnostics,
         case_evidence=tuple(records),
     )
 

@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from gemini_trading.research.serialization import canonical_json_bytes
+from gemini_trading.strategy.calibration_evidence import CalibrationDiagnostic
 from gemini_trading.strategy.evaluation import BootstrapResult
 from gemini_trading.strategy.policy import CandidatePolicy
 from gemini_trading.strategy.qualification import QualificationClassification, QualificationReport
@@ -58,6 +59,36 @@ def _bootstrap() -> BootstrapResult:
     )
 
 
+def _diagnostics() -> tuple[CalibrationDiagnostic, ...]:
+    return tuple(
+        CalibrationDiagnostic(
+            schema_version="candidate-v0.2-calibration-diagnostic-v1",
+            fold_number=fold_number,
+            specialist=specialist,
+            calibration_rows_sha256="a" * 64,
+            platt_schema_version="candidate-platt-v1",
+            platt_slope_hex=(1.0).hex(),
+            platt_intercept_hex=(0.0).hex(),
+            platt_minimum_probability_hex=(0.1).hex(),
+            platt_maximum_probability_hex=(0.9).hex(),
+            observation_count=320,
+            positive_count=128,
+            negative_count=192,
+            return_map_schema_version="candidate-expected-return-map-v1",
+            return_map_intercept=Decimal("0"),
+            return_map_slope=Decimal("0.01"),
+            return_map_minimum_probability=Decimal("0.1"),
+            return_map_maximum_probability=Decimal("0.9"),
+            return_map_observation_count=320,
+            brier_score=Decimal("0.20"),
+            log_loss=Decimal("0.60"),
+            expected_calibration_error=Decimal("0.05"),
+        )
+        for fold_number in range(1, 13)
+        for specialist in ("trend", "mean_reversion")
+    )
+
+
 def _run() -> QualificationRun:
     records = tuple(
         StudyCaseEvidence(
@@ -89,6 +120,7 @@ def _run() -> QualificationRun:
         ),
         bootstrap=_bootstrap(),
         determinism_receipts=(),
+        calibration_diagnostics=_diagnostics(),
         case_evidence=records,
     )
 

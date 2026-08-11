@@ -62,7 +62,7 @@ The strict pre-final suite requires complete, immutable evidence for:
 - verified Stage 1 dataset and handoff identity;
 - exactly 12 development folds;
 - trend convergence and exact repeated-fit determinism for every fold;
-- calibration completeness;
+- calibration completeness, fold/specialist Platt and return-map artifacts, probability ranges, Brier score, log loss, and ten-bin expected calibration error;
 - positive-return and baseline return-to-drawdown fold thresholds;
 - profit-concentration and aggregate trade-count limits;
 - shuffled-label, delayed-feature, and component-ablation controls;
@@ -87,6 +87,7 @@ The qualification result is portable and content-addressed. Its immutable core i
 policy.json
 configuration.json
 development-plan.json
+calibration-diagnostics.jsonl
 bootstrap.json
 case-evidence.jsonl
 determinism-receipts.jsonl
@@ -95,6 +96,8 @@ qualification-manifest.json
 limitations.json
 qualification-result.json
 ```
+
+`calibration-diagnostics.jsonl` contains exactly 24 rows: trend and mean-reversion calibration evidence for each of the 12 folds. Each row persists the Platt artifact, expected-return map, class counts, probability ranges, Brier score, log loss, ten-bin expected calibration error, and a content identity for its ordered calibration population.
 
 `policy.json`, `configuration.json`, and `development-plan.json` are stored as canonical bytes. Their SHA-256 identities are bound into the manifest. The core artifact inventory root is bound into the `qualification_id`, so a change to qualification evidence changes the qualification identity rather than leaving a structurally identical ID behind.
 
@@ -244,7 +247,7 @@ uv run gemini-trading research strategy-v0-2-qualification-verify `
   --output-root $OutputRoot
 ```
 
-Full verification checks the exact clean Git commit, qualification core inventory/identity, canonical policy/configuration/development-plan hashes, Stage 1 handoff and inventory identity, exact 12-fold case set, and every referenced research experiment/result identity. Any changed byte, missing evidence, source mismatch, incomplete case set, or invalid classification fails closed.
+Full verification checks the exact clean Git commit, qualification core inventory/identity, canonical policy/configuration/development-plan hashes, all 24 calibration receipts, Stage 1 handoff and inventory identity, exact 12-fold case set, and every referenced research experiment/result identity. Any changed byte, missing evidence, source mismatch, incomplete case set, or invalid classification fails closed.
 
 ## Prospective seal creation
 

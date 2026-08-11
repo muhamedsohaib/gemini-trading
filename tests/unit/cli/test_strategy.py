@@ -10,12 +10,14 @@ import pytest
 
 import gemini_trading.cli.main as cli_main
 from gemini_trading.cli import strategy
+from gemini_trading.research.errors import InvalidExperimentConfigError
 from gemini_trading.safety.execution_mode import UnsafeExecutionModeError
 from gemini_trading.strategy.artifacts import StrategyStudyArtifacts
 from gemini_trading.strategy.evaluation import PromotionClassification
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 _CONFIG = _PROJECT_ROOT / "tests" / "fixtures" / "strategy" / "candidate-v0.1-config.json"
+_CONFIG_V0_2 = _PROJECT_ROOT / "tests" / "fixtures" / "strategy" / "candidate-v0.2-config.json"
 Mutation = Callable[[dict[str, object]], dict[str, object]]
 
 
@@ -104,6 +106,50 @@ def test_locked_candidate_config_loads_exact_policy() -> None:
     assert loaded.strategy_id == "candidate.multi_model.v0_1"
     assert loaded.policy_version == "candidate-multi-model-v0.1"
     assert loaded.simulation.promotable is True
+
+
+def test_locked_candidate_v0_2_config_loads_exact_policy() -> None:
+    loaded = strategy.load_candidate_strategy_config(_CONFIG_V0_2)
+
+    assert loaded.schema_version == "candidate-strategy-cli-v1"
+    assert loaded.initial_cash == Decimal("10000")
+    assert loaded.strategy_id == "candidate.multi_model.v0_2"
+    assert loaded.policy_version == "candidate-multi-model-v0.2"
+    assert loaded.simulation.promotable is True
+
+
+def test_legacy_strategy_evaluate_rejects_v0_2_before_dataset_load(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = strategy.load_candidate_strategy_config(_CONFIG_V0_2)
+
+    def fail_dataset_load(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("v0.2 must be rejected before loading study evidence")
+
+    monkeypatch.setattr(strategy, "load_verified_dataset", fail_dataset_load)
+
+    with pytest.raises(InvalidExperimentConfigError, match=r"v0\.1 only"):
+        strategy.evaluate_candidate_strategy(
+            dataset_id="a" * 64,
+            config=config,
+            project_root=tmp_path,
+            output_root=tmp_path,
+            code_commit="b" * 40,
+        )
+
+
+def test_candidate_config_rejects_cross_version_identity(tmp_path: Path) -> None:
+    payload = cast(dict[str, object], json.loads(_CONFIG_V0_2.read_text()))
+    payload["strategy"] = {
+        "id": "candidate.multi_model.v0_2",
+        "policy_version": "candidate-multi-model-v0.1",
+    }
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps(payload))
+
+    with pytest.raises(Exception, match="policy version"):
+        strategy.load_candidate_strategy_config(path)
 
 
 @pytest.mark.parametrize(

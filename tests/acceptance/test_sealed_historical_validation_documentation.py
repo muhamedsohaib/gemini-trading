@@ -67,16 +67,13 @@ def test_operator_guide_locks_scope_sequence_and_failure_policy() -> None:
     assert "(1, 1, 2)" not in text
 
 
-def test_documentation_states_no_real_result_exists_before_operation() -> None:
+def test_documentation_records_terminal_v0_1_rejection_without_final_access() -> None:
     guide = _GUIDE.read_text(encoding="utf-8")
     readme = _README.read_text(encoding="utf-8")
 
-    statement = "no real historical Candidate result"
-    assert statement in guide
-    assert statement in readme
+    for text in (guide, readme):
+        assert "terminal pre-final `REJECTED`" in text
+        assert "no v0.1 final-test access occurred" in text
     assert "does not prove future profitability" in guide
     assert "no credentials" in guide
     assert "no real-capital authorization" in guide
-    assert "candle-dataset-v4" in readme
-    assert "18,582" in readme
-    assert "completely new Stage 1 v4" in readme

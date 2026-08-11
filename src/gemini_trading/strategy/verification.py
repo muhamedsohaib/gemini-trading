@@ -132,11 +132,15 @@ class StrategyStudyVerificationService:
             if verified.result_id != record.evidence_sha256:
                 raise StudyVerificationError("referenced research evidence identity does not match")
 
-        active_ids = set(SUPPORTED_REPLAY_STRATEGY_IDS) - {"fixture.scripted.v1"}
         referenced_ids = {record.case_id for record in records}
-        if not active_ids.issubset(referenced_ids):
+        candidate_ids = {"candidate.multi_model.v0_1", "candidate.multi_model.v0_2"}
+        required_active_ids = (
+            set(SUPPORTED_REPLAY_STRATEGY_IDS) - {"fixture.scripted.v1"} - candidate_ids
+        )
+        present_candidates = referenced_ids & candidate_ids
+        if not required_active_ids.issubset(referenced_ids) or len(present_candidates) != 1:
             raise StudyVerificationError("closed reconstruction registry evidence is incomplete")
-        for strategy_id in sorted(active_ids):
+        for strategy_id in sorted(required_active_ids | present_candidates):
             validate_replay_strategy_id(strategy_id)
 
         _verify_mandatory_gates(

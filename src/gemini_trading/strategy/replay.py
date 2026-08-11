@@ -72,6 +72,7 @@ _CASE_KEYS = {
 SUPPORTED_REPLAY_STRATEGY_IDS = (
     "fixture.scripted.v1",
     "candidate.multi_model.v0_1",
+    "candidate.multi_model.v0_2",
     "cash.v1",
     "buy_hold.v1",
     "ema_20_50.v1",
@@ -441,10 +442,15 @@ def parse_study_case_evidence(raw: bytes) -> tuple[StudyCaseEvidence, ...]:
         REQUIRED_FINAL_CASE_IDS
     ):
         raise StudyReplayMismatchError("strategy study final evidence is incomplete")
-    active_ids = set(SUPPORTED_REPLAY_STRATEGY_IDS) - {"fixture.scripted.v1"}
-    if not active_ids.issubset({item.case_id for item in records}):
+    record_ids = {item.case_id for item in records}
+    candidate_ids = {"candidate.multi_model.v0_1", "candidate.multi_model.v0_2"}
+    required_active_ids = (
+        set(SUPPORTED_REPLAY_STRATEGY_IDS) - {"fixture.scripted.v1"} - candidate_ids
+    )
+    present_candidates = record_ids & candidate_ids
+    if not required_active_ids.issubset(record_ids) or len(present_candidates) != 1:
         raise StudyReplayMismatchError("strategy study replay registry evidence is incomplete")
-    for strategy_id in sorted(active_ids):
+    for strategy_id in sorted(required_active_ids | present_candidates):
         validate_replay_strategy_id(strategy_id)
     return tuple(records)
 

@@ -58,7 +58,9 @@ See:
 
 ## Candidate Multi-Model Strategy v0.1
 
-The repository includes a bounded research implementation for the first Candidate multi-model strategy. Its locked scope is BTC/USDT on completed 4-hour candles, long or cash only. It combines point-in-time features, conservative cost-aware labels, deterministic trend and mean-reversion specialists, fold-local calibration, regime-aware arbitration, provider-free comparators, sealed walk-forward evaluation, immutable strategy-study artifacts, replay, and independent verification.
+The repository includes the first bounded Candidate multi-model research strategy for BTC/USDT on completed 4-hour candles, long or cash only. It combines point-in-time features, conservative cost-aware labels, deterministic trend and mean-reversion specialists, fold-local calibration, regime-aware arbitration, provider-free comparators, sealed walk-forward evaluation, immutable strategy-study artifacts, replay, and independent verification.
+
+Candidate v0.1 reached a terminal pre-final `REJECTED` state under its governed historical validation. On the corrected approved source, the trend specialist still reached the v0.1 `max_iter=10000` ceiling during development preparation. The final authorization and finalization jobs were skipped, so **no v0.1 final-test access occurred**. The frozen v0.1 candidate was not tuned or rescued after observing that evidence.
 
 Diagnostic command surface:
 
@@ -81,19 +83,42 @@ gemini-trading research strategy-finalize
 gemini-trading research strategy-resume
 ```
 
-The Candidate remains `RESEARCH_ONLY` and always reports `promotable:false` at the CLI boundary. Rejection and inconclusive evidence are valid outcomes. The concrete provider-free evaluator and deterministic synthetic end-to-end acceptance are implemented. The diagnostic acceptance result is `INCONCLUSIVE`; it verifies architecture and reproducibility only.
-
-The two-stage GitHub Actions implementation for the fixed BTCUSDT window `[2018-01-01T00:00:00Z, 2026-07-01T00:00:00Z)` uses `candle-dataset-v4`, `exchange-closure-manifest-v3`, 20 exact partial-candle exclusions, 16 fully absent opens, 36 unavailable canonical `4h` slots, 21 deterministic continuous segments, and 18,582 completed canonical candles. `sealed-dataset-handoff-v4` binds every ordered closure ID and excluded provider-row SHA-256. Raw evidence is immutable, no candle is fabricated, and all research dependencies reset at segment boundaries. Earlier v1-v3 datasets and handoffs are invalid for this revised study. There is no real historical Candidate result until a completely new Stage 1 v4 workflow runs from an approved exact merged-main SHA, its downloaded artifact independently verifies, and the repository owner explicitly approves it before Stage 2. No durable profitability, execution readiness, or capital authorization is claimed.
+The Candidate remains `RESEARCH_ONLY` and always reports `promotable:false` at the CLI boundary. Rejection and inconclusive evidence are valid outcomes. No durable profitability, execution readiness, or capital authorization is claimed.
 
 See:
 
 - `docs/superpowers/plans/2026-07-24-candidate-multi-model-strategy-v0-1.md` for the approved Candidate implementation plan.
 - `docs/operations/candidate-multi-model-strategy.md` for the locked Candidate protocol, commands, evidence layout, and limitations.
 - `docs/operations/candidate-multi-model-strategy-step-verification.md` for Candidate exact-head and merged-main closure requirements.
-- `docs/operations/sealed-btcusdt-historical-validation.md` for the two-stage operational sequence, final-access rules, artifact handling, and result semantics.
-- `reports/verification/candidate-multi-model-strategy-progress.md` for Candidate checkpoint history and protected-main closure status.
-- `reports/verification/candidate-multi-model-strategy-final.md` for deterministic acceptance identities, gate outcomes, artifact hashes, and limitations.
-- `reports/verification/sealed-btcusdt-historical-validation-progress.md` for the sealed historical-validation implementation status.
+- `docs/operations/sealed-btcusdt-historical-validation.md` for the two-stage operational sequence and result semantics.
+- `reports/verification/sealed-btcusdt-historical-validation-final.md` for the terminal v0.1 rejection evidence and confirmation of no final-test access.
+
+## Candidate Multi-Model Strategy v0.2
+
+Candidate v0.2 is the prospectively governed successor to rejected v0.1. It preserves the complete v0.1 financial hypothesis and changes only the approved trend-specialist numerical convergence contract plus its version identity: Elastic-Net logistic regression with `saga`, `C=1.0`, `l1_ratio=0.5`, seed `1701`, single-thread execution, `tol=1e-7`, and `max_iter=50000`.
+
+Development evidence is fixed to `[2018-01-01T00:00:00Z, 2026-07-01T00:00:00Z)` and must produce exactly 12 complete chronological development folds. The strict pre-final classifier is closed to `QUALIFIED`, `REJECTED`, or `INCONCLUSIVE`. `QUALIFIED` permits only creation of a future prospective-final seal; it does not prove future profitability.
+
+The genuine v0.2 final era begins at the first UTC calendar-month boundary strictly after successful frozen-source/pre-final verification and lasts exactly 18 calendar months. The interval from the development cutoff to that future start is quarantined bridge data and may not be used to tune or rescue v0.2.
+
+Research-only v0.2 command surface:
+
+```text
+gemini-trading research strategy-v0-2-qualify
+gemini-trading research strategy-v0-2-qualification-verify
+gemini-trading research strategy-v0-2-seal-prospective-final
+```
+
+The manually dispatched `Candidate v0.2 Development Qualification` workflow consumes a fresh exact-source Stage 1 dataset only after an owner-authored Issue #61 approval marker. It performs development qualification and provider-free verification but does not access future-final market rows or authorize execution.
+
+Candidate v0.2 remains `RESEARCH_ONLY`; future profitability and execution readiness are not established. The pre-final implementation can be completed now, but the prospective 18-month market result cannot exist until the sealed future interval has elapsed and is evaluated under a separate governed operation.
+
+See:
+
+- `docs/superpowers/specs/2026-08-10-candidate-multi-model-strategy-v0-2-design.md` for the approved prospective design.
+- `docs/superpowers/plans/2026-08-10-candidate-multi-model-strategy-v0-2.md` for the implementation and operational closure plan.
+- `docs/operations/candidate-multi-model-strategy-v0-2.md` for exact Stage 1, qualification, verification, and seal operations.
+- `docs/operations/candidate-multi-model-strategy-v0-2-step-verification.md` for exact-head, merged-main, Stage 1, qualification, and pre-final closure requirements.
 
 ## Safety
 

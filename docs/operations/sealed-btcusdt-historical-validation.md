@@ -196,4 +196,6 @@ No classification authorizes execution or capital.
 2. Verify the closure report at its exact reviewed head and exact merged-main commit.
 3. Close Issue #22 only after the dataset artifact, repository seal, stable local seal, durable receipt, 22-file study, replay, and independent verification all agree.
 
-Until both real workflows complete and their downloaded artifacts verify, the repository has implementation evidence only and no real historical Candidate result.
+## Completed v0.1 outcome
+
+Candidate v0.1 reached a terminal pre-final `REJECTED` state on the corrected approved source because the trend specialist did not converge within the locked `max_iter=10000` contract. The `authorize-final` and `finalize` jobs were skipped, so **no v0.1 final-test access occurred**. No final-test predictions, decisions, fills, or economic metrics were produced, and no execution or capital authority was created. See `reports/verification/sealed-btcusdt-historical-validation-final.md` for the exact source, Stage 1, Stage 2, artifact, and verification identities.

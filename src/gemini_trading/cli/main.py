@@ -6,6 +6,7 @@ import sys
 from collections.abc import Sequence
 from typing import NoReturn, TextIO
 
+from gemini_trading.cli.candidate_v0_2 import run_candidate_v0_2
 from gemini_trading.cli.historical_validation import run_historical_validation
 from gemini_trading.cli.market_data import CliUsageError, run_market_data
 from gemini_trading.cli.research import run_research
@@ -163,6 +164,33 @@ def build_parser() -> SafeArgumentParser:
     resume.add_argument("--receipt-id", required=True)
     resume.add_argument("--project-root", required=True)
     resume.add_argument("--output-root", required=True)
+
+    qualify_v0_2 = research_commands.add_parser(
+        "strategy-v0-2-qualify",
+        help="run the fixed development-only Candidate v0.2 qualification",
+    )
+    qualify_v0_2.add_argument("--handoff", required=True)
+    qualify_v0_2.add_argument("--config", required=True)
+    qualify_v0_2.add_argument("--workflow-run-id", required=True)
+    qualify_v0_2.add_argument("--workflow-run-attempt", required=True)
+    qualify_v0_2.add_argument("--project-root", required=True)
+    qualify_v0_2.add_argument("--output-root", required=True)
+
+    verify_v0_2 = research_commands.add_parser(
+        "strategy-v0-2-qualification-verify",
+        help="verify Candidate v0.2 qualification evidence provider-free",
+    )
+    verify_v0_2.add_argument("--qualification-id", required=True)
+    verify_v0_2.add_argument("--project-root", required=True)
+    verify_v0_2.add_argument("--output-root", required=True)
+
+    seal_v0_2 = research_commands.add_parser(
+        "strategy-v0-2-seal-prospective-final",
+        help="seal the future final era from verified QUALIFIED evidence",
+    )
+    seal_v0_2.add_argument("--qualification-id", required=True)
+    seal_v0_2.add_argument("--project-root", required=True)
+    seal_v0_2.add_argument("--output-root", required=True)
     return parser
 
 
@@ -197,6 +225,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             payload = run_market_data(arguments)
         elif command == "research":
             research_command = getattr(arguments, "research_command", None)
+            candidate_v0_2_commands = {
+                "strategy-v0-2-qualify",
+                "strategy-v0-2-qualification-verify",
+                "strategy-v0-2-seal-prospective-final",
+            }
             historical_commands = {
                 "dataset-ingest",
                 "dataset-replay",
@@ -207,7 +240,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "strategy-prepare",
                 "strategy-resume",
             }
-            if research_command in historical_commands:
+            if research_command in candidate_v0_2_commands:
+                payload = run_candidate_v0_2(arguments)
+            elif research_command in historical_commands:
                 payload = run_historical_validation(arguments)
             elif isinstance(research_command, str) and research_command.startswith("strategy-"):
                 payload = run_strategy(arguments)

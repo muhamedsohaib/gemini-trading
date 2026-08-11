@@ -6,7 +6,7 @@ import hashlib
 import json
 import re
 from dataclasses import asdict, dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import cast
 
@@ -21,6 +21,7 @@ _GIT_SHA = re.compile(r"^[0-9a-f]{40}$")
 _SCHEMA = "candidate-v0.2-prospective-final-seal-v1"
 _STRATEGY_ID = "candidate.multi_model.v0_2"
 _POLICY_VERSION = "candidate-multi-model-v0.2"
+_DEVELOPMENT_CUTOFF = datetime(2026, 7, 1, tzinfo=UTC)
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,6 +56,8 @@ class ProspectiveFinalSealRequest:
                 raise FinalAccessError(f"invalid prospective seal {field_name}")
         if self.qualification_classification is not QualificationClassification.QUALIFIED:
             raise FinalAccessError("prospective final seal requires QUALIFIED evidence")
+        if self.development_cutoff != _DEVELOPMENT_CUTOFF:
+            raise FinalAccessError("prospective final seal development cutoff changed")
         try:
             ProspectiveFinalWindow.from_verified_at(
                 development_cutoff=self.development_cutoff,
@@ -105,6 +108,8 @@ class ProspectiveFinalSeal:
             value = getattr(self, field_name)
             if isinstance(value, bool) or value < 1:
                 raise FinalAccessError(f"invalid prospective final seal {field_name}")
+        if self.development_cutoff != _DEVELOPMENT_CUTOFF:
+            raise FinalAccessError("prospective final seal development cutoff changed")
         try:
             expected = ProspectiveFinalWindow.from_verified_at(
                 development_cutoff=self.development_cutoff,

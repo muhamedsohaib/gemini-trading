@@ -68,9 +68,7 @@ def _run() -> QualificationRun:
             experiment_id=hashlib.sha256(
                 f"experiment:{fold_number}:{case_id}".encode()
             ).hexdigest(),
-            evidence_sha256=hashlib.sha256(
-                f"result:{fold_number}:{case_id}".encode()
-            ).hexdigest(),
+            evidence_sha256=hashlib.sha256(f"result:{fold_number}:{case_id}".encode()).hexdigest(),
         )
         for fold_number in range(1, 13)
         for case_id in qualification_case_ids(CandidatePolicy.locked_v0_2())

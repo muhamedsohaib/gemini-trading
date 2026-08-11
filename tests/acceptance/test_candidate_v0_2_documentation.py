@@ -36,6 +36,12 @@ def test_candidate_v0_2_operations_docs_exist(path: Path) -> None:
         "strategy-v0-2-qualify",
         "strategy-v0-2-qualification-verify",
         "strategy-v0-2-seal-prospective-final",
+        "--project-root",
+        "policy.json",
+        "configuration.json",
+        "development-plan.json",
+        "data/research",
+        "Stage 1 artifact",
     ],
 )
 def test_v0_2_operations_document_contains_locked_protocol(required: str) -> None:
@@ -55,6 +61,12 @@ def test_v0_2_operations_document_contains_locked_protocol(required: str) -> Non
         "18 calendar months",
         "future profitability",
         "no execution authority",
+        "--project-root",
+        "policy.json",
+        "configuration.json",
+        "development-plan.json",
+        "data/research",
+        "Stage 1 artifact",
     ],
 )
 def test_v0_2_step_document_contains_closure_evidence(required: str) -> None:

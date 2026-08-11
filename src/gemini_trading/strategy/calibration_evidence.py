@@ -303,25 +303,15 @@ def parse_calibration_diagnostics(raw: bytes) -> tuple[CalibrationDiagnostic, ..
                     observation_count=cast(int, mapping["observation_count"]),
                     positive_count=cast(int, mapping["positive_count"]),
                     negative_count=cast(int, mapping["negative_count"]),
-                    return_map_schema_version=cast(
-                        str, mapping["return_map_schema_version"]
-                    ),
+                    return_map_schema_version=cast(str, mapping["return_map_schema_version"]),
                     return_map_intercept=decimal_values["return_map_intercept"],
                     return_map_slope=decimal_values["return_map_slope"],
-                    return_map_minimum_probability=decimal_values[
-                        "return_map_minimum_probability"
-                    ],
-                    return_map_maximum_probability=decimal_values[
-                        "return_map_maximum_probability"
-                    ],
-                    return_map_observation_count=cast(
-                        int, mapping["return_map_observation_count"]
-                    ),
+                    return_map_minimum_probability=decimal_values["return_map_minimum_probability"],
+                    return_map_maximum_probability=decimal_values["return_map_maximum_probability"],
+                    return_map_observation_count=cast(int, mapping["return_map_observation_count"]),
                     brier_score=decimal_values["brier_score"],
                     log_loss=decimal_values["log_loss"],
-                    expected_calibration_error=decimal_values[
-                        "expected_calibration_error"
-                    ],
+                    expected_calibration_error=decimal_values["expected_calibration_error"],
                 )
             )
         except (KeyError, ValueError, TypeError):

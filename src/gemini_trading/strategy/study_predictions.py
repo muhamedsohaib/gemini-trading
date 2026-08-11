@@ -206,9 +206,7 @@ def candidate_events(
             current_stop = None
 
         source_item = (
-            bundle.predictions[position - 1]
-            if delayed and position > 0 and contiguous
-            else item
+            bundle.predictions[position - 1] if delayed and position > 0 and contiguous else item
         )
         trend_probability = source_item.trend_probability
         mean_probability = source_item.mean_reversion_probability

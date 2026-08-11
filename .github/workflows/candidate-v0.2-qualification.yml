@@ -42,6 +42,10 @@ jobs:
         with:
           ref: ${{ inputs.source_commit }}
           fetch-depth: 0
+      - name: Require merged-main dispatch identity
+        run: |
+          test "${GITHUB_REF_NAME}" = "main"
+          test "${{ inputs.source_commit }}" = "${GITHUB_SHA}"
       - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
         with:
           version: "0.11.25"

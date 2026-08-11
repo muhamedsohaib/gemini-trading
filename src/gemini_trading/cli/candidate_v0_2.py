@@ -60,11 +60,7 @@ def _utc_timestamp(arguments: argparse.Namespace, name: str) -> datetime:
         raise CliUsageError(
             f"--{name.replace('_', '-')} must be an ISO-8601 UTC timestamp"
         ) from None
-    if (
-        value.tzinfo is None
-        or value.utcoffset() is None
-        or value.utcoffset().total_seconds() != 0
-    ):
+    if value.tzinfo is None or value.utcoffset() is None or value.utcoffset().total_seconds() != 0:
         raise CliUsageError(f"--{name.replace('_', '-')} must be an ISO-8601 UTC timestamp")
     return value.astimezone(UTC)
 

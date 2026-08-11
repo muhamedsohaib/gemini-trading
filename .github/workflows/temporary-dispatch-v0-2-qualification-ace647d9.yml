@@ -1,0 +1,104 @@
+name: Temporary dispatch Candidate v0.2 qualification ace647d9
+
+on:
+  pull_request:
+
+permissions:
+  actions: write
+  contents: read
+  issues: write
+
+defaults:
+  run:
+    shell: bash --noprofile --norc -e -o pipefail {0}
+
+jobs:
+  dispatch:
+    if: github.event.pull_request.head.ref == 'ops/dispatch-v0-2-qualification-ace647d9'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SOURCE_COMMIT: ace647d9de45f26fa02cfed1e5a2c82b83bbe71f
+      DATASET_RUN_ID: '31488097029'
+      DATASET_ARTIFACT_NAME: sealed-btcusdt-dataset-ace647d9de45f26fa02cfed1e5a2c82b83bbe71f-31488097029
+      DATASET_ID: 33cdaecbec6b1d90db46fde0e0ad1164b3dca2e6bd2fb858d73a1b177f6a007b
+      APPROVAL_MARKER: '<!-- candidate-v0.2-dataset-approved:ace647d9de45f26fa02cfed1e5a2c82b83bbe71f:31488097029:33cdaecbec6b1d90db46fde0e0ad1164b3dca2e6bd2fb858d73a1b177f6a007b -->'
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Assert current main is exact verified source
+        run: |
+          ACTUAL_MAIN_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq '.object.sha')"
+          test "${ACTUAL_MAIN_SHA}" = "${SOURCE_COMMIT}"
+
+      - name: Assert exact Stage 1 run and artifact remain valid
+        run: |
+          RUN_JSON="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${DATASET_RUN_ID}")"
+          printf '%s' "${RUN_JSON}" | jq -e \
+            --arg sha "${SOURCE_COMMIT}" \
+            '.name == "Sealed BTCUSDT Dataset" and .event == "workflow_dispatch" and .head_branch == "main" and .head_sha == $sha and .status == "completed" and .conclusion == "success"' >/dev/null
+          ARTIFACT_JSON="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${DATASET_RUN_ID}/artifacts")"
+          printf '%s' "${ARTIFACT_JSON}" | jq -e \
+            --arg name "${DATASET_ARTIFACT_NAME}" \
+            '[.artifacts[] | select(.name == $name and .expired == false)] | length == 1' >/dev/null
+
+      - name: Assert owner-authored Issue 61 approval marker
+        run: |
+          gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/issues/61/comments" > "${RUNNER_TEMP}/comments.json"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          pages = json.loads((Path(os.environ["RUNNER_TEMP"]) / "comments.json").read_text())
+          comments = [item for page in pages for item in page]
+          marker = os.environ["APPROVAL_MARKER"]
+          owner = os.environ["GITHUB_REPOSITORY_OWNER"]
+          matches = [
+              item for item in comments
+              if marker in str(item.get("body", ""))
+              and str(item.get("user", {}).get("login", "")) == owner
+          ]
+          if len(matches) != 1:
+              raise SystemExit(f"expected exactly one owner approval marker; found {len(matches)}")
+          PY
+
+      - name: Refuse duplicate exact-source qualification
+        run: |
+          RUN_JSON="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/candidate-v0.2-qualification.yml/runs?event=workflow_dispatch&branch=main&per_page=100")"
+          COUNT="$(printf '%s' "${RUN_JSON}" | jq -r --arg sha "${SOURCE_COMMIT}" '[.workflow_runs[] | select(.head_sha == $sha)] | length')"
+          test "${COUNT}" = "0"
+
+      - name: Dispatch the one Candidate v0.2 development qualification
+        id: dispatch
+        run: |
+          RUN_URL="$(gh workflow run candidate-v0.2-qualification.yml \
+            --ref main \
+            -f source_commit="${SOURCE_COMMIT}" \
+            -f dataset_run_id="${DATASET_RUN_ID}" \
+            -f dataset_artifact_name="${DATASET_ARTIFACT_NAME}" \
+            -f dataset_id="${DATASET_ID}")"
+          RUN_ID="${RUN_URL##*/}"
+          case "${RUN_ID}" in
+            ''|*[!0-9]*) echo "Unable to parse qualification run ID from: ${RUN_URL}" >&2; exit 1 ;;
+          esac
+          echo "run_id=${RUN_ID}" >> "${GITHUB_OUTPUT}"
+          echo "run_url=${RUN_URL}" >> "${GITHUB_OUTPUT}"
+          for _ in $(seq 1 30); do
+            STATUS_JSON="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}" 2>/dev/null || true)"
+            if [ -n "${STATUS_JSON}" ]; then
+              printf '%s' "${STATUS_JSON}" | jq -e --arg sha "${SOURCE_COMMIT}" '.name == "Candidate v0.2 Development Qualification" and .event == "workflow_dispatch" and .head_branch == "main" and .head_sha == $sha' >/dev/null
+              echo "Candidate v0.2 qualification run: ${RUN_ID}"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Dispatched qualification run could not be verified" >&2
+          exit 1
+
+      - name: Record qualification dispatch on Issue 61
+        run: |
+          gh issue comment 61 --body "Candidate v0.2 development qualification dispatched from exact verified source \`${SOURCE_COMMIT}\` using approved Stage 1 run \`${DATASET_RUN_ID}\`, artifact \`${DATASET_ARTIFACT_NAME}\`, and dataset \`${DATASET_ID}\`. Qualification workflow run: \`${{ steps.dispatch.outputs.run_id }}\`. This is the predeclared development-only qualification; it does not access prospective-final market rows and grants no paper/demo/live/real-capital execution authority. Boundary: \`RESEARCH_ONLY\`."

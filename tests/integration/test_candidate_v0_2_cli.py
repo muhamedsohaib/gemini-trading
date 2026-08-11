@@ -1,4 +1,4 @@
-"""RED integration tests for Candidate v0.2 qualification CLI surfaces."""
+"""Integration tests for Candidate v0.2 qualification CLI surfaces."""
 
 from pathlib import Path
 
@@ -23,11 +23,11 @@ from gemini_trading.cli.main import main
         ),
         (
             "strategy-v0-2-qualification-verify",
-            ("--qualification-id", "--output-root"),
+            ("--qualification-id", "--project-root", "--output-root"),
         ),
         (
             "strategy-v0-2-seal-prospective-final",
-            ("--qualification-id", "--verified-at", "--output-root"),
+            ("--qualification-id", "--verified-at", "--project-root", "--output-root"),
         ),
     ],
 )

@@ -181,6 +181,7 @@ def build_parser() -> SafeArgumentParser:
         help="verify Candidate v0.2 qualification evidence provider-free",
     )
     verify_v0_2.add_argument("--qualification-id", required=True)
+    verify_v0_2.add_argument("--project-root", required=True)
     verify_v0_2.add_argument("--output-root", required=True)
 
     seal_v0_2 = research_commands.add_parser(
@@ -189,6 +190,7 @@ def build_parser() -> SafeArgumentParser:
     )
     seal_v0_2.add_argument("--qualification-id", required=True)
     seal_v0_2.add_argument("--verified-at", required=True)
+    seal_v0_2.add_argument("--project-root", required=True)
     seal_v0_2.add_argument("--output-root", required=True)
     return parser
 

@@ -36,6 +36,7 @@ jobs:
     env:
       GEMINI_TRADING_MODE: research
       OUTPUT_ROOT: /tmp/candidate-v0-2-output
+      BUNDLE_ROOT: /tmp/candidate-v0-2-bundle
     steps:
       - uses: actions/checkout@v6.0.2
         with:
@@ -131,6 +132,7 @@ jobs:
         run: |
           uv run gemini-trading research strategy-v0-2-qualification-verify \
             --qualification-id "${{ steps.qualification.outputs.qualification_id }}" \
+            --project-root "${GITHUB_WORKSPACE}" \
             --output-root "${OUTPUT_ROOT}" | tee "${RUNNER_TEMP}/verification.json"
           python - <<'PY'
           import json
@@ -143,10 +145,18 @@ jobs:
           if payload["classification"] != "${{ steps.qualification.outputs.classification }}":
               raise SystemExit("qualification verification classification changed")
           PY
+      - name: Build portable qualification bundle
+        run: |
+          rm -rf "${BUNDLE_ROOT}"
+          mkdir -p "${BUNDLE_ROOT}/data/historical-validation"
+          cp -a "${OUTPUT_ROOT}/data/research" "${BUNDLE_ROOT}/data/research"
+          cp -a \
+            "${OUTPUT_ROOT}/data/historical-validation/v0-2-qualification" \
+            "${BUNDLE_ROOT}/data/historical-validation/v0-2-qualification"
       - uses: actions/upload-artifact@v4
         with:
           name: candidate-v0.2-qualification-${{ github.run_id }}
-          path: /tmp/candidate-v0-2-output/data/historical-validation/v0-2-qualification/
+          path: /tmp/candidate-v0-2-bundle/
           if-no-files-found: error
           retention-days: 90
           compression-level: 6

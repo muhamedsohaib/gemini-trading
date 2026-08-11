@@ -22,10 +22,11 @@ from gemini_trading.strategy.qualification import QualificationClassification
 from gemini_trading.strategy.qualification_artifacts import (
     LocalQualificationStore,
     QualificationArtifactContext,
+    QualificationArtifacts,
     build_qualification_artifacts,
-    verify_qualification_artifacts,
 )
 from gemini_trading.strategy.qualification_execution import execute_candidate_v0_2_qualification
+from gemini_trading.strategy.qualification_verification import verify_qualification_bundle
 
 _V0_2_STRATEGY_ID = "candidate.multi_model.v0_2"
 _V0_2_POLICY_VERSION = "candidate-multi-model-v0.2"
@@ -59,8 +60,11 @@ def _utc_timestamp(arguments: argparse.Namespace, name: str) -> datetime:
         raise CliUsageError(
             f"--{name.replace('_', '-')} must be an ISO-8601 UTC timestamp"
         ) from None
-    offset = value.utcoffset()
-    if value.tzinfo is None or offset is None or offset.total_seconds() != 0:
+    if (
+        value.tzinfo is None
+        or value.utcoffset() is None
+        or value.utcoffset().total_seconds() != 0
+    ):
         raise CliUsageError(f"--{name.replace('_', '-')} must be an ISO-8601 UTC timestamp")
     return value.astimezone(UTC)
 
@@ -136,10 +140,20 @@ def _qualify(arguments: argparse.Namespace) -> dict[str, object]:
     }
 
 
-def _verify(arguments: argparse.Namespace) -> dict[str, object]:
+def _verified_bundle(arguments: argparse.Namespace) -> QualificationArtifacts:
+    project_root = Path(_argument(arguments, "project_root")).resolve(strict=False)
     output_root = Path(_argument(arguments, "output_root")).resolve(strict=False)
     qualification_id = _argument(arguments, "qualification_id")
-    artifacts = verify_qualification_artifacts(output_root, qualification_id)
+    code_commit = resolve_clean_git_commit(project_root)
+    return verify_qualification_bundle(
+        output_root,
+        qualification_id,
+        expected_commit=code_commit,
+    )
+
+
+def _verify(arguments: argparse.Namespace) -> dict[str, object]:
+    artifacts = _verified_bundle(arguments)
     return {
         "classification": artifacts.classification.value,
         "inventory_root_sha256": artifacts.inventory_root_sha256,
@@ -151,8 +165,7 @@ def _verify(arguments: argparse.Namespace) -> dict[str, object]:
 
 def _seal(arguments: argparse.Namespace) -> dict[str, object]:
     output_root = Path(_argument(arguments, "output_root")).resolve(strict=False)
-    qualification_id = _argument(arguments, "qualification_id")
-    verified = verify_qualification_artifacts(output_root, qualification_id)
+    verified = _verified_bundle(arguments)
     if verified.classification is not QualificationClassification.QUALIFIED:
         raise FinalAccessError("prospective final seal requires QUALIFIED evidence")
     seal = LocalProspectiveFinalSealStore(output_root).create(

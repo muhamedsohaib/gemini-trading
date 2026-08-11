@@ -32,7 +32,8 @@ jobs:
 
       - name: Refuse duplicate exact-source Stage 1
         run: |
-          EXISTING_ID="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/sealed-btcusdt-dataset.yml/runs?event=workflow_dispatch&branch=main&per_page=100" --jq --arg sha "${EXPECTED_MAIN_SHA}" '[.workflow_runs[] | select(.head_sha == $sha) | select(.status == "queued" or .status == "in_progress" or .conclusion == "success")][0].id // empty')"
+          RUN_JSON="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/sealed-btcusdt-dataset.yml/runs?event=workflow_dispatch&branch=main&per_page=100")"
+          EXISTING_ID="$(printf '%s' "${RUN_JSON}" | jq -r --arg sha "${EXPECTED_MAIN_SHA}" '[.workflow_runs[] | select(.head_sha == $sha) | select(.status == "queued" or .status == "in_progress" or .conclusion == "success")][0].id // empty')"
           if [ -n "${EXISTING_ID}" ]; then
             echo "Exact-source Stage 1 already exists: ${EXISTING_ID}" >&2
             exit 1

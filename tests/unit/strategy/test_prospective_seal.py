@@ -1,4 +1,4 @@
-"""RED tests for Candidate v0.2 prospective final seal."""
+"""Tests for Candidate v0.2 prospective final seal."""
 
 from datetime import UTC, datetime
 from pathlib import Path
@@ -35,6 +35,8 @@ def test_qualified_evidence_creates_exactly_one_future_seal(tmp_path: Path) -> N
     loaded = store.load(seal.seal_id)
 
     assert loaded == seal
+    assert seal.strategy_id == "candidate.multi_model.v0_2"
+    assert seal.policy_version == "candidate-multi-model-v0.2"
     assert seal.final_start == datetime(2026, 9, 1, tzinfo=UTC)
     assert seal.final_end == datetime(2028, 3, 1, tzinfo=UTC)
     assert seal.bridge_start == datetime(2026, 7, 1, tzinfo=UTC)

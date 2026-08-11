@@ -72,6 +72,9 @@ class QualificationRun:
     policy_sha256: str
     configuration_sha256: str
     development_plan_sha256: str
+    policy_bytes: bytes
+    configuration_bytes: bytes
+    development_plan_bytes: bytes
     report: QualificationReport
     bootstrap: BootstrapResult
     determinism_receipts: tuple[TrendDeterminismReceipt, ...]
@@ -118,8 +121,28 @@ def aggregate_path_metrics(period_returns: tuple[Decimal, ...]) -> AggregatePath
     )
 
 
-def _development_plan_sha256(plan: DevelopmentQualificationPlan) -> str:
-    return hashlib.sha256(canonical_json_bytes(asdict(plan))).hexdigest()
+def _development_plan_bytes(plan: DevelopmentQualificationPlan) -> bytes:
+    return canonical_json_bytes(asdict(plan))
+
+
+def _qualification_configuration_bytes(
+    *,
+    dataset_id: str,
+    initial_cash: Decimal,
+    simulation: SimulationConfig,
+    policy: CandidatePolicy,
+) -> bytes:
+    simulation_bytes = serialize_simulation_config(simulation)
+    return canonical_json_bytes(
+        {
+            "schema_version": "candidate-v0.2-qualification-config-v1",
+            "dataset_id": dataset_id,
+            "initial_cash": initial_cash,
+            "simulation_sha256": hashlib.sha256(simulation_bytes).hexdigest(),
+            "strategy_id": policy.strategy_id,
+            "policy_version": policy.policy_version,
+        }
+    )
 
 
 def _validate_inputs(
@@ -234,9 +257,7 @@ def _fold_evaluations(
     return tuple(folds)
 
 
-def _strongest_rtd(
-    metrics: tuple[AggregatePathMetrics, ...],
-) -> Decimal | None:
+def _strongest_rtd(metrics: tuple[AggregatePathMetrics, ...]) -> Decimal | None:
     values = tuple(
         item.return_to_drawdown for item in metrics if item.return_to_drawdown is not None
     )
@@ -446,6 +467,8 @@ def execute_candidate_v0_2_qualification(
         result = verifier.verify(record.experiment_id)
         if result.experiment_id != record.experiment_id or result.terminal_status != "completed":
             raise StudyArtifactError("qualification experiment verification changed identity")
+        if result.result_id != record.evidence_sha256:
+            raise StudyArtifactError("qualification experiment result identity changed")
     replay_verified = True
     independent_verified = True
 
@@ -458,10 +481,21 @@ def execute_candidate_v0_2_qualification(
         independent_verified=independent_verified,
     )
     report = evaluate_development_qualification(qualification_evidence)
+    policy_bytes = serialize_candidate_policy(policy)
+    configuration_bytes = _qualification_configuration_bytes(
+        dataset_id=dataset.manifest.dataset_id,
+        initial_cash=initial_cash,
+        simulation=simulation,
+        policy=policy,
+    )
+    development_plan_bytes = _development_plan_bytes(development_plan)
     return QualificationRun(
-        policy_sha256=hashlib.sha256(serialize_candidate_policy(policy)).hexdigest(),
-        configuration_sha256=hashlib.sha256(serialize_simulation_config(simulation)).hexdigest(),
-        development_plan_sha256=_development_plan_sha256(development_plan),
+        policy_sha256=hashlib.sha256(policy_bytes).hexdigest(),
+        configuration_sha256=hashlib.sha256(configuration_bytes).hexdigest(),
+        development_plan_sha256=hashlib.sha256(development_plan_bytes).hexdigest(),
+        policy_bytes=policy_bytes,
+        configuration_bytes=configuration_bytes,
+        development_plan_bytes=development_plan_bytes,
         report=report,
         bootstrap=bootstrap,
         determinism_receipts=tuple(receipts),

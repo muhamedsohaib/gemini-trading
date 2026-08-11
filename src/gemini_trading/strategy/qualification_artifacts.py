@@ -19,6 +19,10 @@ _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _GIT_SHA = re.compile(r"^[0-9a-f]{40}$")
 _SCHEMA = "candidate-v0.2-qualification-artifacts-v1"
 _RESULT = "qualification-result.json"
+_MANIFEST = "qualification-manifest.json"
+_POLICY = "policy.json"
+_CONFIGURATION = "configuration.json"
+_DEVELOPMENT_PLAN = "development-plan.json"
 
 
 @dataclass(frozen=True, slots=True)
@@ -82,13 +86,44 @@ def _inventory_root(files: tuple[tuple[str, bytes], ...]) -> str:
     return hashlib.sha256(canonical_json_bytes({"files": _inventory_payload(files)})).hexdigest()
 
 
+def _validate_run_identity_bytes(run: QualificationRun) -> None:
+    for raw, expected, description in (
+        (run.policy_bytes, run.policy_sha256, "policy"),
+        (run.configuration_bytes, run.configuration_sha256, "configuration"),
+        (run.development_plan_bytes, run.development_plan_sha256, "development plan"),
+    ):
+        if _sha(raw) != expected:
+            raise StudyArtifactError(f"qualification {description} identity changed")
+
+
+def _structural_identity(
+    *,
+    context: QualificationArtifactContext,
+    classification: QualificationClassification,
+    policy_sha256: str,
+    configuration_sha256: str,
+    development_plan_sha256: str,
+    inventory_root_sha256: str,
+) -> dict[str, object]:
+    return {
+        "schema_version": _SCHEMA,
+        "context": _context_payload(context),
+        "policy_sha256": policy_sha256,
+        "configuration_sha256": configuration_sha256,
+        "development_plan_sha256": development_plan_sha256,
+        "classification": classification.value,
+        "inventory_root_sha256": inventory_root_sha256,
+    }
+
+
 def build_qualification_artifacts(
     run: QualificationRun,
     context: QualificationArtifactContext,
 ) -> QualificationArtifacts:
     """Build the canonical non-executable evidence set for one qualification run."""
 
-    structural = {
+    _validate_run_identity_bytes(run)
+    manifest_payload = {
         "schema_version": _SCHEMA,
         "context": _context_payload(context),
         "policy_sha256": run.policy_sha256,
@@ -96,7 +131,6 @@ def build_qualification_artifacts(
         "development_plan_sha256": run.development_plan_sha256,
         "classification": run.report.classification.value,
     }
-    qualification_id = hashlib.sha256(canonical_json_bytes(structural)).hexdigest()
     core_files: tuple[tuple[str, bytes], ...] = tuple(
         sorted(
             (
@@ -115,18 +149,17 @@ def build_qualification_artifacts(
                         for item in run.case_evidence
                     ),
                 ),
+                (_CONFIGURATION, run.configuration_bytes),
                 (
                     "determinism-receipts.jsonl",
                     canonical_jsonl_bytes(asdict(item) for item in run.determinism_receipts),
                 ),
+                (_DEVELOPMENT_PLAN, run.development_plan_bytes),
                 (
                     "qualification-gates.jsonl",
                     canonical_jsonl_bytes(asdict(item) for item in run.report.gates),
                 ),
-                (
-                    "qualification-manifest.json",
-                    canonical_json_bytes({**structural, "qualification_id": qualification_id}),
-                ),
+                (_MANIFEST, canonical_json_bytes(manifest_payload)),
                 (
                     "limitations.json",
                     canonical_json_bytes(
@@ -138,10 +171,20 @@ def build_qualification_artifacts(
                         }
                     ),
                 ),
+                (_POLICY, run.policy_bytes),
             )
         )
     )
     root = _inventory_root(core_files)
+    structural = _structural_identity(
+        context=context,
+        classification=run.report.classification,
+        policy_sha256=run.policy_sha256,
+        configuration_sha256=run.configuration_sha256,
+        development_plan_sha256=run.development_plan_sha256,
+        inventory_root_sha256=root,
+    )
+    qualification_id = hashlib.sha256(canonical_json_bytes(structural)).hexdigest()
     result_payload = {
         "schema_version": _SCHEMA,
         "qualification_id": qualification_id,
@@ -188,6 +231,13 @@ def _load_json(raw: bytes, description: str) -> dict[str, object]:
     return cast(dict[str, object], value)
 
 
+def _required_sha(mapping: dict[str, object], key: str, description: str) -> str:
+    value = mapping.get(key)
+    if not isinstance(value, str) or _SHA256.fullmatch(value) is None:
+        raise StudyArtifactError(f"qualification artifact {description} is invalid")
+    return value
+
+
 def verify_qualification_artifacts(root: Path, qualification_id: str) -> QualificationArtifacts:
     """Verify qualification evidence byte-for-byte without provider or network access."""
 
@@ -227,12 +277,26 @@ def verify_qualification_artifacts(root: Path, qualification_id: str) -> Qualifi
             raise StudyArtifactError(f"qualification artifact changed: {name}")
         core_files.append((name, raw))
     core = tuple(sorted(core_files))
+    expected_names = (
+        "bootstrap.json",
+        "case-evidence.jsonl",
+        _CONFIGURATION,
+        "determinism-receipts.jsonl",
+        _DEVELOPMENT_PLAN,
+        "limitations.json",
+        _POLICY,
+        "qualification-gates.jsonl",
+        _MANIFEST,
+    )
+    if tuple(name for name, _ in core) != tuple(sorted(expected_names)):
+        raise StudyArtifactError("qualification artifact inventory names changed")
     root_sha = _inventory_root(core)
     if result.get("inventory_root_sha256") != root_sha:
         raise StudyArtifactError("qualification artifact inventory root changed")
-    manifest = _load_json(dict(core)["qualification-manifest.json"], "manifest")
-    if manifest.get("qualification_id") != qualification_id:
-        raise StudyArtifactError("qualification artifact manifest identity changed")
+    mapping = dict(core)
+    manifest = _load_json(mapping[_MANIFEST], "manifest")
+    if manifest.get("schema_version") != _SCHEMA:
+        raise StudyArtifactError("qualification artifact manifest schema changed")
     context_raw = manifest.get("context")
     if not isinstance(context_raw, dict):
         raise StudyArtifactError("qualification artifact context is invalid")
@@ -249,14 +313,46 @@ def verify_qualification_artifacts(root: Path, qualification_id: str) -> Qualifi
         classification = QualificationClassification(cast(str, result["classification"]))
     except (KeyError, ValueError):
         raise StudyArtifactError("qualification artifact metadata is invalid") from None
-    structural = {
-        "schema_version": _SCHEMA,
-        "context": _context_payload(context),
-        "policy_sha256": manifest.get("policy_sha256"),
-        "configuration_sha256": manifest.get("configuration_sha256"),
-        "development_plan_sha256": manifest.get("development_plan_sha256"),
-        "classification": classification.value,
-    }
+    if manifest.get("classification") != classification.value:
+        raise StudyArtifactError("qualification artifact classification changed")
+    policy_sha256 = _required_sha(manifest, "policy_sha256", "policy identity")
+    configuration_sha256 = _required_sha(
+        manifest,
+        "configuration_sha256",
+        "configuration identity",
+    )
+    development_plan_sha256 = _required_sha(
+        manifest,
+        "development_plan_sha256",
+        "development plan identity",
+    )
+    for name, expected, description in (
+        (_POLICY, policy_sha256, "policy"),
+        (_CONFIGURATION, configuration_sha256, "configuration"),
+        (_DEVELOPMENT_PLAN, development_plan_sha256, "development plan"),
+    ):
+        if _sha(mapping[name]) != expected:
+            raise StudyArtifactError(f"qualification artifact {description} identity changed")
+    expected_manifest = canonical_json_bytes(
+        {
+            "schema_version": _SCHEMA,
+            "context": _context_payload(context),
+            "policy_sha256": policy_sha256,
+            "configuration_sha256": configuration_sha256,
+            "development_plan_sha256": development_plan_sha256,
+            "classification": classification.value,
+        }
+    )
+    if mapping[_MANIFEST] != expected_manifest:
+        raise StudyArtifactError("qualification artifact manifest canonical bytes changed")
+    structural = _structural_identity(
+        context=context,
+        classification=classification,
+        policy_sha256=policy_sha256,
+        configuration_sha256=configuration_sha256,
+        development_plan_sha256=development_plan_sha256,
+        inventory_root_sha256=root_sha,
+    )
     if hashlib.sha256(canonical_json_bytes(structural)).hexdigest() != qualification_id:
         raise StudyArtifactError("qualification artifact structural identity changed")
     files = tuple(sorted((*core, (_RESULT, result_raw))))

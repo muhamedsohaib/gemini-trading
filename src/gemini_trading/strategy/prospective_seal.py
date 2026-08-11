@@ -19,6 +19,8 @@ from gemini_trading.strategy.qualification import QualificationClassification
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _GIT_SHA = re.compile(r"^[0-9a-f]{40}$")
 _SCHEMA = "candidate-v0.2-prospective-final-seal-v1"
+_STRATEGY_ID = "candidate.multi_model.v0_2"
+_POLICY_VERSION = "candidate-multi-model-v0.2"
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,6 +67,8 @@ class ProspectiveFinalSeal:
 
     schema_version: str
     seal_id: str
+    strategy_id: str
+    policy_version: str
     code_commit: str
     dataset_id: str
     dataset_handoff_inventory_root: str
@@ -82,6 +86,8 @@ class ProspectiveFinalSeal:
     def __post_init__(self) -> None:
         if self.schema_version != _SCHEMA:
             raise FinalAccessError("unsupported prospective final seal schema")
+        if self.strategy_id != _STRATEGY_ID or self.policy_version != _POLICY_VERSION:
+            raise FinalAccessError("prospective final seal candidate identity changed")
         if _SHA256.fullmatch(self.seal_id) is None:
             raise FinalAccessError("invalid prospective final seal ID")
         if _seal_id(_seal_core(self)) != self.seal_id:
@@ -95,6 +101,8 @@ def _request_core(request: ProspectiveFinalSealRequest) -> dict[str, object]:
     )
     return {
         "schema_version": _SCHEMA,
+        "strategy_id": _STRATEGY_ID,
+        "policy_version": _POLICY_VERSION,
         "code_commit": request.code_commit,
         "dataset_id": request.dataset_id,
         "dataset_handoff_inventory_root": request.dataset_handoff_inventory_root,
@@ -130,6 +138,8 @@ def build_prospective_final_seal(request: ProspectiveFinalSealRequest) -> Prospe
     return ProspectiveFinalSeal(
         schema_version=_SCHEMA,
         seal_id=_seal_id(core),
+        strategy_id=_STRATEGY_ID,
+        policy_version=_POLICY_VERSION,
         code_commit=request.code_commit,
         dataset_id=request.dataset_id,
         dataset_handoff_inventory_root=request.dataset_handoff_inventory_root,
@@ -199,6 +209,8 @@ class LocalProspectiveFinalSealStore:
             seal = ProspectiveFinalSeal(
                 schema_version=cast(str, mapping["schema_version"]),
                 seal_id=cast(str, mapping["seal_id"]),
+                strategy_id=cast(str, mapping["strategy_id"]),
+                policy_version=cast(str, mapping["policy_version"]),
                 code_commit=cast(str, mapping["code_commit"]),
                 dataset_id=cast(str, mapping["dataset_id"]),
                 dataset_handoff_inventory_root=cast(str, mapping["dataset_handoff_inventory_root"]),

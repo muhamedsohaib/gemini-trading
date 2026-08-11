@@ -10,6 +10,7 @@ import pytest
 
 import gemini_trading.cli.main as cli_main
 from gemini_trading.cli import strategy
+from gemini_trading.research.errors import InvalidExperimentConfigError
 from gemini_trading.safety.execution_mode import UnsafeExecutionModeError
 from gemini_trading.strategy.artifacts import StrategyStudyArtifacts
 from gemini_trading.strategy.evaluation import PromotionClassification
@@ -115,6 +116,27 @@ def test_locked_candidate_v0_2_config_loads_exact_policy() -> None:
     assert loaded.strategy_id == "candidate.multi_model.v0_2"
     assert loaded.policy_version == "candidate-multi-model-v0.2"
     assert loaded.simulation.promotable is True
+
+
+def test_legacy_strategy_evaluate_rejects_v0_2_before_dataset_load(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = strategy.load_candidate_strategy_config(_CONFIG_V0_2)
+
+    def fail_dataset_load(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("v0.2 must be rejected before loading study evidence")
+
+    monkeypatch.setattr(strategy, "load_verified_dataset", fail_dataset_load)
+
+    with pytest.raises(InvalidExperimentConfigError, match="v0.1 only"):
+        strategy.evaluate_candidate_strategy(
+            dataset_id="a" * 64,
+            config=config,
+            project_root=tmp_path,
+            output_root=tmp_path,
+            code_commit="b" * 40,
+        )
 
 
 def test_candidate_config_rejects_cross_version_identity(tmp_path: Path) -> None:

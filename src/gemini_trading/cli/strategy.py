@@ -264,8 +264,16 @@ def evaluate_candidate_strategy(
     output_root: Path,
     code_commit: str,
 ) -> StrategyStudyArtifacts:
-    """Run the concrete provider-free Candidate study against verified local evidence."""
+    """Run the legacy v0.1 study only; v0.2 has a separate governed qualification surface."""
 
+    if (
+        config.strategy_id != "candidate.multi_model.v0_1"
+        or config.policy_version != "candidate-multi-model-v0.1"
+    ):
+        raise InvalidExperimentConfigError(
+            "strategy-evaluate supports Candidate v0.1 only; "
+            "use the governed Candidate v0.2 qualification surface"
+        )
     del project_root
     dataset = load_verified_dataset(LocalImmutableStore(output_root), dataset_id)
     return evaluate_candidate_strategy_study(

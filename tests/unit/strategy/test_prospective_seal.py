@@ -8,6 +8,7 @@ import pytest
 from gemini_trading.strategy.errors import FinalAccessError
 from gemini_trading.strategy.prospective_seal import (
     LocalProspectiveFinalSealStore,
+    ProspectiveFinalSeal,
     ProspectiveFinalSealRequest,
 )
 from gemini_trading.strategy.qualification import QualificationClassification
@@ -43,6 +44,29 @@ def test_qualified_evidence_creates_exactly_one_future_seal(tmp_path: Path) -> N
     assert seal.bridge_end == seal.final_start
     with pytest.raises(FinalAccessError, match="prospective final seal already exists"):
         store.create(_request(QualificationClassification.QUALIFIED))
+
+
+def test_seal_rejects_window_that_does_not_match_verification_milestone() -> None:
+    with pytest.raises(FinalAccessError, match="window changed"):
+        ProspectiveFinalSeal(
+            schema_version="candidate-v0.2-prospective-final-seal-v1",
+            seal_id="a" * 64,
+            strategy_id="candidate.multi_model.v0_2",
+            policy_version="candidate-multi-model-v0.2",
+            code_commit="1" * 40,
+            dataset_id="2" * 64,
+            dataset_handoff_inventory_root="3" * 64,
+            qualification_id="4" * 64,
+            qualification_inventory_root="5" * 64,
+            workflow_run_id=456,
+            workflow_run_attempt=1,
+            verified_at=datetime(2026, 8, 10, 16, 0, tzinfo=UTC),
+            development_cutoff=datetime(2026, 7, 1, tzinfo=UTC),
+            bridge_start=datetime(2026, 7, 1, tzinfo=UTC),
+            bridge_end=datetime(2026, 10, 1, tzinfo=UTC),
+            final_start=datetime(2026, 10, 1, tzinfo=UTC),
+            final_end=datetime(2028, 4, 1, tzinfo=UTC),
+        )
 
 
 @pytest.mark.parametrize(

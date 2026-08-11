@@ -39,6 +39,8 @@ max_iter    = 50000
 threads     = 1
 ```
 
+Canonical compact notation for the two changed numerical controls is `tol=1e-7` and `max_iter=50000`.
+
 Convergence passes only when the solver terminates strictly before `max_iter=50000`. Reaching the ceiling or failing deterministic repetition is a pre-final failure. After v0.2 development evidence is observed, this contract may not be loosened to rescue v0.2; any redesign becomes v0.3.
 
 ## Locked development evidence
@@ -202,6 +204,20 @@ candidate-v0.2-qualification-<qualification-workflow-run-id>
 ```
 
 That qualification bundle contains `data/research` and `data/historical-validation/v0-2-qualification`. It does not duplicate the separately retained Stage 1 artifact. The workflow does **not** evaluate future-final rows or authorize execution.
+
+The workflow invokes the fixed direct qualification CLI surface:
+
+```bash
+uv run gemini-trading research strategy-v0-2-qualify \
+  --handoff "$OUTPUT_ROOT/data/historical-validation/handoff/$DATASET_ID/dataset-handoff.json" \
+  --config "$PROJECT_ROOT/tests/fixtures/strategy/candidate-v0.2-config.json" \
+  --workflow-run-id "$GITHUB_RUN_ID" \
+  --workflow-run-attempt "$GITHUB_RUN_ATTEMPT" \
+  --project-root "$PROJECT_ROOT" \
+  --output-root "$OUTPUT_ROOT"
+```
+
+This command is not an alternative route around the workflow gate; the governed operation must still use the exact merged source, approved Stage 1 identities, and Issue #61 approval marker.
 
 ## Rehydrate evidence for independent verification
 

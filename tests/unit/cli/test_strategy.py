@@ -129,7 +129,7 @@ def test_legacy_strategy_evaluate_rejects_v0_2_before_dataset_load(
 
     monkeypatch.setattr(strategy, "load_verified_dataset", fail_dataset_load)
 
-    with pytest.raises(InvalidExperimentConfigError, match="v0.1 only"):
+    with pytest.raises(InvalidExperimentConfigError, match=r"v0\.1 only"):
         strategy.evaluate_candidate_strategy(
             dataset_id="a" * 64,
             config=config,

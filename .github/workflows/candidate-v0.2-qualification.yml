@@ -37,6 +37,9 @@ jobs:
       GEMINI_TRADING_MODE: research
       OUTPUT_ROOT: /tmp/candidate-v0-2-output
       BUNDLE_ROOT: /tmp/candidate-v0-2-bundle
+      SOURCE_COMMIT: ${{ inputs.source_commit }}
+      DATASET_RUN_ID: ${{ inputs.dataset_run_id }}
+      DATASET_ID: ${{ inputs.dataset_id }}
     steps:
       - uses: actions/checkout@v6.0.2
         with:
@@ -45,7 +48,7 @@ jobs:
       - name: Require merged-main dispatch identity
         run: |
           test "${GITHUB_REF_NAME}" = "main"
-          test "${{ inputs.source_commit }}" = "${GITHUB_SHA}"
+          test "${SOURCE_COMMIT}" = "${GITHUB_SHA}"
       - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
         with:
           version: "0.11.25"
@@ -56,7 +59,7 @@ jobs:
       - run: uv sync --all-groups --frozen
       - name: Assert exact clean source commit
         run: |
-          test "$(git rev-parse HEAD)" = "${{ inputs.source_commit }}"
+          test "$(git rev-parse HEAD)" = "${SOURCE_COMMIT}"
           test -z "$(git status --porcelain)"
       - name: Require exact Issue 61 dataset approval
         env:
@@ -116,7 +119,7 @@ jobs:
         id: qualification
         run: |
           uv run gemini-trading research strategy-v0-2-qualify \
-            --handoff "${OUTPUT_ROOT}/data/historical-validation/handoff/${{ inputs.dataset_id }}/dataset-handoff.json" \
+            --handoff "${OUTPUT_ROOT}/data/historical-validation/handoff/${DATASET_ID}/dataset-handoff.json" \
             --config "${GITHUB_WORKSPACE}/tests/fixtures/strategy/candidate-v0.2-config.json" \
             --workflow-run-id "${GITHUB_RUN_ID}" \
             --workflow-run-attempt "${GITHUB_RUN_ATTEMPT}" \
@@ -133,9 +136,12 @@ jobs:
               output.write(f"classification={payload['classification']}\n")
           PY
       - name: Verify qualification evidence provider-free
+        env:
+          QUALIFICATION_ID: ${{ steps.qualification.outputs.qualification_id }}
+          QUALIFICATION_CLASSIFICATION: ${{ steps.qualification.outputs.classification }}
         run: |
           uv run gemini-trading research strategy-v0-2-qualification-verify \
-            --qualification-id "${{ steps.qualification.outputs.qualification_id }}" \
+            --qualification-id "${QUALIFICATION_ID}" \
             --project-root "${GITHUB_WORKSPACE}" \
             --output-root "${OUTPUT_ROOT}" | tee "${RUNNER_TEMP}/verification.json"
           python - <<'PY'
@@ -144,9 +150,9 @@ jobs:
           from pathlib import Path
 
           payload = json.loads((Path(os.environ["RUNNER_TEMP"]) / "verification.json").read_text())
-          if payload["qualification_id"] != "${{ steps.qualification.outputs.qualification_id }}":
+          if payload["qualification_id"] != os.environ["QUALIFICATION_ID"]:
               raise SystemExit("qualification verification identity changed")
-          if payload["classification"] != "${{ steps.qualification.outputs.classification }}":
+          if payload["classification"] != os.environ["QUALIFICATION_CLASSIFICATION"]:
               raise SystemExit("qualification verification classification changed")
           PY
       - name: Build portable qualification bundle

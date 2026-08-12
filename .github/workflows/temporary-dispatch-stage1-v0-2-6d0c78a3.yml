@@ -1,0 +1,27 @@
+name: Temporary dispatch Candidate v0.2 Stage 1
+
+on:
+  pull_request:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch:
+    if: github.event.pull_request.head.ref == 'ops/dispatch-stage1-v0-2-6d0c78a3'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      EXPECTED_MAIN_SHA: 6d0c78a33a760695e97cd330d97cb51fefdbdf46
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Verify exact current main source
+        run: |
+          actual="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq '.object.sha')"
+          test "${actual}" = "${EXPECTED_MAIN_SHA}"
+      - name: Dispatch fresh sealed BTCUSDT Stage 1
+        run: |
+          gh workflow run sealed-btcusdt-dataset.yml \
+            --repo "${GITHUB_REPOSITORY}" \
+            --ref main

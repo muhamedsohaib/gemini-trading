@@ -1,0 +1,34 @@
+name: Temporary dispatch Candidate v0.2 qualification
+
+on:
+  pull_request:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch:
+    if: github.event.pull_request.head.ref == 'ops/dispatch-v0-2-qualification-6d0c78a3-31578211435'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      EXPECTED_MAIN_SHA: 6d0c78a33a760695e97cd330d97cb51fefdbdf46
+      DATASET_RUN_ID: '31578211435'
+      DATASET_ARTIFACT_NAME: sealed-btcusdt-dataset-6d0c78a33a760695e97cd330d97cb51fefdbdf46-31578211435
+      DATASET_ID: 33cdaecbec6b1d90db46fde0e0ad1164b3dca2e6bd2fb858d73a1b177f6a007b
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Verify exact current main source
+        run: |
+          actual="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq '.object.sha')"
+          test "${actual}" = "${EXPECTED_MAIN_SHA}"
+      - name: Dispatch governed Candidate v0.2 qualification
+        run: |
+          gh workflow run candidate-v0.2-qualification.yml \
+            --repo "${GITHUB_REPOSITORY}" \
+            --ref main \
+            -f source_commit="${EXPECTED_MAIN_SHA}" \
+            -f dataset_run_id="${DATASET_RUN_ID}" \
+            -f dataset_artifact_name="${DATASET_ARTIFACT_NAME}" \
+            -f dataset_id="${DATASET_ID}"

@@ -68,6 +68,18 @@ def _values(matrix: FeatureMatrix, index: int, names: Sequence[str]) -> dict[str
     return {name: matrix.value_for(index, name) for name in names}
 
 
+def _close_long_before_discontinuity(
+    events: list[tuple[int, ScheduledAction]],
+    previous_index: int,
+) -> None:
+    """Leave a study schedule in cash before a protected decision-index gap."""
+
+    if events and events[-1] == (previous_index, ScheduledAction.ENTER_LONG):
+        events.pop()
+        return
+    events.append((previous_index, ScheduledAction.EXIT_TO_CASH))
+
+
 def fit_prediction_bundle(
     *,
     phase: StudyPhase,
@@ -176,9 +188,26 @@ def candidate_events(
     highest_close: Decimal | None = None
     current_stop: Decimal | None = None
     events: list[tuple[int, ScheduledAction]] = []
+    previous_index: int | None = None
 
     for position, item in enumerate(bundle.predictions):
-        source_item = bundle.predictions[position - 1] if delayed and position > 0 else item
+        index = item.candle_index
+        contiguous = previous_index is None or index == previous_index + 1
+        if not contiguous:
+            if currently_long:
+                _close_long_before_discontinuity(events, cast(int, previous_index))
+            currently_long = False
+            active_specialist = None
+            hold_age = 0
+            cooldown = 0
+            indeterminate_streak = 0
+            entry_price = None
+            highest_close = None
+            current_stop = None
+
+        source_item = (
+            bundle.predictions[position - 1] if delayed and position > 0 and contiguous else item
+        )
         trend_probability = source_item.trend_probability
         mean_probability = source_item.mean_reversion_probability
         trend_expected = source_item.trend_expected_return
@@ -191,7 +220,6 @@ def candidate_events(
         if volume_ablation:
             trend_probability = (trend_probability + Decimal("0.5")) / Decimal("2")
             mean_probability = (mean_probability + Decimal("0.5")) / Decimal("2")
-        index = item.candle_index
         candle = candles[index]
         stretch_active = matrix.value_for(index, "close_zscore_24") <= Decimal(
             "-0.75"
@@ -246,6 +274,7 @@ def candidate_events(
             current_stop = None
         else:
             cooldown = decision.cooldown_remaining
+        previous_index = index
     if currently_long and bundle.predictions:
         last = bundle.predictions[-1].candle_index
         events = [event for event in events if event[0] != last]
@@ -264,7 +293,13 @@ def threshold_events(
 
     long = False
     events: list[tuple[int, ScheduledAction]] = []
+    previous_index: int | None = None
     for item in bundle.predictions:
+        index = item.candle_index
+        if previous_index is not None and index != previous_index + 1:
+            if long:
+                _close_long_before_discontinuity(events, previous_index)
+            long = False
         probability = (
             item.trend_probability
             if specialist is SpecialistKind.TREND
@@ -275,15 +310,16 @@ def threshold_events(
         )
         if require_ranging_stretch:
             allowed = allowed and (
-                matrix.value_for(item.candle_index, "close_zscore_24") <= Decimal("-0.75")
-                or matrix.value_for(item.candle_index, "drawdown_from_high_24") >= Decimal("0.02")
+                matrix.value_for(index, "close_zscore_24") <= Decimal("-0.75")
+                or matrix.value_for(index, "drawdown_from_high_24") >= Decimal("0.02")
             )
         if not long and allowed and probability >= Decimal("0.62"):
-            events.append((item.candle_index, ScheduledAction.ENTER_LONG))
+            events.append((index, ScheduledAction.ENTER_LONG))
             long = True
         elif long and (not allowed or probability <= Decimal("0.45")):
-            events.append((item.candle_index, ScheduledAction.EXIT_TO_CASH))
+            events.append((index, ScheduledAction.EXIT_TO_CASH))
             long = False
+        previous_index = index
     if long and bundle.predictions:
         events.append((bundle.predictions[-1].candle_index, ScheduledAction.EXIT_TO_CASH))
     return tuple(sorted(dict(events).items()))
@@ -300,7 +336,12 @@ def baseline_events(
 
     events: list[tuple[int, ScheduledAction]] = []
     long = False
+    previous_index: int | None = None
     for index in indices:
+        if previous_index is not None and index != previous_index + 1:
+            if long:
+                _close_long_before_discontinuity(events, previous_index)
+            long = False
         action = actions[index]
         allowed = (
             True
@@ -313,6 +354,7 @@ def baseline_events(
         elif (action is BaselineAction.EXIT_TO_CASH or not allowed) and long:
             events.append((index, ScheduledAction.EXIT_TO_CASH))
             long = False
+        previous_index = index
     if long and indices:
         events.append((indices[-1], ScheduledAction.EXIT_TO_CASH))
     return tuple(sorted(dict(events).items()))

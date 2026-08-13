@@ -1,4 +1,4 @@
-name: Candidate v0.3 Task 7 RED
+name: Candidate v0.3 Task 7 GREEN
 
 on:
   push:
@@ -9,8 +9,8 @@ permissions:
   contents: read
 
 jobs:
-  red:
-    if: "${{ github.event.head_commit.message == 'test: verify RED v0.3 qualification gates' }}"
+  green:
+    if: "${{ github.event.head_commit.message == 'test: verify GREEN v0.3 qualification gates' }}"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2
@@ -23,12 +23,8 @@ jobs:
         with:
           python-version: '3.12'
       - run: uv sync --all-groups --frozen
-      - name: Verify expected RED
+      - name: Verify Task 7 GREEN and v0.2 isolation
         run: |
-          set +e
-          uv run pytest -q tests/unit/strategy/test_qualification_v0_3.py > /tmp/red.txt 2>&1
-          status=$?
-          set -e
-          cat /tmp/red.txt
-          test "$status" -ne 0
-          grep -F "No module named 'gemini_trading.strategy.qualification_v0_3'" /tmp/red.txt
+          uv run pytest -q tests/unit/strategy/test_qualification_v0_3.py tests/unit/strategy/test_qualification.py
+          uv run ruff check src/gemini_trading/strategy/qualification_v0_3.py tests/unit/strategy/test_qualification_v0_3.py
+          uv run pyright src/gemini_trading/strategy/qualification_v0_3.py tests/unit/strategy/test_qualification_v0_3.py

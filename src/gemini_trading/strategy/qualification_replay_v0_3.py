@@ -139,12 +139,7 @@ def parse_simulation_config(raw: bytes) -> SimulationConfig:
     expected = set(SimulationConfig.__dataclass_fields__)
     if set(mapping) != expected:
         raise StudyArtifactError("v0.3 replay simulation fields changed")
-    max_active_raw = mapping.get("max_active_candles")
-    max_active = (
-        None
-        if max_active_raw is None
-        else _integer(mapping, "max_active_candles", "simulation config")
-    )
+    max_active = _integer(mapping, "max_active_candles", "simulation config")
     latency = _integer(mapping, "latency_bars", "simulation config")
     promotable = mapping.get("promotable")
     if not isinstance(promotable, bool):
@@ -208,16 +203,10 @@ def _record_map(records: tuple[StudyCaseEvidence, ...]) -> dict[tuple[int, str],
     return mapped
 
 
-def _case_directory(store: LocalResearchStore, record: StudyCaseEvidence) -> Path:
-    return store.directory(record.experiment_id)
-
-
 def _metrics(store: LocalResearchStore, record: StudyCaseEvidence) -> _StoredMetrics:
     try:
-        mapping = _mapping(
-            (_case_directory(store, record) / "metrics.json").read_bytes(), "metrics"
-        )
-    except OSError:
+        mapping = _mapping(store.read_artifact(record.experiment_id, "metrics.json"), "metrics")
+    except (OSError, ValueError):
         raise StudyArtifactError("v0.3 replay metrics artifact is missing") from None
     return _StoredMetrics(
         starting_equity=_decimal(mapping, "starting_equity", "metrics"),
@@ -230,8 +219,8 @@ def _metrics(store: LocalResearchStore, record: StudyCaseEvidence) -> _StoredMet
 
 def _positive_profit(store: LocalResearchStore, record: StudyCaseEvidence) -> Decimal:
     try:
-        rows = _rows((_case_directory(store, record) / "trades.jsonl").read_bytes(), "trades")
-    except OSError:
+        rows = _rows(store.read_artifact(record.experiment_id, "trades.jsonl"), "trades")
+    except (OSError, ValueError):
         raise StudyArtifactError("v0.3 replay trades artifact is missing") from None
     total = _ZERO
     for mapping in rows:
@@ -244,10 +233,10 @@ def _positive_profit(store: LocalResearchStore, record: StudyCaseEvidence) -> De
 def _equity_series(store: LocalResearchStore, record: StudyCaseEvidence) -> tuple[Decimal, ...]:
     try:
         rows = _rows(
-            (_case_directory(store, record) / "account-series.jsonl").read_bytes(),
+            store.read_artifact(record.experiment_id, "account-series.jsonl"),
             "account series",
         )
-    except OSError:
+    except (OSError, ValueError):
         raise StudyArtifactError("v0.3 replay account-series artifact is missing") from None
     return tuple(_decimal(mapping, "marked_equity", "account snapshot") for mapping in rows)
 
@@ -262,14 +251,10 @@ def _fold_oos_returns(
 ) -> tuple[Decimal, ...]:
     development_test = fold.development_test
     development_test_indices = fold.development_test_indices
-    if not isinstance(development_test_indices, tuple) or not development_test_indices:
+    if not development_test_indices:
         raise StudyArtifactError("v0.3 replay fold development-test indices are invalid")
     start = development_test.start_inclusive
-    if isinstance(start, bool) or not isinstance(start, int):
-        raise StudyArtifactError("v0.3 replay fold start is invalid")
     last_index = development_test_indices[-1]
-    if isinstance(last_index, bool) or not isinstance(last_index, int):
-        raise StudyArtifactError("v0.3 replay fold end is invalid")
     end_exclusive = min(candle_count, last_index + 2 + simulation.latency_bars)
     equities = _equity_series(store, record)
     metrics = _metrics(store, record)
@@ -385,10 +370,8 @@ def replay_candidate_v0_3_qualification(
     if primary_record is None:
         raise StudyArtifactError("v0.3 replay primary fold-one case is missing")
     try:
-        simulation_raw = (
-            _case_directory(store, primary_record) / "simulation-config.json"
-        ).read_bytes()
-    except OSError:
+        simulation_raw = store.read_artifact(primary_record.experiment_id, "simulation-config.json")
+    except (OSError, ValueError):
         raise StudyArtifactError("v0.3 replay simulation artifact is missing") from None
     simulation = parse_simulation_config(simulation_raw)
 

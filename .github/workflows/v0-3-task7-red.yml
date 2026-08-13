@@ -6,16 +6,17 @@ on:
       - research/candidate-v0-3-calibrated-arbitration
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   green:
-    if: "${{ github.event.head_commit.message == 'test: verify GREEN v0.3 qualification gates' }}"
+    if: "${{ github.event.head_commit.message == 'chore: finalize GREEN v0.3 qualification gates' }}"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2
         with:
           ref: research/candidate-v0-3-calibrated-arbitration
+          fetch-depth: 0
       - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
         with:
           version: 0.11.25
@@ -23,8 +24,18 @@ jobs:
         with:
           python-version: '3.12'
       - run: uv sync --all-groups --frozen
+      - name: Apply formatter only
+        run: uv run ruff format src/gemini_trading/strategy/qualification_v0_3.py tests/unit/strategy/test_qualification_v0_3.py
       - name: Verify Task 7 GREEN and v0.2 isolation
         run: |
           uv run pytest -q tests/unit/strategy/test_qualification_v0_3.py tests/unit/strategy/test_qualification.py
           uv run ruff check src/gemini_trading/strategy/qualification_v0_3.py tests/unit/strategy/test_qualification_v0_3.py
           uv run pyright src/gemini_trading/strategy/qualification_v0_3.py tests/unit/strategy/test_qualification_v0_3.py
+      - name: Commit formatter result and remove temporary workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/v0-3-task7-red.yml
+          git add src/gemini_trading/strategy/qualification_v0_3.py tests/unit/strategy/test_qualification_v0_3.py
+          git commit -m "style: format v0.3 qualification gates"
+          git push origin HEAD:research/candidate-v0-3-calibrated-arbitration

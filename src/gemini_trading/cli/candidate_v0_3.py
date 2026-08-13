@@ -11,8 +11,9 @@ from gemini_trading.data.storage.local_immutable import LocalImmutableStore
 from gemini_trading.research.dataset_reader import load_verified_dataset
 from gemini_trading.research.replay import resolve_clean_git_commit
 from gemini_trading.safety.execution_mode import load_runtime_policy
-from gemini_trading.strategy.errors import DatasetHandoffError, FinalAccessError, StudyArtifactError
+from gemini_trading.strategy.errors import DatasetHandoffError, StudyArtifactError
 from gemini_trading.strategy.handoff import load_dataset_handoff, verify_dataset_handoff
+from gemini_trading.strategy.prospective_seal_v0_3 import V03LocalProspectiveFinalSealStore
 from gemini_trading.strategy.qualification_artifacts_v0_3 import (
     V03LocalQualificationStore,
     V03QualificationArtifactContext,
@@ -150,9 +151,20 @@ def _verify(arguments: argparse.Namespace) -> dict[str, object]:
     )
 
 
-def _seal(_arguments: argparse.Namespace) -> dict[str, object]:
-    raise FinalAccessError(
-        "Candidate v0.3 prospective seal support is fail-closed until its dedicated contract is installed"
+def _seal(arguments: argparse.Namespace) -> dict[str, object]:
+    artifacts = _verified_bundle(arguments)
+    output_root = Path(_argument(arguments, "output_root")).resolve(strict=False)
+    seal = V03LocalProspectiveFinalSealStore(output_root).create(artifacts)
+    return _research_only(
+        {
+            "bridge_end": seal.bridge_end,
+            "bridge_start": seal.bridge_start,
+            "final_end": seal.final_end,
+            "final_start": seal.final_start,
+            "qualification_id": seal.qualification_id,
+            "seal_id": seal.seal_id,
+            "status": "sealed",
+        }
     )
 
 

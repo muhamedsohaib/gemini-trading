@@ -24,6 +24,7 @@ jobs:
           python-version: '3.12'
       - run: uv sync --all-groups --frozen
       - run: python .github/scripts/repair_v03_config_lock.py
+      - run: uv run ruff check --fix src/gemini_trading/strategy/qualification_execution_v0_3.py src/gemini_trading/strategy/qualification_verification_v0_3.py tests/unit/strategy/test_qualification_execution_v0_3.py
       - run: uv run ruff format src/gemini_trading/strategy/qualification_execution_v0_3.py src/gemini_trading/strategy/qualification_verification_v0_3.py tests/unit/strategy/test_qualification_execution_v0_3.py
       - run: uv run ruff check src/gemini_trading/strategy/qualification_execution_v0_3.py src/gemini_trading/strategy/qualification_verification_v0_3.py tests/unit/strategy/test_qualification_execution_v0_3.py
       - run: uv run pyright src/gemini_trading/strategy/qualification_execution_v0_3.py src/gemini_trading/strategy/qualification_verification_v0_3.py tests/unit/strategy/test_qualification_execution_v0_3.py

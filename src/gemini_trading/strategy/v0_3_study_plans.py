@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import replace
 from decimal import Decimal
 
+from gemini_trading.domain.candle import Candle
 from gemini_trading.research.config import SimulationConfig
 from gemini_trading.research.dataset_reader import VerifiedDataset
 from gemini_trading.strategy.baselines import BaselineSchedule
@@ -71,7 +72,7 @@ def _candidate(
     context: V03PredictionContext,
     *,
     percentile: Decimal | None,
-    candles: tuple,
+    candles: tuple[Candle, ...],
     matrix: FeatureMatrix,
     label_policy: LabelPolicy,
     policy: CandidatePolicy,

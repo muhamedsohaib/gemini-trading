@@ -1,0 +1,197 @@
+name: Candidate v0.3 Development Qualification
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_commit:
+        required: true
+        type: string
+      dataset_run_id:
+        required: true
+        type: string
+      dataset_artifact_name:
+        required: true
+        type: string
+      dataset_id:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  issues: read
+  actions: read
+
+concurrency:
+  group: candidate-v0-3-development-qualification
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash --noprofile --norc -e -o pipefail {0}
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    env:
+      GEMINI_TRADING_MODE: research
+      OUTPUT_ROOT: /tmp/candidate-v0-3-output
+      BUNDLE_ROOT: /tmp/candidate-v0-3-bundle
+      SOURCE_COMMIT: ${{ inputs.source_commit }}
+      DATASET_RUN_ID: ${{ inputs.dataset_run_id }}
+      DATASET_ID: ${{ inputs.dataset_id }}
+      DEVELOPMENT_END_EXCLUSIVE: 2026-08-01T00:00:00Z
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          ref: ${{ inputs.source_commit }}
+          fetch-depth: 0
+      - name: Require merged-main dispatch identity
+        run: |
+          test "${GITHUB_REF_NAME}" = "main"
+          test "${SOURCE_COMMIT}" = "${GITHUB_SHA}"
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.11.25"
+          enable-cache: true
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - name: Assert exact clean source commit
+        run: |
+          test "$(git rev-parse HEAD)" = "${SOURCE_COMMIT}"
+          test -z "$(git status --porcelain)"
+      - name: Require exact Issue 69 dataset approval
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APPROVAL_MARKER: "<!-- candidate-v0.3-dataset-approved:${{ inputs.source_commit }}:${{ inputs.dataset_run_id }}:${{ inputs.dataset_id }} -->"
+        run: |
+          gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/issues/69/comments" > "${RUNNER_TEMP}/issue-comments.json"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          pages = json.loads((Path(os.environ["RUNNER_TEMP"]) / "issue-comments.json").read_text())
+          comments = [comment for page in pages for comment in page]
+          marker = os.environ["APPROVAL_MARKER"]
+          owner = os.environ["GITHUB_REPOSITORY_OWNER"]
+          approved = any(
+              marker in str(comment.get("body", ""))
+              and str(comment.get("user", {}).get("login", "")) == owner
+              for comment in comments
+          )
+          if not approved:
+              raise SystemExit("exact Issue #69 Candidate v0.3 dataset approval marker is missing")
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.dataset_artifact_name }}
+          path: /tmp/candidate-v0-3-output
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ inputs.dataset_run_id }}
+      - name: Verify exact fresh Stage 1 handoff and development cutoff
+        env:
+          EXPECTED_COMMIT: ${{ inputs.source_commit }}
+          EXPECTED_DATASET_ID: ${{ inputs.dataset_id }}
+          EXPECTED_RUN_ID: ${{ inputs.dataset_run_id }}
+        run: |
+          uv run python - <<'PY'
+          import os
+          from datetime import UTC, datetime
+          from pathlib import Path
+
+          from gemini_trading.data.storage.local_immutable import LocalImmutableStore
+          from gemini_trading.research.dataset_reader import load_verified_dataset
+          from gemini_trading.strategy.handoff import load_dataset_handoff, verify_dataset_handoff
+
+          root = Path(os.environ["OUTPUT_ROOT"])
+          dataset_id = os.environ["EXPECTED_DATASET_ID"]
+          path = root / "data" / "historical-validation" / "handoff" / dataset_id / "dataset-handoff.json"
+          handoff = load_dataset_handoff(path.read_bytes())
+          verify_dataset_handoff(
+              handoff,
+              root,
+              expected_commit=os.environ["EXPECTED_COMMIT"],
+              expected_dataset_id=dataset_id,
+              expected_run_id=int(os.environ["EXPECTED_RUN_ID"]),
+          )
+          dataset = load_verified_dataset(LocalImmutableStore(root), dataset_id)
+          expected_start = datetime(2018, 1, 1, tzinfo=UTC)
+          expected_end = datetime(2026, 8, 1, tzinfo=UTC)
+          if dataset.manifest.schema_version != "candle-dataset-v4":
+              raise SystemExit("Candidate v0.3 Stage 1 must use candle-dataset-v4")
+          if dataset.manifest.start_time != expected_start or dataset.manifest.end_time != expected_end:
+              raise SystemExit("Candidate v0.3 Stage 1 development window changed")
+          if not dataset.candles or dataset.candles[0].open_time != expected_start:
+              raise SystemExit("Candidate v0.3 Stage 1 start boundary changed")
+          if any(candle.open_time >= expected_end for candle in dataset.candles):
+              raise SystemExit("Candidate v0.3 Stage 1 contains post-cutoff market rows")
+          if dataset.segment_manifest is None:
+              raise SystemExit("Candidate v0.3 Stage 1 segment evidence is missing")
+          PY
+      - name: Run strict development-only qualification
+        id: qualification
+        run: |
+          uv run gemini-trading research strategy-v0-3-qualify \
+            --handoff "${OUTPUT_ROOT}/data/historical-validation/handoff/${DATASET_ID}/dataset-handoff.json" \
+            --config "${GITHUB_WORKSPACE}/tests/fixtures/strategy/candidate-v0.3-config.json" \
+            --workflow-run-id "${GITHUB_RUN_ID}" \
+            --workflow-run-attempt "${GITHUB_RUN_ATTEMPT}" \
+            --project-root "${GITHUB_WORKSPACE}" \
+            --output-root "${OUTPUT_ROOT}" | tee "${RUNNER_TEMP}/qualification.json"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          payload = json.loads((Path(os.environ["RUNNER_TEMP"]) / "qualification.json").read_text())
+          if payload.get("boundary") != "RESEARCH_ONLY" or payload.get("execution_authorized") is not False:
+              raise SystemExit("Candidate v0.3 qualification crossed its research-only boundary")
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
+              output.write(f"qualification_id={payload['qualification_id']}\n")
+              output.write(f"classification={payload['classification']}\n")
+          PY
+      - name: Verify qualification evidence provider-free
+        env:
+          QUALIFICATION_ID: ${{ steps.qualification.outputs.qualification_id }}
+          QUALIFICATION_CLASSIFICATION: ${{ steps.qualification.outputs.classification }}
+        run: |
+          uv run gemini-trading research strategy-v0-3-verify-qualification \
+            --qualification-id "${QUALIFICATION_ID}" \
+            --project-root "${GITHUB_WORKSPACE}" \
+            --output-root "${OUTPUT_ROOT}" | tee "${RUNNER_TEMP}/verification.json"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          payload = json.loads((Path(os.environ["RUNNER_TEMP"]) / "verification.json").read_text())
+          if payload["qualification_id"] != os.environ["QUALIFICATION_ID"]:
+              raise SystemExit("qualification verification identity changed")
+          if payload["classification"] != os.environ["QUALIFICATION_CLASSIFICATION"]:
+              raise SystemExit("qualification verification classification changed")
+          if payload.get("boundary") != "RESEARCH_ONLY" or payload.get("execution_authorized") is not False:
+              raise SystemExit("qualification verification crossed its research-only boundary")
+          PY
+      - name: Build portable qualification bundle
+        run: |
+          rm -rf "${BUNDLE_ROOT}"
+          mkdir -p "${BUNDLE_ROOT}/data/historical-validation"
+          cp -a "${OUTPUT_ROOT}/data/market-data" "${BUNDLE_ROOT}/data/market-data"
+          cp -a "${OUTPUT_ROOT}/data/research" "${BUNDLE_ROOT}/data/research"
+          mkdir -p "${BUNDLE_ROOT}/data/historical-validation/handoff"
+          cp -a \
+            "${OUTPUT_ROOT}/data/historical-validation/handoff/${DATASET_ID}" \
+            "${BUNDLE_ROOT}/data/historical-validation/handoff/${DATASET_ID}"
+          cp -a \
+            "${OUTPUT_ROOT}/data/historical-validation/v0-3-qualification" \
+            "${BUNDLE_ROOT}/data/historical-validation/v0-3-qualification"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: candidate-v0.3-qualification-${{ github.run_id }}
+          path: /tmp/candidate-v0-3-bundle/
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 6

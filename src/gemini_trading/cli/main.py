@@ -7,6 +7,7 @@ from collections.abc import Sequence
 from typing import NoReturn, TextIO
 
 from gemini_trading.cli.candidate_v0_2 import run_candidate_v0_2
+from gemini_trading.cli.candidate_v0_3 import run_candidate_v0_3
 from gemini_trading.cli.historical_validation import run_historical_validation
 from gemini_trading.cli.market_data import CliUsageError, run_market_data
 from gemini_trading.cli.research import run_research
@@ -109,6 +110,12 @@ def build_parser() -> SafeArgumentParser:
     dataset_ingest.add_argument("--project-root", required=True)
     dataset_ingest.add_argument("--output-root", required=True)
 
+    dataset_v0_3_ingest = research_commands.add_parser(
+        "dataset-v0-3-ingest", help="ingest the fixed Candidate v0.3 development dataset"
+    )
+    dataset_v0_3_ingest.add_argument("--project-root", required=True)
+    dataset_v0_3_ingest.add_argument("--output-root", required=True)
+
     dataset_replay = research_commands.add_parser(
         "dataset-replay", help="replay the fixed dataset evidence offline"
     )
@@ -131,6 +138,17 @@ def build_parser() -> SafeArgumentParser:
     handoff.add_argument("--workflow-run-id", required=True)
     handoff.add_argument("--workflow-run-attempt", required=True)
     handoff.add_argument("--output-root", required=True)
+
+    handoff_v0_3 = research_commands.add_parser(
+        "strategy-v0-3-handoff", help="seal one verified Candidate v0.3 Stage 1 handoff"
+    )
+    handoff_v0_3.add_argument("--run-id", required=True)
+    handoff_v0_3.add_argument("--dataset-id", required=True)
+    handoff_v0_3.add_argument("--source-commit", required=True)
+    handoff_v0_3.add_argument("--workflow-run-id", required=True)
+    handoff_v0_3.add_argument("--workflow-run-attempt", required=True)
+    handoff_v0_3.add_argument("--project-root", required=True)
+    handoff_v0_3.add_argument("--output-root", required=True)
 
     prepare = research_commands.add_parser(
         "strategy-prepare", help="prepare development-only Candidate evidence"
@@ -191,6 +209,33 @@ def build_parser() -> SafeArgumentParser:
     seal_v0_2.add_argument("--qualification-id", required=True)
     seal_v0_2.add_argument("--project-root", required=True)
     seal_v0_2.add_argument("--output-root", required=True)
+
+    qualify_v0_3 = research_commands.add_parser(
+        "strategy-v0-3-qualify",
+        help="run the fixed development-only Candidate v0.3 qualification",
+    )
+    qualify_v0_3.add_argument("--handoff", required=True)
+    qualify_v0_3.add_argument("--config", required=True)
+    qualify_v0_3.add_argument("--workflow-run-id", required=True)
+    qualify_v0_3.add_argument("--workflow-run-attempt", required=True)
+    qualify_v0_3.add_argument("--project-root", required=True)
+    qualify_v0_3.add_argument("--output-root", required=True)
+
+    verify_v0_3 = research_commands.add_parser(
+        "strategy-v0-3-verify-qualification",
+        help="verify Candidate v0.3 qualification evidence provider-free",
+    )
+    verify_v0_3.add_argument("--qualification-id", required=True)
+    verify_v0_3.add_argument("--project-root", required=True)
+    verify_v0_3.add_argument("--output-root", required=True)
+
+    seal_v0_3 = research_commands.add_parser(
+        "strategy-v0-3-create-prospective-seal",
+        help="create a future-only Candidate v0.3 seal from verified evidence",
+    )
+    seal_v0_3.add_argument("--qualification-id", required=True)
+    seal_v0_3.add_argument("--project-root", required=True)
+    seal_v0_3.add_argument("--output-root", required=True)
     return parser
 
 
@@ -230,6 +275,13 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "strategy-v0-2-qualification-verify",
                 "strategy-v0-2-seal-prospective-final",
             }
+            candidate_v0_3_commands = {
+                "dataset-v0-3-ingest",
+                "strategy-v0-3-handoff",
+                "strategy-v0-3-qualify",
+                "strategy-v0-3-verify-qualification",
+                "strategy-v0-3-create-prospective-seal",
+            }
             historical_commands = {
                 "dataset-ingest",
                 "dataset-replay",
@@ -240,7 +292,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "strategy-prepare",
                 "strategy-resume",
             }
-            if research_command in candidate_v0_2_commands:
+            if research_command in candidate_v0_3_commands:
+                payload = run_candidate_v0_3(arguments)
+            elif research_command in candidate_v0_2_commands:
                 payload = run_candidate_v0_2(arguments)
             elif research_command in historical_commands:
                 payload = run_historical_validation(arguments)

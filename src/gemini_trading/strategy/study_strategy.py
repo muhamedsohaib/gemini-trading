@@ -16,6 +16,16 @@ from gemini_trading.research.errors import ReplayMismatchError
 from gemini_trading.research.serialization import canonical_json_bytes
 from gemini_trading.strategy.replay import validate_replay_strategy_id
 
+_V0_3_STRATEGY_ID = "candidate.multi_model.v0_3"
+
+
+def _validate_study_strategy_id(strategy_id: str) -> str:
+    """Allow the governed v0.3 schedule without widening legacy full-study replay."""
+
+    if strategy_id == _V0_3_STRATEGY_ID:
+        return strategy_id
+    return validate_replay_strategy_id(strategy_id)
+
 
 class ScheduledAction(StrEnum):
     """Closed long-or-cash actions used by deterministic research schedules."""
@@ -38,7 +48,7 @@ class ReplayableStudyStrategy:
     production_eligible: bool = field(default=False, init=False)
 
     def __post_init__(self) -> None:
-        validate_replay_strategy_id(self.strategy_id_value)
+        _validate_study_strategy_id(self.strategy_id_value)
         if not self.case_id.strip():
             raise ValueError("case_id must not be empty")
         indexes = tuple(index for index, _ in self.events)
@@ -132,7 +142,7 @@ class ReplayableStudyStrategy:
 def reconstruct_study_strategy(manifest: ExperimentManifest) -> ReplayableStudyStrategy:
     """Reconstruct one closed-registry strategy from immutable manifest evidence."""
 
-    validate_replay_strategy_id(manifest.strategy_id)
+    _validate_study_strategy_id(manifest.strategy_id)
     configuration = dict(manifest.strategy_config)
     expected = {
         "case_id",

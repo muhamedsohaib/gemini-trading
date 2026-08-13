@@ -143,12 +143,32 @@ class ArbitrationDecision:
 
 
 @dataclass(frozen=True, slots=True)
+class ArbitrationOverlay:
+    """Optional v0.3 entry-only arbitration controls."""
+
+    entry_probability_threshold: Decimal | None = None
+    enforce_companion_probability: bool = True
+    enforce_disagreement: bool = True
+
+    def __post_init__(self) -> None:
+        if self.entry_probability_threshold is not None:
+            _probability(
+                self.entry_probability_threshold,
+                "entry_probability_threshold",
+            )
+
+
+@dataclass(frozen=True, slots=True)
 class MultiModelArbiter:
     """Apply the approved entry, abstention, hold, exit, and risk rules."""
 
     policy: CandidatePolicy
 
-    def decide(self, source: ArbitrationInput) -> ArbitrationDecision:
+    def decide(
+        self,
+        source: ArbitrationInput,
+        overlay: ArbitrationOverlay | None = None,
+    ) -> ArbitrationDecision:
         """Return one deterministic transition from the supplied state."""
 
         entry_hurdle = (
@@ -156,12 +176,13 @@ class MultiModelArbiter:
         ) / _BASIS_POINTS
         if source.currently_long:
             return self._decide_long(source, entry_hurdle)
-        return self._decide_cash(source, entry_hurdle)
+        return self._decide_cash(source, entry_hurdle, overlay)
 
     def _decide_cash(
         self,
         source: ArbitrationInput,
         entry_hurdle: Decimal,
+        overlay: ArbitrationOverlay | None,
     ) -> ArbitrationDecision:
         if source.cooldown_remaining > 0:
             return self._cash(
@@ -201,13 +222,21 @@ class MultiModelArbiter:
             active_probability = source.mean_reversion_probability
             companion_probability = source.trend_probability
             active_expected = source.mean_reversion_expected_gross_return
+        entry_probability = (
+            self.policy.entry_probability
+            if overlay is None or overlay.entry_probability_threshold is None
+            else overlay.entry_probability_threshold
+        )
+        enforce_companion = overlay is None or overlay.enforce_companion_probability
+        enforce_disagreement = overlay is None or overlay.enforce_disagreement
         reasons: list[str] = []
-        if active_probability < self.policy.entry_probability:
+        if active_probability < entry_probability:
             reasons.append("active_probability_below_entry")
-        if companion_probability < self.policy.companion_probability_floor:
+        if enforce_companion and companion_probability < self.policy.companion_probability_floor:
             reasons.append("companion_probability_below_floor")
         if (
-            abs(source.trend_probability - source.mean_reversion_probability)
+            enforce_disagreement
+            and abs(source.trend_probability - source.mean_reversion_probability)
             > self.policy.disagreement_limit
         ):
             reasons.append("specialist_disagreement")

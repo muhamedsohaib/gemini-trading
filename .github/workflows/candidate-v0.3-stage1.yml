@@ -1,0 +1,156 @@
+name: Candidate v0.3 Stage 1 Dataset
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash --noprofile --norc -e -o pipefail {0}
+
+concurrency:
+  group: candidate-v0-3-stage1
+  cancel-in-progress: false
+
+jobs:
+  dataset:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      GEMINI_TRADING_MODE: research
+      OUTPUT_ROOT: /tmp/candidate-v0-3-stage1
+      DEVELOPMENT_END_EXCLUSIVE: 2026-08-01T00:00:00Z
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.11.25"
+          enable-cache: true
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - name: Assert exact clean merged-main commit
+        run: |
+          test "${GITHUB_REF_NAME}" = "main"
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          test -z "$(git status --porcelain)"
+      - name: Ingest fixed Candidate v0.3 development history
+        id: ingest
+        run: |
+          uv run gemini-trading research dataset-v0-3-ingest \
+            --project-root "${GITHUB_WORKSPACE}" \
+            --output-root "${OUTPUT_ROOT}" | tee "${RUNNER_TEMP}/ingest.json"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          payload = json.loads((Path(os.environ["RUNNER_TEMP"]) / "ingest.json").read_text())
+          if payload.get("boundary") != "RESEARCH_ONLY" or payload.get("execution_authorized") is not False:
+              raise SystemExit("Candidate v0.3 Stage 1 crossed its research-only boundary")
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
+              output.write(f"run_id={payload['run_id']}\n")
+              output.write(f"dataset_id={payload['dataset_id']}\n")
+          PY
+      - name: Replay stored dataset evidence
+        env:
+          EXPECTED_RUN_ID: ${{ steps.ingest.outputs.run_id }}
+          EXPECTED_DATASET_ID: ${{ steps.ingest.outputs.dataset_id }}
+        run: |
+          uv run gemini-trading research dataset-replay \
+            --run-id "${EXPECTED_RUN_ID}" \
+            --output-root "${OUTPUT_ROOT}" | tee "${RUNNER_TEMP}/replay.json"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          payload = json.loads((Path(os.environ["RUNNER_TEMP"]) / "replay.json").read_text())
+          if payload.get("status") != "completed":
+              raise SystemExit("Candidate v0.3 dataset replay did not complete")
+          if payload.get("run_id") != os.environ["EXPECTED_RUN_ID"]:
+              raise SystemExit("Candidate v0.3 dataset replay run identity mismatch")
+          if payload.get("dataset_id") != os.environ["EXPECTED_DATASET_ID"]:
+              raise SystemExit("Candidate v0.3 dataset replay identity mismatch")
+          PY
+      - name: Independently verify dataset
+        run: |
+          uv run gemini-trading research dataset-verify \
+            --dataset-id "${{ steps.ingest.outputs.dataset_id }}" \
+            --run-id "${{ steps.ingest.outputs.run_id }}" \
+            --output-root "${OUTPUT_ROOT}" | tee "${RUNNER_TEMP}/verify.json"
+      - name: Build Candidate v0.3 Stage 1 handoff
+        id: handoff
+        run: |
+          uv run gemini-trading research strategy-v0-3-handoff \
+            --run-id "${{ steps.ingest.outputs.run_id }}" \
+            --dataset-id "${{ steps.ingest.outputs.dataset_id }}" \
+            --source-commit "${GITHUB_SHA}" \
+            --workflow-run-id "${GITHUB_RUN_ID}" \
+            --workflow-run-attempt "${GITHUB_RUN_ATTEMPT}" \
+            --project-root "${GITHUB_WORKSPACE}" \
+            --output-root "${OUTPUT_ROOT}" | tee "${RUNNER_TEMP}/handoff.json"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          payload = json.loads((Path(os.environ["RUNNER_TEMP"]) / "handoff.json").read_text())
+          if payload.get("boundary") != "RESEARCH_ONLY" or payload.get("execution_authorized") is not False:
+              raise SystemExit("Candidate v0.3 Stage 1 handoff crossed its research-only boundary")
+          PY
+      - name: Independently verify exact Candidate v0.3 Stage 1 identity
+        env:
+          DATASET_ID: ${{ steps.ingest.outputs.dataset_id }}
+        run: |
+          uv run python - <<'PY'
+          import os
+          from pathlib import Path
+
+          from gemini_trading.data.storage.local_immutable import LocalImmutableStore
+          from gemini_trading.research.dataset_reader import load_verified_dataset
+          from gemini_trading.strategy.v0_3_stage1 import (
+              V03_EXPECTED_CANDLE_COUNT,
+              V03_STAGE1_END_EXCLUSIVE,
+              V03_STAGE1_START,
+              assert_v0_3_dataset_identity,
+              load_v0_3_dataset_handoff,
+              verify_v0_3_dataset_handoff,
+          )
+
+          root = Path(os.environ["OUTPUT_ROOT"])
+          project_root = Path(os.environ["GITHUB_WORKSPACE"])
+          dataset_id = os.environ["DATASET_ID"]
+          handoff_path = root / "data" / "historical-validation" / "handoff" / dataset_id / "dataset-handoff.json"
+          handoff = load_v0_3_dataset_handoff(handoff_path.read_bytes())
+          verify_v0_3_dataset_handoff(
+              handoff,
+              root,
+              project_root=project_root,
+              expected_commit=os.environ["GITHUB_SHA"],
+              expected_dataset_id=dataset_id,
+              expected_run_id=int(os.environ["GITHUB_RUN_ID"]),
+          )
+          dataset = load_verified_dataset(LocalImmutableStore(root), dataset_id, require_v4=True)
+          assert_v0_3_dataset_identity(dataset, project_root)
+          if dataset.manifest.start_time != V03_STAGE1_START:
+              raise SystemExit("Candidate v0.3 Stage 1 start changed")
+          if dataset.manifest.end_time != V03_STAGE1_END_EXCLUSIVE:
+              raise SystemExit("Candidate v0.3 Stage 1 cutoff changed")
+          if len(dataset.candles) != V03_EXPECTED_CANDLE_COUNT:
+              raise SystemExit("Candidate v0.3 Stage 1 candle count changed")
+          PY
+      - name: Assert worktree stayed clean
+        run: test -z "$(git status --porcelain)"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: candidate-v0.3-stage1-${{ github.sha }}-${{ github.run_id }}
+          path: /tmp/candidate-v0-3-stage1/
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 6

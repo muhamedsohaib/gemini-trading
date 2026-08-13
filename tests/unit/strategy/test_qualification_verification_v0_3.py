@@ -1,4 +1,4 @@
-"""RED contracts for provider-free Candidate v0.3 qualification verification."""
+"""Contracts for provider-free Candidate v0.3 qualification verification."""
 
 from __future__ import annotations
 
@@ -8,10 +8,12 @@ from decimal import Decimal
 
 import pytest
 
+from gemini_trading.research.config import SimulationConfig, serialize_simulation_config
 from gemini_trading.research.serialization import canonical_json_bytes
 from gemini_trading.strategy.contracts import SpecialistKind
 from gemini_trading.strategy.entry_selectivity import EntryThresholdArtifact
 from gemini_trading.strategy.errors import StudyArtifactError
+from gemini_trading.strategy.qualification_replay_v0_3 import parse_simulation_config
 from gemini_trading.strategy.qualification_verification_v0_3 import (
     replay_entry_threshold_artifact,
 )
@@ -63,3 +65,20 @@ def test_threshold_replay_rejects_quantile_tampering() -> None:
 def test_threshold_replay_rejects_unregistered_percentile() -> None:
     with pytest.raises((ValueError, StudyArtifactError)):
         replay_entry_threshold_artifact(replace(_artifact(), percentile=Decimal("0.65")))
+
+
+def test_simulation_config_replay_is_exact() -> None:
+    simulation = SimulationConfig.official(
+        maker_fee_rate=Decimal("0.001"),
+        taker_fee_rate=Decimal("0.001"),
+        half_spread_bps=Decimal("5"),
+        slippage_bps=Decimal("10"),
+        latency_bars=0,
+        price_tick=Decimal("0.01"),
+        quantity_step=Decimal("0.000001"),
+        min_quantity=Decimal("0.000001"),
+        min_notional=Decimal("5"),
+        max_volume_participation=Decimal("0.01"),
+    )
+    raw = serialize_simulation_config(simulation)
+    assert parse_simulation_config(raw) == simulation

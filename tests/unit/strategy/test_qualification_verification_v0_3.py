@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import hashlib
+from dataclasses import replace
 from decimal import Decimal
 
 import pytest
 
+from gemini_trading.research.serialization import canonical_json_bytes
 from gemini_trading.strategy.contracts import SpecialistKind
 from gemini_trading.strategy.entry_selectivity import EntryThresholdArtifact
 from gemini_trading.strategy.errors import StudyArtifactError
@@ -17,9 +20,6 @@ from gemini_trading.strategy.qualification_verification_v0_3 import (
 def _artifact() -> EntryThresholdArtifact:
     indices = tuple(range(40))
     scores = tuple(Decimal("0.50") + Decimal(index) / Decimal("100") for index in range(40))
-    import hashlib
-    from gemini_trading.research.serialization import canonical_json_bytes
-
     rows = {
         "schema_version": "candidate-v0.3-entry-eligible-rows-v1",
         "fold_number": 1,
@@ -54,8 +54,6 @@ def test_threshold_replay_recomputes_every_identity() -> None:
 
 
 def test_threshold_replay_rejects_quantile_tampering() -> None:
-    from dataclasses import replace
-
     bad = replace(_artifact(), raw_quantile=Decimal("0.70"), effective_threshold=Decimal("0.70"))
     receipt = replay_entry_threshold_artifact(bad)
     assert receipt.raw_quantile_match is False
@@ -63,7 +61,5 @@ def test_threshold_replay_rejects_quantile_tampering() -> None:
 
 
 def test_threshold_replay_rejects_unregistered_percentile() -> None:
-    from dataclasses import replace
-
     with pytest.raises((ValueError, StudyArtifactError)):
         replay_entry_threshold_artifact(replace(_artifact(), percentile=Decimal("0.65")))

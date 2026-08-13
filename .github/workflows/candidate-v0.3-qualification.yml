@@ -104,15 +104,19 @@ jobs:
 
           from gemini_trading.data.storage.local_immutable import LocalImmutableStore
           from gemini_trading.research.dataset_reader import load_verified_dataset
-          from gemini_trading.strategy.handoff import load_dataset_handoff, verify_dataset_handoff
+          from gemini_trading.strategy.v0_3_stage1 import (
+              load_v0_3_dataset_handoff,
+              verify_v0_3_dataset_handoff,
+          )
 
           root = Path(os.environ["OUTPUT_ROOT"])
           dataset_id = os.environ["EXPECTED_DATASET_ID"]
           path = root / "data" / "historical-validation" / "handoff" / dataset_id / "dataset-handoff.json"
-          handoff = load_dataset_handoff(path.read_bytes())
-          verify_dataset_handoff(
+          handoff = load_v0_3_dataset_handoff(path.read_bytes())
+          verify_v0_3_dataset_handoff(
               handoff,
               root,
+              project_root=Path(os.environ["GITHUB_WORKSPACE"]),
               expected_commit=os.environ["EXPECTED_COMMIT"],
               expected_dataset_id=dataset_id,
               expected_run_id=int(os.environ["EXPECTED_RUN_ID"]),

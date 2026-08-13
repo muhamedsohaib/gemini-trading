@@ -1,0 +1,75 @@
+name: Candidate v0.3 Task 1 Apply
+
+on:
+  push:
+    branches:
+      - research/candidate-v0-3-calibrated-arbitration
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.head_commit.message == 'chore: dispatch v0.3 task1 implementation'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          ref: research/candidate-v0-3-calibrated-arbitration
+          fetch-depth: 0
+
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: 0.11.25
+          enable-cache: true
+
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: '3.12'
+
+      - name: Install frozen environment
+        run: uv sync --all-groups --frozen
+
+      - name: Apply minimal Task 1 implementation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          policy_path = Path('src/gemini_trading/strategy/policy.py')
+          policy = policy_path.read_text(encoding='utf-8')
+          if 'def locked_v0_3' in policy:
+              raise SystemExit('locked_v0_3 already exists')
+          marker = '\n\ndef approved_candidate_policy(strategy_id: str, policy_version: str) -> CandidatePolicy:\n'
+          block = '''\n\n    @classmethod\n    def locked_v0_3(cls) -> "CandidatePolicy":\n        """Return the separately governed Candidate v0.3 policy identity."""\n\n        return replace(\n            cls.locked_v0_2(),\n            schema_version="candidate-strategy-policy-v3",\n            strategy_id="candidate.multi_model.v0_3",\n            policy_version="candidate-multi-model-v0.3",\n        )\n'''
+          if marker not in policy:
+              raise SystemExit('policy insertion marker missing')
+          policy = policy.replace(marker, block + marker, 1)
+          old = '''    if (\n        strategy_id == "candidate.multi_model.v0_2"\n        and policy_version == "candidate-multi-model-v0.2"\n    ):\n        return CandidatePolicy.locked_v0_2()\n    raise ValueError("candidate strategy and policy identity pair is not approved")\n'''
+          new = '''    if (\n        strategy_id == "candidate.multi_model.v0_2"\n        and policy_version == "candidate-multi-model-v0.2"\n    ):\n        return CandidatePolicy.locked_v0_2()\n    if (\n        strategy_id == "candidate.multi_model.v0_3"\n        and policy_version == "candidate-multi-model-v0.3"\n    ):\n        return CandidatePolicy.locked_v0_3()\n    raise ValueError("candidate strategy and policy identity pair is not approved")\n'''
+          if old not in policy:
+              raise SystemExit('approved policy replacement marker missing')
+          policy_path.write_text(policy.replace(old, new, 1), encoding='utf-8')
+
+          cli_path = Path('src/gemini_trading/cli/strategy.py')
+          cli = cli_path.read_text(encoding='utf-8')
+          old_map = '''_APPROVED_POLICY_BY_STRATEGY = {\n    "candidate.multi_model.v0_1": "candidate-multi-model-v0.1",\n    "candidate.multi_model.v0_2": "candidate-multi-model-v0.2",\n}\n'''
+          new_map = '''_APPROVED_POLICY_BY_STRATEGY = {\n    "candidate.multi_model.v0_1": "candidate-multi-model-v0.1",\n    "candidate.multi_model.v0_2": "candidate-multi-model-v0.2",\n    "candidate.multi_model.v0_3": "candidate-multi-model-v0.3",\n}\n'''
+          if old_map not in cli:
+              raise SystemExit('CLI policy map marker missing')
+          cli_path.write_text(cli.replace(old_map, new_map, 1), encoding='utf-8')
+          PY
+
+      - name: Verify focused GREEN
+        run: |
+          uv run pytest -q tests/unit/strategy/test_policy_v0_3.py tests/unit/cli/test_strategy_v0_3.py tests/unit/strategy/test_policy.py tests/unit/cli/test_strategy.py
+          uv run ruff check src/gemini_trading/strategy/policy.py src/gemini_trading/cli/strategy.py tests/unit/strategy/test_policy_v0_3.py tests/unit/cli/test_strategy_v0_3.py
+          uv run pyright src/gemini_trading/strategy/policy.py src/gemini_trading/cli/strategy.py tests/unit/strategy/test_policy_v0_3.py tests/unit/cli/test_strategy_v0_3.py
+
+      - name: Commit verified Task 1 and remove dispatcher
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/v0-3-task1-apply.yml
+          git add src/gemini_trading/strategy/policy.py src/gemini_trading/cli/strategy.py
+          git commit -m "feat: define Candidate v0.3 identity"
+          git push origin HEAD:research/candidate-v0-3-calibrated-arbitration

@@ -34,6 +34,9 @@ def test_v0_3_qualification_workflow_is_manual_narrow_and_prefinal_only() -> Non
     assert "strategy-finalize" not in text
     assert "strategy-authorize-final" not in text
     assert "candidate-v0.3-bundle" in text
+    assert "data/raw" in text
+    assert "data/canonical" in text
+    assert "data/market-data" not in text
     assert "data/research" in text
     assert "data/historical-validation/v0-3-qualification" in text
     assert "actions/upload-artifact" in text

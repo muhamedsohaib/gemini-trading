@@ -3,23 +3,16 @@
 from __future__ import annotations
 
 from bisect import bisect_left
+from calendar import monthrange
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from gemini_trading.data.segments import CandleSegmentManifest
 from gemini_trading.domain.candle import Candle
+from gemini_trading.strategy.contracts import IndexWindow
 from gemini_trading.strategy.errors import InsufficientHistoryError, SplitBoundaryError
 from gemini_trading.strategy.policy import CandidatePolicy
-from gemini_trading.strategy.splits import (
-    WalkForwardFold,
-    _add_months,
-    _crosses_boundary,
-    _inside_guard_zone,
-    _safe_indices,
-    _validate_candles,
-    _validate_eligible_indices,
-    _window,
-)
+from gemini_trading.strategy.splits import WalkForwardFold
 
 _LABEL_EXIT_OFFSET = 4
 _V0_3_DEVELOPMENT_START = datetime(2018, 1, 1, tzinfo=UTC)
@@ -208,6 +201,102 @@ class V03DevelopmentQualificationPlan:
             embargo_candles=policy.embargo_candles,
             label_exit_offset=_LABEL_EXIT_OFFSET,
         )
+
+
+def _validate_candles(
+    candles: tuple[Candle, ...],
+    segment_manifest: CandleSegmentManifest | None,
+) -> tuple[datetime, datetime]:
+    if not candles:
+        raise InsufficientHistoryError("chronological split plan requires candles")
+    first = candles[0]
+    prior: Candle | None = None
+    interval = first.timeframe.duration
+    boundaries: set[int] = (
+        set(segment_manifest.boundary_indices) if segment_manifest is not None else set()
+    )
+    if segment_manifest is not None and segment_manifest.segments[-1].end_exclusive != len(candles):
+        raise SplitBoundaryError("split segment evidence does not cover candles")
+    for index, candle in enumerate(candles):
+        if not candle.completed:
+            raise SplitBoundaryError("split plan requires completed candles")
+        if candle.instrument != first.instrument or candle.timeframe != first.timeframe:
+            raise SplitBoundaryError("split candles must share instrument and timeframe")
+        if prior is not None and index not in boundaries:
+            current_interval = candle.open_time - prior.open_time
+            if current_interval != interval:
+                raise SplitBoundaryError("split candles must be continuous inside segments")
+            if candle.open_time != prior.close_time + timedelta(milliseconds=1):
+                raise SplitBoundaryError("split candle boundaries must be contiguous")
+        prior = candle
+    dataset_end = candles[-1].close_time + timedelta(milliseconds=1)
+    return candles[0].open_time, dataset_end
+
+
+def _validate_eligible_indices(
+    eligible_indices: tuple[int, ...],
+    candle_count: int,
+) -> tuple[int, ...]:
+    if any(isinstance(index, bool) or index < 0 for index in eligible_indices):
+        raise SplitBoundaryError("eligible indexes must be non-negative integers")
+    if len(eligible_indices) != len(set(eligible_indices)):
+        raise SplitBoundaryError("eligible indexes must be unique")
+    ordered = tuple(sorted(eligible_indices))
+    if any(index + _LABEL_EXIT_OFFSET >= candle_count for index in ordered):
+        raise SplitBoundaryError("eligible index has an unresolved label outcome")
+    return ordered
+
+
+def _safe_indices(
+    window: IndexWindow,
+    eligible: set[int],
+    boundaries: tuple[int, ...],
+    policy: CandidatePolicy,
+) -> tuple[int, ...]:
+    return tuple(
+        index
+        for index in range(window.start_inclusive, window.end_exclusive)
+        if index in eligible
+        and window.contains(index + _LABEL_EXIT_OFFSET)
+        and all(
+            not _crosses_boundary(index, boundary, _LABEL_EXIT_OFFSET)
+            and not _inside_guard_zone(
+                index,
+                boundary,
+                purge=policy.purge_candles,
+                embargo=policy.embargo_candles,
+            )
+            for boundary in boundaries
+        )
+    )
+
+
+def _crosses_boundary(index: int, boundary: int, exit_offset: int) -> bool:
+    return index < boundary <= index + exit_offset
+
+
+def _inside_guard_zone(
+    index: int,
+    boundary: int,
+    *,
+    purge: int,
+    embargo: int,
+) -> bool:
+    return boundary - purge <= index < boundary + embargo
+
+
+def _window(start: int, end: int, name: str) -> IndexWindow:
+    if end <= start:
+        raise SplitBoundaryError(f"{name} window is empty after purge and embargo")
+    return IndexWindow(start_inclusive=start, end_exclusive=end)
+
+
+def _add_months(value: datetime, months: int) -> datetime:
+    zero_based_month = value.month - 1 + months
+    year = value.year + zero_based_month // 12
+    month = zero_based_month % 12 + 1
+    day = min(value.day, monthrange(year, month)[1])
+    return value.replace(year=year, month=month, day=day)
 
 
 __all__ = ["V03DevelopmentQualificationPlan"]

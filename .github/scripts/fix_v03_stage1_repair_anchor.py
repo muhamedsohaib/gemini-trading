@@ -28,4 +28,22 @@ wrapped = '''        paths = tuple(item.path for item in self.files)
 '''
 if long_line not in stage1_text:
     raise SystemExit("v0.3 Stage 1 inventory-order anchor missing")
-stage1_path.write_text(stage1_text.replace(long_line, wrapped, 1))
+stage1_text = stage1_text.replace(long_line, wrapped, 1)
+old_strings = '''def _strings(mapping: dict[str, object], key: str) -> tuple[str, ...]:
+    value = mapping.get(key)
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        raise DatasetHandoffError(f"invalid v0.3 Stage 1 field: {key}")
+    return tuple(cast(list[str], value))
+'''
+new_strings = '''def _strings(mapping: dict[str, object], key: str) -> tuple[str, ...]:
+    value = mapping.get(key)
+    if not isinstance(value, list):
+        raise DatasetHandoffError(f"invalid v0.3 Stage 1 field: {key}")
+    raw = cast(list[object], value)
+    if not all(isinstance(item, str) for item in raw):
+        raise DatasetHandoffError(f"invalid v0.3 Stage 1 field: {key}")
+    return tuple(cast(list[str], raw))
+'''
+if old_strings not in stage1_text:
+    raise SystemExit("v0.3 Stage 1 string-parser anchor missing")
+stage1_path.write_text(stage1_text.replace(old_strings, new_strings, 1))

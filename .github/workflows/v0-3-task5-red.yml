@@ -1,4 +1,4 @@
-name: Candidate v0.3 Task 5 RED
+name: Candidate v0.3 Task 5 GREEN
 
 on:
   push:
@@ -9,8 +9,8 @@ permissions:
   contents: read
 
 jobs:
-  red:
-    if: "${{ github.event.head_commit.message == 'test: add RED v0.3 development split plan' }}"
+  green:
+    if: "${{ github.event.head_commit.message == 'test: verify GREEN v0.3 development split plan' }}"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2
@@ -23,12 +23,8 @@ jobs:
         with:
           python-version: '3.12'
       - run: uv sync --all-groups --frozen
-      - name: Verify expected RED
+      - name: Verify focused GREEN and old split regression
         run: |
-          set +e
-          uv run pytest -q tests/unit/strategy/test_v0_3_development_splits.py > /tmp/red.txt 2>&1
-          status=$?
-          set -e
-          cat /tmp/red.txt
-          test "$status" -ne 0
-          grep -F "No module named 'gemini_trading.strategy.v0_3_splits'" /tmp/red.txt
+          uv run pytest -q tests/unit/strategy/test_v0_3_development_splits.py tests/unit/strategy/test_v0_2_development_splits.py tests/unit/strategy/test_strategy_splits.py
+          uv run ruff check src/gemini_trading/strategy/v0_3_splits.py tests/unit/strategy/test_v0_3_development_splits.py
+          uv run pyright src/gemini_trading/strategy/v0_3_splits.py tests/unit/strategy/test_v0_3_development_splits.py

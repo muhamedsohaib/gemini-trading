@@ -17,7 +17,11 @@ target.write_text(text.replace(old_annotation, "    handoff: V03DatasetHandoffMa
 '''
 if old not in text:
     raise SystemExit("v0.3 annotation repair block missing")
-path.write_text(text.replace(old, new, 1))
+text = text.replace(old, new, 1)
+workflow_marker = "# Qualification workflow must verify the new handoff, not the frozen legacy July-1 handoff.\n"
+if workflow_marker not in text:
+    raise SystemExit("v0.3 workflow repair marker missing")
+path.write_text(text.split(workflow_marker, 1)[0].rstrip() + "\n")
 
 stage1_path = Path("src/gemini_trading/strategy/v0_3_stage1.py")
 stage1_text = stage1_path.read_text()

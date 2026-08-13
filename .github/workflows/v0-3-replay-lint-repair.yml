@@ -1,0 +1,69 @@
+name: Candidate v0.3 Replay Lint Repair
+
+on:
+  push:
+    branches:
+      - research/candidate-v0-3-calibrated-arbitration
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: "${{ github.event.head_commit.message == 'chore: repair v0.3 replay lint' }}"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          ref: research/candidate-v0-3-calibrated-arbitration
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: 0.11.25
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: '3.12'
+      - run: uv sync --all-groups --frozen
+      - name: Apply exact replay lint/type repair
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/gemini_trading/strategy/qualification_replay_v0_3.py')
+          text = path.read_text()
+          text = text.replace(
+              'from gemini_trading.strategy.entry_selectivity import EntryThresholdArtifact\n',
+              '',
+          )
+          text = text.replace(
+              'from gemini_trading.strategy.study import StudyCaseEvidence\n',
+              'from gemini_trading.strategy.splits import WalkForwardFold\n'
+              'from gemini_trading.strategy.study import StudyCaseEvidence\n',
+          )
+          text = text.replace(
+              '    fold: object,\n',
+              '    fold: WalkForwardFold,\n',
+          )
+          text = text.replace(
+              '    development_test = getattr(fold, "development_test")\n'
+              '    development_test_indices = getattr(fold, "development_test_indices")\n',
+              '    development_test = fold.development_test\n'
+              '    development_test_indices = fold.development_test_indices\n',
+          )
+          text = text.replace(
+              '    start = getattr(development_test, "start_inclusive")\n',
+              '    start = development_test.start_inclusive\n',
+          )
+          path.write_text(text)
+          PY
+          uv run ruff format src/gemini_trading/strategy/qualification_replay_v0_3.py
+          uv run ruff check src/gemini_trading/strategy/qualification_replay_v0_3.py
+      - name: Commit repair and remove temporary workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/v0-3-replay-lint-repair.yml
+          git add -A
+          git diff --cached --quiet && exit 1
+          git commit -m "fix: type Candidate v0.3 qualification replay folds"
+          git push origin HEAD:research/candidate-v0-3-calibrated-arbitration

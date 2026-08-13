@@ -9,8 +9,8 @@ permissions:
   contents: read
 
 jobs:
-  verify:
-    if: "${{ github.event.head_commit.message == 'feat: add v0.3 entry selectivity module shell' }}"
+  verify-red:
+    if: "${{ github.event.head_commit.message == 'test: verify RED v0.3 entry selectivity behavior' }}"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2
@@ -23,5 +23,12 @@ jobs:
         with:
           python-version: '3.12'
       - run: uv sync --all-groups --frozen
-      - name: Verify module-existence GREEN
-        run: uv run pytest -q tests/unit/strategy/test_entry_selectivity.py
+      - name: Verify expected behavior RED
+        run: |
+          set +e
+          uv run pytest -q tests/unit/strategy/test_entry_selectivity.py > /tmp/red.txt 2>&1
+          status=$?
+          set -e
+          cat /tmp/red.txt
+          test "$status" -ne 0
+          grep -F "entry_selectivity must define EntrySelectivityPolicy" /tmp/red.txt

@@ -5,7 +5,7 @@ from __future__ import annotations
 import importlib
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any, cast
+from typing import Any
 
 import pytest
 
@@ -250,7 +250,7 @@ def test_threshold_artifact_allows_only_preregistered_percentiles() -> None:
 def test_threshold_artifact_rejects_old_candidate_identity() -> None:
     builder = _api("build_entry_threshold_artifact")
     matrix = _matrix(40)
-    with pytest.raises(StudyArtifactError, match="Candidate v0.3"):
+    with pytest.raises(StudyArtifactError, match=r"Candidate v0\.3"):
         builder(
             fold_number=1,
             specialist=SpecialistKind.TREND,

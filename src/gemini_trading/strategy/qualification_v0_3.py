@@ -198,7 +198,9 @@ def _selectivity_key(receipt: SelectivityReplayReceipt) -> tuple[int, Specialist
     return receipt.fold_number, receipt.specialist, receipt.percentile
 
 
-def _expected_selectivity_keys(percentiles: tuple[Decimal, ...]) -> set[tuple[int, SpecialistKind, Decimal]]:
+def _expected_selectivity_keys(
+    percentiles: tuple[Decimal, ...],
+) -> set[tuple[int, SpecialistKind, Decimal]]:
     return {
         (fold_number, specialist, percentile)
         for fold_number in range(1, 13)
@@ -239,9 +241,7 @@ def _sensitivity_selectivity_complete(
 ) -> bool:
     if receipts is None:
         return False
-    sensitivity = tuple(
-        item for item in receipts if item.percentile in _SENSITIVITY_PERCENTILES
-    )
+    sensitivity = tuple(item for item in receipts if item.percentile in _SENSITIVITY_PERCENTILES)
     keys = tuple(_selectivity_key(item) for item in sensitivity)
     expected = _expected_selectivity_keys(_SENSITIVITY_PERCENTILES)
     return (

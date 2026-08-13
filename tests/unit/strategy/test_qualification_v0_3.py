@@ -167,9 +167,7 @@ def test_explicit_v0_3_mandatory_failure_is_rejected() -> None:
 
 
 def test_missing_v0_3_evidence_without_explicit_failure_is_inconclusive() -> None:
-    report = evaluate_v0_3_development_qualification(
-        replace(_passing_evidence(), bootstrap=None)
-    )
+    report = evaluate_v0_3_development_qualification(replace(_passing_evidence(), bootstrap=None))
     assert report.classification is QualificationClassification.INCONCLUSIVE
 
 

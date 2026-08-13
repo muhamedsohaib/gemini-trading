@@ -151,16 +151,26 @@ def _verify(arguments: argparse.Namespace) -> dict[str, object]:
     )
 
 
+def _utc_text(value: object) -> str:
+    isoformat = getattr(value, "isoformat", None)
+    if not callable(isoformat):
+        raise StudyArtifactError("Candidate v0.3 seal boundary is not a timestamp")
+    text = isoformat()
+    if not isinstance(text, str):
+        raise StudyArtifactError("Candidate v0.3 seal boundary encoding is invalid")
+    return text.replace("+00:00", "Z")
+
+
 def _seal(arguments: argparse.Namespace) -> dict[str, object]:
     artifacts = _verified_bundle(arguments)
     output_root = Path(_argument(arguments, "output_root")).resolve(strict=False)
     seal = V03LocalProspectiveFinalSealStore(output_root).create(artifacts)
     return _research_only(
         {
-            "bridge_end": seal.bridge_end,
-            "bridge_start": seal.bridge_start,
-            "final_end": seal.final_end,
-            "final_start": seal.final_start,
+            "bridge_end": _utc_text(seal.bridge_end),
+            "bridge_start": _utc_text(seal.bridge_start),
+            "final_end": _utc_text(seal.final_end),
+            "final_start": _utc_text(seal.final_start),
             "qualification_id": seal.qualification_id,
             "seal_id": seal.seal_id,
             "status": "sealed",

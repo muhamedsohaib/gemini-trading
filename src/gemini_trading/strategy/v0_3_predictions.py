@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import Decimal
 
-from gemini_trading.strategy.calibration import apply_platt
+from gemini_trading.strategy.calibration import PlattArtifact, apply_platt
 from gemini_trading.strategy.contracts import SpecialistKind
 from gemini_trading.strategy.determinism import (
     TrendDeterminismReceipt,
@@ -35,14 +35,15 @@ class V03PredictionContext:
 
     def __post_init__(self) -> None:
         selectivity = EntrySelectivityPolicy.locked_v0_3()
+        percentiles = (
+            selectivity.sensitivity_percentiles[0],
+            selectivity.primary_percentile,
+            selectivity.sensitivity_percentiles[1],
+        )
         expected = tuple(
             (specialist, percentile)
             for specialist in (SpecialistKind.TREND, SpecialistKind.MEAN_REVERSION)
-            for percentile in (
-                *selectivity.sensitivity_percentiles[:1],
-                selectivity.primary_percentile,
-                *selectivity.sensitivity_percentiles[1:],
-            )
+            for percentile in percentiles
         )
         observed = tuple(
             (artifact.specialist, artifact.percentile)
@@ -102,11 +103,11 @@ def _calibrated_probabilities(
     matrix: FeatureMatrix,
     calibration_indices: tuple[int, ...],
     model: ModelArtifact,
-    platt: object,
+    platt: PlattArtifact,
 ) -> dict[int, Decimal]:
     return {
         index: apply_platt(
-            platt,  # type: ignore[arg-type]
+            platt,
             predict_raw(model, _values(matrix, index, model)),
         )
         for index in calibration_indices

@@ -277,9 +277,7 @@ class V03LocalProspectiveFinalSealStore:
                 policy_version=cast(str, mapping["policy_version"]),
                 code_commit=cast(str, mapping["code_commit"]),
                 dataset_id=cast(str, mapping["dataset_id"]),
-                dataset_handoff_inventory_root=cast(
-                    str, mapping["dataset_handoff_inventory_root"]
-                ),
+                dataset_handoff_inventory_root=cast(str, mapping["dataset_handoff_inventory_root"]),
                 policy_sha256=cast(str, mapping["policy_sha256"]),
                 selectivity_policy_sha256=cast(str, mapping["selectivity_policy_sha256"]),
                 qualification_id=cast(str, mapping["qualification_id"]),

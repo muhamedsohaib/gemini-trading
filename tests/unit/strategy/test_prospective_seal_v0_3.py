@@ -148,9 +148,7 @@ def test_seal_rejects_changed_selectivity_identity(monkeypatch: pytest.MonkeyPat
     monkeypatch.setattr(module, "_verification_milestone_utc", lambda: _FIXED_VERIFIED_AT)
     original = _artifacts()
     mapping = dict(original.files)
-    mapping["entry-selectivity-policy.json"] = canonical_json_bytes(
-        {"primary_percentile": "0.80"}
-    )
+    mapping["entry-selectivity-policy.json"] = canonical_json_bytes({"primary_percentile": "0.80"})
     with pytest.raises(FinalAccessError, match="selectivity"):
         create_v0_3_prospective_seal(replace(original, files=tuple(sorted(mapping.items()))))
 

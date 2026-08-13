@@ -492,6 +492,17 @@ def verify_v0_3_qualification_artifacts(
     )
     if hashlib.sha256(canonical_json_bytes(structural)).hexdigest() != qualification_id:
         raise StudyArtifactError("v0.3 qualification structural identity changed")
+    expected_result = canonical_json_bytes(
+        {
+            "schema_version": _SCHEMA,
+            "qualification_id": qualification_id,
+            "classification": classification.value,
+            "inventory_root_sha256": root_sha,
+            "artifacts": _inventory_payload(core),
+        }
+    )
+    if result_raw != expected_result:
+        raise StudyArtifactError("v0.3 qualification result canonical bytes changed")
     files = tuple(sorted((*core, (_RESULT, result_raw))))
     return V03QualificationArtifacts(
         qualification_id=qualification_id,

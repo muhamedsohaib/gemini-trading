@@ -54,19 +54,27 @@ def _threshold(percentile: str = "0.75") -> EntryThresholdArtifact:
         percentile=Decimal(percentile),
         eligible_indices=indices,
         eligible_scores=scores,
-        eligible_rows_sha256=hashlib.sha256(canonical_json_bytes({
-            "schema_version": "candidate-v0.3-entry-eligible-rows-v1",
-            "fold_number": 1,
-            "specialist": "trend",
-            "eligible_indices": indices,
-        })).hexdigest(),
-        score_vector_sha256=hashlib.sha256(canonical_json_bytes({
-            "schema_version": "candidate-v0.3-entry-score-vector-v1",
-            "fold_number": 1,
-            "specialist": "trend",
-            "eligible_indices": indices,
-            "eligible_scores": scores,
-        })).hexdigest(),
+        eligible_rows_sha256=hashlib.sha256(
+            canonical_json_bytes(
+                {
+                    "schema_version": "candidate-v0.3-entry-eligible-rows-v1",
+                    "fold_number": 1,
+                    "specialist": "trend",
+                    "eligible_indices": indices,
+                }
+            )
+        ).hexdigest(),
+        score_vector_sha256=hashlib.sha256(
+            canonical_json_bytes(
+                {
+                    "schema_version": "candidate-v0.3-entry-score-vector-v1",
+                    "fold_number": 1,
+                    "specialist": "trend",
+                    "eligible_indices": indices,
+                    "eligible_scores": scores,
+                }
+            )
+        ).hexdigest(),
         raw_quantile=Decimal("0.62925"),
         effective_threshold=Decimal("0.62925"),
         quantile_method="linear_n_minus_one",

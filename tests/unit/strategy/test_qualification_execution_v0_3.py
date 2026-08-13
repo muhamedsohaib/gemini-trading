@@ -33,9 +33,7 @@ def test_v0_3_qualification_binds_separate_selectivity_identity() -> None:
 
 
 def test_v0_3_aggregate_path_metrics_preserve_existing_math() -> None:
-    metrics = aggregate_path_metrics(
-        (Decimal("0.10"), Decimal("-0.10"), Decimal("0.05"))
-    )
+    metrics = aggregate_path_metrics((Decimal("0.10"), Decimal("-0.10"), Decimal("0.05")))
     assert metrics.net_return == Decimal("0.0395")
     assert metrics.maximum_drawdown == Decimal("0.10")
     assert metrics.return_to_drawdown == Decimal("0.395")

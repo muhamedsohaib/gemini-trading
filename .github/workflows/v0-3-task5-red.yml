@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   green:
-    if: "${{ github.event.head_commit.message == 'test: verify GREEN v0.3 development split plan' }}"
+    if: "${{ github.event.head_commit.message == 'test: verify GREEN v0.3 development split plan after type fix' }}"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2

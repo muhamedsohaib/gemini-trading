@@ -20,7 +20,6 @@ from gemini_trading.strategy.calibration_evidence import (
     parse_calibration_diagnostics,
 )
 from gemini_trading.strategy.determinism import TrendDeterminismReceipt
-from gemini_trading.strategy.entry_selectivity import EntryThresholdArtifact
 from gemini_trading.strategy.errors import ModelDeterminismError, StudyArtifactError
 from gemini_trading.strategy.evaluation import (
     BootstrapResult,
@@ -43,6 +42,7 @@ from gemini_trading.strategy.qualification_v0_3 import (
     V03QualificationReport,
     evaluate_v0_3_development_qualification,
 )
+from gemini_trading.strategy.splits import WalkForwardFold
 from gemini_trading.strategy.study import StudyCaseEvidence
 from gemini_trading.strategy.study_execution import (
     component_value_supported,
@@ -256,15 +256,15 @@ def _fold_oos_returns(
     *,
     store: LocalResearchStore,
     record: StudyCaseEvidence,
-    fold: object,
+    fold: WalkForwardFold,
     simulation: SimulationConfig,
     candle_count: int,
 ) -> tuple[Decimal, ...]:
-    development_test = getattr(fold, "development_test")
-    development_test_indices = getattr(fold, "development_test_indices")
+    development_test = fold.development_test
+    development_test_indices = fold.development_test_indices
     if not isinstance(development_test_indices, tuple) or not development_test_indices:
         raise StudyArtifactError("v0.3 replay fold development-test indices are invalid")
-    start = getattr(development_test, "start_inclusive")
+    start = development_test.start_inclusive
     if isinstance(start, bool) or not isinstance(start, int):
         raise StudyArtifactError("v0.3 replay fold start is invalid")
     last_index = development_test_indices[-1]

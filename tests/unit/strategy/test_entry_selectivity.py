@@ -88,10 +88,7 @@ def _matrix(
 
 def _probabilities(count: int, *, start: str = "0.40") -> dict[int, Decimal]:
     base = Decimal(start)
-    return {
-        index: base + Decimal(index) / Decimal("100")
-        for index in range(count)
-    }
+    return {index: base + Decimal(index) / Decimal("100") for index in range(count)}
 
 
 def _artifact(
@@ -233,11 +230,14 @@ def test_threshold_artifact_allows_only_preregistered_percentiles() -> None:
     probabilities = _probabilities(40)
 
     for allowed in (Decimal("0.70"), Decimal("0.75"), Decimal("0.80")):
-        assert _artifact(
-            matrix=matrix,
-            probabilities=probabilities,
-            percentile=allowed,
-        ).percentile == allowed
+        assert (
+            _artifact(
+                matrix=matrix,
+                probabilities=probabilities,
+                percentile=allowed,
+            ).percentile
+            == allowed
+        )
 
     with pytest.raises(StudyArtifactError, match="preregistered"):
         _artifact(

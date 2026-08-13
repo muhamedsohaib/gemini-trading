@@ -142,10 +142,9 @@ def _regime_eligible(
     if specialist is SpecialistKind.MEAN_REVERSION:
         if regime.state is not RegimeState.RANGING:
             return False
-        return (
-            matrix.value_for(index, "close_zscore_24") <= Decimal("-0.75")
-            or matrix.value_for(index, "drawdown_from_high_24") >= Decimal("0.02")
-        )
+        return matrix.value_for(index, "close_zscore_24") <= Decimal("-0.75") or matrix.value_for(
+            index, "drawdown_from_high_24"
+        ) >= Decimal("0.02")
     raise StudyArtifactError("unsupported specialist for entry selectivity")
 
 

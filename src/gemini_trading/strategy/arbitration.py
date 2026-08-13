@@ -232,10 +232,7 @@ class MultiModelArbiter:
         reasons: list[str] = []
         if active_probability < entry_probability:
             reasons.append("active_probability_below_entry")
-        if (
-            enforce_companion
-            and companion_probability < self.policy.companion_probability_floor
-        ):
+        if enforce_companion and companion_probability < self.policy.companion_probability_floor:
             reasons.append("companion_probability_below_floor")
         if (
             enforce_disagreement

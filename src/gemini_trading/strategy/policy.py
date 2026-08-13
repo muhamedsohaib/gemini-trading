@@ -308,7 +308,6 @@ class CandidatePolicy:
             trend_tolerance=Decimal("0.0000001"),
         )
 
-
     @classmethod
     def locked_v0_3(cls) -> "CandidatePolicy":
         """Return the separately governed Candidate v0.3 policy identity."""

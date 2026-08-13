@@ -189,9 +189,7 @@ def candidate_events(
         if set(entry_thresholds) != required_specialists:
             raise ValueError("entry_thresholds must contain exactly both specialists")
         if any(
-            not threshold.is_finite()
-            or threshold < Decimal("0")
-            or threshold > Decimal("1")
+            not threshold.is_finite() or threshold < Decimal("0") or threshold > Decimal("1")
             for threshold in entry_thresholds.values()
         ):
             raise ValueError("entry thresholds must be finite probabilities")

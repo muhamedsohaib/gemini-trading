@@ -81,9 +81,7 @@ def _candidate(
     volume_ablation: bool = False,
 ) -> tuple[tuple[int, ScheduledAction], ...]:
     thresholds = (
-        _HALF_THRESHOLDS
-        if percentile is None
-        else context.effective_thresholds(percentile)
+        _HALF_THRESHOLDS if percentile is None else context.effective_thresholds(percentile)
     )
     return candidate_events(
         context.bundle,
@@ -301,12 +299,8 @@ def prepare_v0_3_phase(
             policy=replace(policy, cooldown_candles=3),
         ),
     }
-    event_by_case["control.shuffled_labels.seed_1799"] = event_by_case[
-        "control.shuffled_labels.v1"
-    ]
-    event_by_case["control.delayed_features.final"] = event_by_case[
-        "control.delayed_features.v1"
-    ]
+    event_by_case["control.shuffled_labels.seed_1799"] = event_by_case["control.shuffled_labels.v1"]
+    event_by_case["control.delayed_features.final"] = event_by_case["control.delayed_features.v1"]
     event_by_case["bootstrap.seed_1788"] = base_events
     for baseline_id in expected_baselines:
         event_by_case[baseline_id] = baseline_events(

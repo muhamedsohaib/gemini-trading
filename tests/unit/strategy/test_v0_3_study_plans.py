@@ -116,9 +116,9 @@ def test_v0_3_fold_diagnostics_are_canonical_and_non_gating() -> None:
     )
     assert len(first.companion_distribution_sha256) == 64
     assert len(first.disagreement_distribution_sha256) == 64
-    assert cases.serialize_v0_3_fold_diagnostics(
-        first
-    ) == cases.serialize_v0_3_fold_diagnostics(second)
+    assert cases.serialize_v0_3_fold_diagnostics(first) == cases.serialize_v0_3_fold_diagnostics(
+        second
+    )
 
 
 def _simulation() -> SimulationConfig:

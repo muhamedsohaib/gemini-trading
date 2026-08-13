@@ -135,6 +135,7 @@ def test_v0_3_context_reuses_unchanged_verified_bundle_and_builds_six_thresholds
         "fit_verified_prediction_bundle",
         fake_fit_verified_prediction_bundle,
     )
+
     def fake_predict_raw(_model: object, _values: object) -> float:
         return 0.0
 
@@ -223,8 +224,7 @@ def _bundle(
 
 def _candles(max_index: int) -> tuple[Candle, ...]:
     rows = tuple(
-        SimpleNamespace(close=Decimal("100"), low=Decimal("99"))
-        for _ in range(max_index + 1)
+        SimpleNamespace(close=Decimal("100"), low=Decimal("99")) for _ in range(max_index + 1)
     )
     return cast(tuple[Candle, ...], rows)
 

@@ -90,11 +90,7 @@ def test_v0_3_plan_protects_segment_and_fold_boundaries() -> None:
             for decision_index in plan.used_label_indices
         )
         assert all(
-            not (
-                boundary - plan.purge_candles
-                <= decision_index
-                < boundary + plan.embargo_candles
-            )
+            not (boundary - plan.purge_candles <= decision_index < boundary + plan.embargo_candles)
             for decision_index in plan.used_label_indices
         )
 

@@ -46,8 +46,7 @@ class V03PredictionContext:
             for percentile in percentiles
         )
         observed = tuple(
-            (artifact.specialist, artifact.percentile)
-            for artifact in self.threshold_artifacts
+            (artifact.specialist, artifact.percentile) for artifact in self.threshold_artifacts
         )
         if observed != expected:
             raise ValueError("v0.3 threshold artifact inventory or order changed")

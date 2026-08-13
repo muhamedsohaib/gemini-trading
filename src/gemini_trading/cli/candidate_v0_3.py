@@ -7,12 +7,14 @@ from pathlib import Path
 
 from gemini_trading.cli.market_data import CliUsageError
 from gemini_trading.cli.strategy import load_candidate_strategy_config
+from gemini_trading.data.ingestion.service import IngestionService
+from gemini_trading.data.providers.binance_spot import BinanceSpotProvider
 from gemini_trading.data.storage.local_immutable import LocalImmutableStore
+from gemini_trading.domain.dataset import RetrievalRequest
 from gemini_trading.research.dataset_reader import load_verified_dataset
 from gemini_trading.research.replay import resolve_clean_git_commit
 from gemini_trading.safety.execution_mode import load_runtime_policy
 from gemini_trading.strategy.errors import DatasetHandoffError, StudyArtifactError
-from gemini_trading.strategy.handoff import load_dataset_handoff, verify_dataset_handoff
 from gemini_trading.strategy.prospective_seal_v0_3 import V03LocalProspectiveFinalSealStore
 from gemini_trading.strategy.qualification_artifacts_v0_3 import (
     V03LocalQualificationStore,
@@ -25,6 +27,12 @@ from gemini_trading.strategy.qualification_execution_v0_3 import (
 )
 from gemini_trading.strategy.qualification_verification_v0_3 import (
     verify_candidate_v0_3_qualification,
+)
+from gemini_trading.strategy.v0_3_stage1 import (
+    build_v0_3_closure_manifest,
+    create_v0_3_dataset_handoff,
+    load_v0_3_dataset_handoff,
+    verify_v0_3_dataset_handoff,
 )
 
 _V0_3_STRATEGY_ID = "candidate.multi_model.v0_3"
@@ -48,6 +56,14 @@ def _positive_integer(arguments: argparse.Namespace, name: str) -> int:
     if value < 1:
         raise CliUsageError(f"--{name.replace('_', '-')} must be a positive integer")
     return value
+
+
+def _safe_relative(path: Path, root: Path) -> str:
+    resolved_root = root.resolve(strict=False)
+    try:
+        return path.resolve(strict=False).relative_to(resolved_root).as_posix()
+    except ValueError:
+        raise DatasetHandoffError("Candidate v0.3 result path escaped the output root") from None
 
 
 def _qualification_root(handoff_path: Path, output_root: Path) -> Path:
@@ -76,6 +92,61 @@ def _research_only(payload: dict[str, object]) -> dict[str, object]:
     }
 
 
+def _ingest_stage1(arguments: argparse.Namespace) -> dict[str, object]:
+    project_root = Path(_argument(arguments, "project_root")).resolve(strict=False)
+    output_root = Path(_argument(arguments, "output_root")).resolve(strict=False)
+    closure_manifest, closure_bytes = build_v0_3_closure_manifest(project_root)
+    request = RetrievalRequest(
+        instrument=closure_manifest.instrument,
+        timeframe=closure_manifest.timeframe,
+        start_time=closure_manifest.start_time,
+        end_time=closure_manifest.end_time,
+    )
+    store = LocalImmutableStore(output_root)
+    result = IngestionService(
+        provider=BinanceSpotProvider(),
+        raw_store=store,
+        canonical_store=store,
+        closure_manifest=closure_manifest,
+        closure_manifest_bytes=closure_bytes,
+    ).ingest(request)
+    return _research_only(
+        {
+            "status": "completed",
+            "run_id": result.run_id,
+            "dataset_id": result.dataset_id,
+            "raw_page_count": result.raw_page_count,
+            "candle_count": result.candle_count,
+            "paths": {name: _safe_relative(path, output_root) for name, path in result.paths},
+        }
+    )
+
+
+def _handoff_stage1(arguments: argparse.Namespace) -> dict[str, object]:
+    project_root = Path(_argument(arguments, "project_root")).resolve(strict=False)
+    output_root = Path(_argument(arguments, "output_root")).resolve(strict=False)
+    source_commit = _argument(arguments, "source_commit")
+    if resolve_clean_git_commit(project_root) != source_commit:
+        raise DatasetHandoffError("Candidate v0.3 Stage 1 source commit mismatch")
+    manifest, path = create_v0_3_dataset_handoff(
+        project_root=project_root,
+        output_root=output_root,
+        run_id=_argument(arguments, "run_id"),
+        dataset_id=_argument(arguments, "dataset_id"),
+        source_commit=source_commit,
+        workflow_run_id=_positive_integer(arguments, "workflow_run_id"),
+        workflow_run_attempt=_positive_integer(arguments, "workflow_run_attempt"),
+    )
+    return _research_only(
+        {
+            "dataset_id": manifest.dataset_id,
+            "handoff_path": _safe_relative(path, output_root),
+            "inventory_root_sha256": manifest.inventory_root_sha256,
+            "status": "verified",
+        }
+    )
+
+
 def _qualify(arguments: argparse.Namespace) -> dict[str, object]:
     project_root = Path(_argument(arguments, "project_root")).resolve(strict=False)
     output_root = Path(_argument(arguments, "output_root")).resolve(strict=False)
@@ -85,13 +156,14 @@ def _qualify(arguments: argparse.Namespace) -> dict[str, object]:
         raise StudyArtifactError("Candidate v0.3 qualification requires the exact v0.3 config")
     code_commit = resolve_clean_git_commit(project_root)
     try:
-        handoff = load_dataset_handoff(handoff_path.read_bytes())
+        handoff = load_v0_3_dataset_handoff(handoff_path.read_bytes())
     except OSError:
         raise DatasetHandoffError("unable to read dataset handoff") from None
     artifact_root = _qualification_root(handoff_path, output_root)
-    verify_dataset_handoff(
+    verify_v0_3_dataset_handoff(
         handoff,
         artifact_root,
+        project_root=project_root,
         expected_commit=code_commit,
         expected_dataset_id=handoff.dataset_id,
         expected_run_id=handoff.workflow_run_id,
@@ -136,6 +208,7 @@ def _verified_bundle(arguments: argparse.Namespace) -> V03QualificationArtifacts
         output_root,
         qualification_id,
         expected_commit=code_commit,
+        project_root=project_root,
     )
 
 
@@ -183,6 +256,10 @@ def run_candidate_v0_3(arguments: argparse.Namespace) -> dict[str, object]:
 
     load_runtime_policy()
     command = _argument(arguments, "research_command")
+    if command == "dataset-v0-3-ingest":
+        return _ingest_stage1(arguments)
+    if command == "strategy-v0-3-handoff":
+        return _handoff_stage1(arguments)
     if command == "strategy-v0-3-qualify":
         return _qualify(arguments)
     if command == "strategy-v0-3-verify-qualification":

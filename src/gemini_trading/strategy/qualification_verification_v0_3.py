@@ -20,7 +20,6 @@ from gemini_trading.strategy.entry_selectivity import (
 )
 from gemini_trading.strategy.errors import StudyArtifactError
 from gemini_trading.strategy.evaluator import reconstruct_study_strategy
-from gemini_trading.strategy.handoff import load_dataset_handoff, verify_dataset_handoff
 from gemini_trading.strategy.policy import CandidatePolicy, serialize_candidate_policy
 from gemini_trading.strategy.qualification_artifacts_v0_3 import (
     V03QualificationArtifacts,
@@ -41,6 +40,10 @@ from gemini_trading.strategy.qualification_v0_3 import (
     SelectivityReplayReceipt,
 )
 from gemini_trading.strategy.study import StudyCaseEvidence, StudyPhase
+from gemini_trading.strategy.v0_3_stage1 import (
+    load_v0_3_dataset_handoff,
+    verify_v0_3_dataset_handoff,
+)
 
 _CASE_KEYS = {
     "case_id",
@@ -207,6 +210,7 @@ def verify_candidate_v0_3_qualification(
     qualification_id: str,
     *,
     expected_commit: str,
+    project_root: Path,
 ) -> V03QualificationArtifacts:
     """Recompute Stage 1, split, cases, thresholds, bootstrap, and report provider-free."""
 
@@ -245,12 +249,13 @@ def verify_candidate_v0_3_qualification(
         / "dataset-handoff.json"
     )
     try:
-        handoff = load_dataset_handoff(handoff_path.read_bytes())
+        handoff = load_v0_3_dataset_handoff(handoff_path.read_bytes())
     except OSError:
         raise StudyArtifactError("v0.3 qualification Stage 1 handoff is missing") from None
-    verify_dataset_handoff(
+    verify_v0_3_dataset_handoff(
         handoff,
         Path(root),
+        project_root=project_root,
         expected_commit=expected_commit,
         expected_dataset_id=artifacts.context.dataset_id,
         expected_run_id=artifacts.context.dataset_run_id,

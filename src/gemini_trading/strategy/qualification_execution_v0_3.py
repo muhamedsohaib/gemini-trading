@@ -33,7 +33,6 @@ from gemini_trading.strategy.evaluation import (
 )
 from gemini_trading.strategy.evaluator import reconstruct_study_strategy
 from gemini_trading.strategy.features import FeatureRegistry
-from gemini_trading.strategy.handoff import DatasetHandoffManifest
 from gemini_trading.strategy.labels import LabelPolicy
 from gemini_trading.strategy.policy import CandidatePolicy, serialize_candidate_policy
 from gemini_trading.strategy.qualification_execution import (
@@ -60,6 +59,7 @@ from gemini_trading.strategy.v0_3_cases import (
 )
 from gemini_trading.strategy.v0_3_predictions import fit_v0_3_prediction_context
 from gemini_trading.strategy.v0_3_splits import V03DevelopmentQualificationPlan
+from gemini_trading.strategy.v0_3_stage1 import V03DatasetHandoffManifest
 from gemini_trading.strategy.v0_3_study_plans import prepare_v0_3_phase
 
 _ZERO = Decimal("0")
@@ -170,7 +170,7 @@ def _qualification_configuration_bytes(
 def _validate_inputs(
     *,
     dataset: VerifiedDataset,
-    handoff: DatasetHandoffManifest,
+    handoff: V03DatasetHandoffManifest,
     policy: CandidatePolicy,
     code_commit: str,
 ) -> None:
@@ -418,7 +418,7 @@ def _build_qualification_evidence(
 def execute_candidate_v0_3_qualification(
     *,
     dataset: VerifiedDataset,
-    handoff: DatasetHandoffManifest,
+    handoff: V03DatasetHandoffManifest,
     simulation: SimulationConfig,
     initial_cash: Decimal,
     output_root: Path,

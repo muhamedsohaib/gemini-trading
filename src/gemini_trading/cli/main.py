@@ -110,6 +110,12 @@ def build_parser() -> SafeArgumentParser:
     dataset_ingest.add_argument("--project-root", required=True)
     dataset_ingest.add_argument("--output-root", required=True)
 
+    dataset_v0_3_ingest = research_commands.add_parser(
+        "dataset-v0-3-ingest", help="ingest the fixed Candidate v0.3 development dataset"
+    )
+    dataset_v0_3_ingest.add_argument("--project-root", required=True)
+    dataset_v0_3_ingest.add_argument("--output-root", required=True)
+
     dataset_replay = research_commands.add_parser(
         "dataset-replay", help="replay the fixed dataset evidence offline"
     )
@@ -132,6 +138,17 @@ def build_parser() -> SafeArgumentParser:
     handoff.add_argument("--workflow-run-id", required=True)
     handoff.add_argument("--workflow-run-attempt", required=True)
     handoff.add_argument("--output-root", required=True)
+
+    handoff_v0_3 = research_commands.add_parser(
+        "strategy-v0-3-handoff", help="seal one verified Candidate v0.3 Stage 1 handoff"
+    )
+    handoff_v0_3.add_argument("--run-id", required=True)
+    handoff_v0_3.add_argument("--dataset-id", required=True)
+    handoff_v0_3.add_argument("--source-commit", required=True)
+    handoff_v0_3.add_argument("--workflow-run-id", required=True)
+    handoff_v0_3.add_argument("--workflow-run-attempt", required=True)
+    handoff_v0_3.add_argument("--project-root", required=True)
+    handoff_v0_3.add_argument("--output-root", required=True)
 
     prepare = research_commands.add_parser(
         "strategy-prepare", help="prepare development-only Candidate evidence"
@@ -259,6 +276,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "strategy-v0-2-seal-prospective-final",
             }
             candidate_v0_3_commands = {
+                "dataset-v0-3-ingest",
+                "strategy-v0-3-handoff",
                 "strategy-v0-3-qualify",
                 "strategy-v0-3-verify-qualification",
                 "strategy-v0-3-create-prospective-seal",

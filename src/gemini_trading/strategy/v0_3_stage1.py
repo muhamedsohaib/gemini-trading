@@ -293,7 +293,8 @@ class V03DatasetHandoffManifest:
             raise DatasetHandoffError("v0.3 Stage 1 is not verified")
         if not self.files:
             raise DatasetHandoffError("v0.3 Stage 1 artifact inventory is empty")
-        if tuple(item.path for item in self.files) != tuple(sorted(item.path for item in self.files)):
+        paths = tuple(item.path for item in self.files)
+        if paths != tuple(sorted(paths)):
             raise DatasetHandoffError("v0.3 Stage 1 artifact inventory is not sorted")
         if len({item.path for item in self.files}) != len(self.files):
             raise DatasetHandoffError("duplicate v0.3 Stage 1 artifact path")
@@ -388,9 +389,12 @@ def _integer(mapping: dict[str, object], key: str) -> int:
 
 def _strings(mapping: dict[str, object], key: str) -> tuple[str, ...]:
     value = mapping.get(key)
-    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+    if not isinstance(value, list):
         raise DatasetHandoffError(f"invalid v0.3 Stage 1 field: {key}")
-    return tuple(cast(list[str], value))
+    raw = cast(list[object], value)
+    if not all(isinstance(item, str) for item in raw):
+        raise DatasetHandoffError(f"invalid v0.3 Stage 1 field: {key}")
+    return tuple(cast(list[str], raw))
 
 
 def _integers(mapping: dict[str, object], key: str) -> tuple[int, ...]:
@@ -483,14 +487,7 @@ def load_v0_3_dataset_handoff(raw: bytes) -> V03DatasetHandoffManifest:
 
 
 def _handoff_path(output_root: Path, dataset_id: str) -> Path:
-    return (
-        output_root
-        / "data"
-        / "historical-validation"
-        / "handoff"
-        / dataset_id
-        / _HANDOFF_NAME
-    )
+    return output_root / "data" / "historical-validation" / "handoff" / dataset_id / _HANDOFF_NAME
 
 
 def create_v0_3_dataset_handoff(
@@ -663,12 +660,12 @@ def verify_v0_3_dataset_handoff(
 
 
 __all__ = [
-    "V03DatasetHandoffManifest",
     "V03_EXPECTED_CANDLE_COUNT",
     "V03_EXPECTED_FIRST_OPEN_TIME",
     "V03_EXPECTED_LAST_OPEN_TIME",
     "V03_STAGE1_END_EXCLUSIVE",
     "V03_STAGE1_START",
+    "V03DatasetHandoffManifest",
     "assert_v0_3_dataset_identity",
     "build_v0_3_closure_manifest",
     "create_v0_3_dataset_handoff",

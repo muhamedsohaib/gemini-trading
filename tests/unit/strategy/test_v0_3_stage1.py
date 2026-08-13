@@ -34,8 +34,8 @@ def test_v0_3_stage1_window_extends_to_august_cutoff_without_changing_closures()
     base, base_raw = load_fixed_btcusdt_closure_manifest(project_root)
     manifest, raw = stage1.build_v0_3_closure_manifest(project_root)
 
-    assert stage1.V03_STAGE1_START == datetime(2018, 1, 1, tzinfo=UTC)
-    assert stage1.V03_STAGE1_END_EXCLUSIVE == datetime(2026, 8, 1, tzinfo=UTC)
+    assert datetime(2018, 1, 1, tzinfo=UTC) == stage1.V03_STAGE1_START
+    assert datetime(2026, 8, 1, tzinfo=UTC) == stage1.V03_STAGE1_END_EXCLUSIVE
     assert stage1.V03_EXPECTED_CANDLE_COUNT == 18_768
     assert stage1.V03_EXPECTED_LAST_OPEN_TIME == "2026-07-31T20:00:00Z"
     assert manifest.start_time == base.start_time

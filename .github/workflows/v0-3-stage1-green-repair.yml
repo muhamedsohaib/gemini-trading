@@ -25,6 +25,15 @@ jobs:
       - run: uv sync --all-groups --frozen
       - run: python .github/scripts/fix_v03_stage1_repair_anchor.py
       - run: python .github/scripts/repair_v03_stage1.py
+      - name: Apply safe Ruff fixes
+        run: |
+          uv run ruff check --fix \
+            src/gemini_trading/cli/main.py \
+            src/gemini_trading/cli/candidate_v0_3.py \
+            src/gemini_trading/strategy/v0_3_stage1.py \
+            src/gemini_trading/strategy/qualification_execution_v0_3.py \
+            src/gemini_trading/strategy/qualification_verification_v0_3.py \
+            tests/unit/strategy/test_v0_3_stage1.py
       - name: Format changed Python files
         run: |
           uv run ruff format \

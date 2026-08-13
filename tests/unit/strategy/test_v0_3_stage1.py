@@ -4,11 +4,22 @@ from __future__ import annotations
 
 import importlib
 import importlib.util
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
+
 from gemini_trading.cli.main import build_parser
 from gemini_trading.data.exchange_closures import load_fixed_btcusdt_closure_manifest
+from gemini_trading.strategy.errors import DatasetHandoffError
+from gemini_trading.strategy.handoff import ArtifactInventoryEntry, inventory_root_sha256
+from gemini_trading.strategy.sealed_dataset_identity import (
+    EXPECTED_BOUNDARIES,
+    EXPECTED_CLOSURE_IDS,
+    EXPECTED_COUNTS,
+    EXPECTED_EXCLUDED_PROVIDER_ROWS,
+)
 
 
 def _stage1_module():
@@ -31,6 +42,54 @@ def test_v0_3_stage1_window_extends_to_august_cutoff_without_changing_closures()
     assert manifest.end_time == stage1.V03_STAGE1_END_EXCLUSIVE
     assert manifest.closures == base.closures
     assert raw != base_raw
+
+
+def test_v0_3_stage1_handoff_is_canonical_and_rejects_legacy_cutoff() -> None:
+    stage1 = _stage1_module()
+    files = (ArtifactInventoryEntry(path="data/example", size_bytes=1, sha256="a" * 64),)
+    manifest = stage1.V03DatasetHandoffManifest(
+        schema_version="candidate-v0.3-dataset-handoff-v1",
+        repository="muhamedsohaib/gemini-trading",
+        source_commit="b" * 40,
+        workflow_name="candidate-v0.3-stage1",
+        workflow_run_id=100,
+        workflow_run_attempt=1,
+        job_name="dataset",
+        provider="binance_spot",
+        symbol="BTCUSDT",
+        base_asset="BTC",
+        quote_asset="USDT",
+        interval="4h",
+        start="2018-01-01T00:00:00Z",
+        end_exclusive="2026-08-01T00:00:00Z",
+        run_id="run-1",
+        dataset_id="c" * 64,
+        dataset_schema_version="candle-dataset-v4",
+        closure_manifest_path="data/closure.json",
+        closure_manifest_sha256="d" * 64,
+        exclusion_manifest_path="data/exclusion.json",
+        exclusion_manifest_sha256="e" * 64,
+        segment_manifest_path="data/segments.json",
+        segment_manifest_sha256="f" * 64,
+        closure_count=EXPECTED_COUNTS[0],
+        exclusion_count=EXPECTED_COUNTS[1],
+        segment_count=EXPECTED_COUNTS[2],
+        closure_ids=EXPECTED_CLOSURE_IDS,
+        excluded_provider_rows=EXPECTED_EXCLUDED_PROVIDER_ROWS,
+        segment_boundary_indices=EXPECTED_BOUNDARIES,
+        candle_count=18_768,
+        first_open_time="2018-01-01T00:00:00Z",
+        last_open_time="2026-07-31T20:00:00Z",
+        replay_status="completed",
+        verification_status="verified",
+        files=files,
+        inventory_root_sha256=inventory_root_sha256(files),
+    )
+    raw = stage1.serialize_v0_3_dataset_handoff(manifest)
+    assert stage1.load_v0_3_dataset_handoff(raw) == manifest
+
+    with pytest.raises(DatasetHandoffError, match="historical window"):
+        replace(manifest, end_exclusive="2026-07-01T00:00:00Z")
 
 
 def test_v0_3_stage1_commands_are_registered_without_changing_legacy_commands() -> None:

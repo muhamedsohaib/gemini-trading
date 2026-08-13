@@ -7,6 +7,8 @@ from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any, cast
 
+from pytest import MonkeyPatch
+
 from gemini_trading.research.config import SimulationConfig
 from gemini_trading.research.dataset_reader import VerifiedDataset
 from gemini_trading.strategy.baselines import BaselineAction, BaselineSchedule
@@ -151,18 +153,23 @@ def _baseline_schedules() -> dict[str, BaselineSchedule]:
 
 
 def test_prepare_v0_3_phase_uses_q75_primary_q70_q80_neighbors_and_half_floor_ablation(
-    monkeypatch,
+    monkeypatch: MonkeyPatch,
 ) -> None:
     cases, plans_module = _modules()
     calls: list[dict[str, object]] = []
 
-    def fake_candidate_events(_bundle, **kwargs):
+    def fake_candidate_events(
+        _bundle: object, **kwargs: object
+    ) -> tuple[tuple[int, ScheduledAction], ...]:
         calls.append(dict(kwargs))
         return ((0, ScheduledAction.ENTER_LONG), (1, ScheduledAction.EXIT_TO_CASH))
 
+    def no_events(*_args: object, **_kwargs: object) -> tuple[tuple[int, ScheduledAction], ...]:
+        return ()
+
     monkeypatch.setattr(plans_module, "candidate_events", fake_candidate_events)
-    monkeypatch.setattr(plans_module, "threshold_events", lambda *_args, **_kwargs: ())
-    monkeypatch.setattr(plans_module, "baseline_events", lambda *_args, **_kwargs: ())
+    monkeypatch.setattr(plans_module, "threshold_events", no_events)
+    monkeypatch.setattr(plans_module, "baseline_events", no_events)
 
     class FakeContext:
         bundle = SimpleNamespace(

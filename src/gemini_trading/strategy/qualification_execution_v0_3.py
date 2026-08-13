@@ -148,7 +148,9 @@ def _validate_inputs(
     if handoff.source_commit != code_commit:
         raise StudyArtifactError("v0.3 qualification source commit does not match Stage 1 handoff")
     if handoff.dataset_id != dataset.manifest.dataset_id:
-        raise StudyArtifactError("v0.3 qualification dataset identity does not match Stage 1 handoff")
+        raise StudyArtifactError(
+            "v0.3 qualification dataset identity does not match Stage 1 handoff"
+        )
     if dataset.manifest.schema_version != "candle-dataset-v4":
         raise StudyArtifactError("v0.3 qualification requires candle-dataset-v4 evidence")
     if dataset.segment_manifest is None:
@@ -206,9 +208,7 @@ def _case_period_returns(
     case_id: str,
 ) -> tuple[Decimal, ...]:
     return tuple(
-        value
-        for fold in plan.folds
-        for value in _fold_oos_returns(executor, fold, case_id)
+        value for fold in plan.folds for value in _fold_oos_returns(executor, fold, case_id)
     )
 
 

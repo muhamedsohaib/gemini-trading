@@ -86,10 +86,7 @@ def _context_payload(context: V03QualificationArtifactContext) -> dict[str, obje
 
 
 def _inventory_payload(files: tuple[tuple[str, bytes], ...]) -> list[dict[str, object]]:
-    return [
-        {"name": name, "sha256": _sha(raw), "size": len(raw)}
-        for name, raw in sorted(files)
-    ]
+    return [{"name": name, "sha256": _sha(raw), "size": len(raw)} for name, raw in sorted(files)]
 
 
 def _inventory_root(files: tuple[tuple[str, bytes], ...]) -> str:
@@ -174,8 +171,14 @@ def build_v0_3_qualification_artifacts(
                 ),
                 (_DEVELOPMENT_PLAN, run.development_plan_bytes),
                 (_SELECTIVITY, run.selectivity_policy_bytes),
-                (_THRESHOLDS, canonical_jsonl_bytes(asdict(item) for item in run.threshold_artifacts)),
-                (_DIAGNOSTICS, canonical_jsonl_bytes(asdict(item) for item in run.fold_diagnostics)),
+                (
+                    _THRESHOLDS,
+                    canonical_jsonl_bytes(asdict(item) for item in run.threshold_artifacts),
+                ),
+                (
+                    _DIAGNOSTICS,
+                    canonical_jsonl_bytes(asdict(item) for item in run.fold_diagnostics),
+                ),
                 (
                     "qualification-gates.jsonl",
                     canonical_jsonl_bytes(asdict(item) for item in run.report.gates),
@@ -342,7 +345,9 @@ def parse_fold_diagnostics(raw: bytes) -> tuple[V03FoldDiagnostics, ...]:
                         for value in cast(list[object], item["absolute_disagreements"])
                     ),
                     companion_distribution_sha256=cast(str, item["companion_distribution_sha256"]),
-                    disagreement_distribution_sha256=cast(str, item["disagreement_distribution_sha256"]),
+                    disagreement_distribution_sha256=cast(
+                        str, item["disagreement_distribution_sha256"]
+                    ),
                 )
             )
         except (KeyError, ValueError, InvalidOperation, TypeError):
@@ -362,7 +367,10 @@ def verify_v0_3_qualification_artifacts(
     except OSError:
         raise StudyArtifactError("v0.3 qualification artifact result is missing") from None
     result = _load_json(result_raw, "result")
-    if result.get("schema_version") != _SCHEMA or result.get("qualification_id") != qualification_id:
+    if (
+        result.get("schema_version") != _SCHEMA
+        or result.get("qualification_id") != qualification_id
+    ):
         raise StudyArtifactError("v0.3 qualification artifact result identity changed")
     inventory = result.get("artifacts")
     if not isinstance(inventory, list):

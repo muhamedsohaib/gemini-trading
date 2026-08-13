@@ -129,7 +129,9 @@ def _case_records(raw: bytes) -> tuple[StudyCaseEvidence, ...]:
         except (KeyError, ValueError, TypeError):
             raise StudyArtifactError("v0.3 qualification case evidence is invalid") from None
         if record.phase is not StudyPhase.DEVELOPMENT or record.terminal_status != "completed":
-            raise StudyArtifactError("v0.3 qualification case is not completed development evidence")
+            raise StudyArtifactError(
+                "v0.3 qualification case is not completed development evidence"
+            )
         records.append(record)
     expected_cases = qualification_case_ids(CandidatePolicy.locked_v0_3())
     expected = {(fold, case_id) for fold in range(1, 13) for case_id in expected_cases}
@@ -249,7 +251,9 @@ def verify_candidate_v0_3_qualification(
             or result.result_id != record.evidence_sha256
             or result.terminal_status != "completed"
         ):
-            raise StudyArtifactError("v0.3 qualification referenced experiment verification changed")
+            raise StudyArtifactError(
+                "v0.3 qualification referenced experiment verification changed"
+            )
     return artifacts
 
 

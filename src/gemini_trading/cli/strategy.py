@@ -54,6 +54,7 @@ _SCHEMA_VERSION = "candidate-strategy-cli-v1"
 _APPROVED_POLICY_BY_STRATEGY = {
     "candidate.multi_model.v0_1": "candidate-multi-model-v0.1",
     "candidate.multi_model.v0_2": "candidate-multi-model-v0.2",
+    "candidate.multi_model.v0_3": "candidate-multi-model-v0.3",
 }
 
 

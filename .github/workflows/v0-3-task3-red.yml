@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   apply:
-    if: "${{ github.event.head_commit.message == 'chore: dispatch v0.3 task3 implementation' }}"
+    if: "${{ github.event.head_commit.message == 'chore: dispatch v0.3 task3 implementation retry' }}"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2
@@ -34,7 +34,7 @@ jobs:
           text = path.read_text(encoding='utf-8')
 
           marker = '''@dataclass(frozen=True, slots=True)\nclass MultiModelArbiter:\n'''
-          overlay = '''@dataclass(frozen=True, slots=True)\nclass ArbitrationOverlay:\n    """Optional v0.3 entry-only arbitration controls."""\n\n    entry_probability_threshold: Decimal | None = None\n    enforce_companion_probability: bool = True\n    enforce_disagreement: bool = True\n\n    def __post_init__(self) -> None:\n        if self.entry_probability_threshold is not None:\n            _probability(\n                self.entry_probability_threshold,\n                "entry_probability_threshold",\n            )\n        if not isinstance(self.enforce_companion_probability, bool):\n            raise ValueError("enforce_companion_probability must be bool")\n        if not isinstance(self.enforce_disagreement, bool):\n            raise ValueError("enforce_disagreement must be bool")\n\n\n@dataclass(frozen=True, slots=True)\nclass MultiModelArbiter:\n'''
+          overlay = '''@dataclass(frozen=True, slots=True)\nclass ArbitrationOverlay:\n    """Optional v0.3 entry-only arbitration controls."""\n\n    entry_probability_threshold: Decimal | None = None\n    enforce_companion_probability: bool = True\n    enforce_disagreement: bool = True\n\n    def __post_init__(self) -> None:\n        if self.entry_probability_threshold is not None:\n            _probability(\n                self.entry_probability_threshold,\n                "entry_probability_threshold",\n            )\n\n\n@dataclass(frozen=True, slots=True)\nclass MultiModelArbiter:\n'''
           if marker not in text:
               raise SystemExit('arbiter class marker missing')
           text = text.replace(marker, overlay, 1)

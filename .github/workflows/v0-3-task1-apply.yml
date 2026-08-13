@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   apply:
-    if: github.event.head_commit.message == 'chore: dispatch v0.3 task1 implementation'
+    if: "${{ github.event.head_commit.message == 'chore: dispatch v0.3 task1 implementation retry' }}"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2

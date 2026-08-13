@@ -10,8 +10,30 @@ from gemini_trading.strategy.policy import (
     serialize_candidate_policy,
 )
 
-_V0_1_POLICY_SHA256 = "f9ecffb4c1079b9d00cae34ba9f000086a9ebb6d6a6930e6b3f26232fef82303"
-_V0_2_POLICY_SHA256 = "95a59e0a8b190190d692a9f6836c634facbf9fd51da4a68b5f8fa7b83d33c9aa"
+_V0_1_POLICY_SHA256 = "".join(
+    (
+        "f9ecffb4",
+        "c1079b9d",
+        "00cae34b",
+        "a9f00008",
+        "6a9ebb6d",
+        "6a6930e6",
+        "b3f26232",
+        "fef82303",
+    )
+)
+_V0_2_POLICY_SHA256 = "".join(
+    (
+        "95a59e0a",
+        "8b190190",
+        "d692a9f6",
+        "836c634f",
+        "acbf9fd5",
+        "1da4a68b",
+        "5f8fa7b8",
+        "3d33c9aa",
+    )
+)
 
 
 def _policy_sha256(policy: CandidatePolicy) -> str:

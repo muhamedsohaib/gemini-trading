@@ -183,7 +183,8 @@ jobs:
         run: |
           rm -rf "${BUNDLE_ROOT}"
           mkdir -p "${BUNDLE_ROOT}/data/historical-validation"
-          cp -a "${OUTPUT_ROOT}/data/market-data" "${BUNDLE_ROOT}/data/market-data"
+          cp -a "${OUTPUT_ROOT}/data/raw" "${BUNDLE_ROOT}/data/raw"
+          cp -a "${OUTPUT_ROOT}/data/canonical" "${BUNDLE_ROOT}/data/canonical"
           cp -a "${OUTPUT_ROOT}/data/research" "${BUNDLE_ROOT}/data/research"
           mkdir -p "${BUNDLE_ROOT}/data/historical-validation/handoff"
           cp -a \

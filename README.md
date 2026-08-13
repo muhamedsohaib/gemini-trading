@@ -120,6 +120,31 @@ See:
 - `docs/operations/candidate-multi-model-strategy-v0-2.md` for exact Stage 1, qualification, verification, and seal operations.
 - `docs/operations/candidate-multi-model-strategy-v0-2-step-verification.md` for exact-head, merged-main, Stage 1, qualification, and pre-final closure requirements.
 
+## Candidate Multi-Model Strategy v0.3
+
+Candidate v0.3 is the separately governed calibrated-arbitration successor to terminally rejected v0.2. It preserves the validated specialist, feature, label, regime, simulator, cost, risk, chronology, replay, and evidence contracts while replacing the sparse fixed entry veto stack with calibration-only fold-local selectivity.
+
+The locked development window is `[2018-01-01T00:00:00Z, 2026-08-01T00:00:00Z)`. The primary entry-selectivity rule is q75 with a `0.50` effective floor and at least 40 eligible calibration scores; q70 and q80 are preregistered sensitivity neighbors. Companion probability and cross-specialist disagreement are diagnostics rather than entry vetoes. Any post-evidence redesign becomes Candidate v0.4.
+
+Research-only v0.3 command surface:
+
+```text
+gemini-trading research strategy-v0-3-qualify
+gemini-trading research strategy-v0-3-verify-qualification
+gemini-trading research strategy-v0-3-create-prospective-seal
+```
+
+The manually dispatched Candidate v0.3 qualification workflow requires an exact merged-main source, a fresh Stage 1 dataset, and an owner-authored Issue #69 approval marker. Qualification and verification do not automatically create a seal. A future-window seal is possible only from independently verified `QUALIFIED` evidence and contains no market rows or performance results.
+
+Candidate v0.3 remains `RESEARCH_ONLY`; no execution or capital authority is introduced.
+
+See:
+
+- `docs/superpowers/specs/2026-08-12-candidate-multi-model-strategy-v0-3-design.md` for the approved design.
+- `docs/superpowers/plans/2026-08-12-candidate-multi-model-strategy-v0-3.md` for the implementation plan.
+- `docs/operations/candidate-multi-model-strategy-v0-3.md` for the protected Stage 1, qualification, verification, and seal protocol.
+- `docs/operations/candidate-multi-model-strategy-v0-3-step-verification.md` for exact-head, merged-main, Stage 1, qualification, and pre-final closure requirements.
+
 ## Safety
 
 The current package fails closed when configured for demo, live, production, or an unknown mode. Historical prototype code is preserved under `legacy/prototype_v0/` and is not supported for execution.

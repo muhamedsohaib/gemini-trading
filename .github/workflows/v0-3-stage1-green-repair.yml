@@ -71,16 +71,17 @@ jobs:
             tests/acceptance/test_candidate_v0_3_workflow.py \
             tests/unit/cli/test_historical_validation.py \
             -q
-      - name: Commit verified repair and remove temporary files
+      - name: Commit verified Stage 1 code only
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm -f \
-            .github/workflows/v0-3-stage1-red.yml \
-            .github/workflows/v0-3-stage1-green-repair.yml \
-            .github/scripts/repair_v03_stage1.py \
-            .github/scripts/fix_v03_stage1_repair_anchor.py
-          git add -A
+          git add \
+            src/gemini_trading/cli/main.py \
+            src/gemini_trading/cli/candidate_v0_3.py \
+            src/gemini_trading/strategy/v0_3_stage1.py \
+            src/gemini_trading/strategy/qualification_execution_v0_3.py \
+            src/gemini_trading/strategy/qualification_verification_v0_3.py \
+            tests/unit/strategy/test_v0_3_stage1.py
           git diff --cached --quiet && exit 1
           git commit -m "fix: isolate Candidate v0.3 Stage 1 dataset"
           git push origin HEAD:research/candidate-v0-3-calibrated-arbitration

@@ -157,6 +157,16 @@ def test_v0_3_artifacts_reject_threshold_tampering(tmp_path: Path) -> None:
         verify_v0_3_qualification_artifacts(tmp_path, artifacts.qualification_id)
 
 
+def test_v0_3_artifacts_reject_noncanonical_result_tampering(tmp_path: Path) -> None:
+    artifacts = build_v0_3_qualification_artifacts(_run(), _context())
+    store = V03LocalQualificationStore(tmp_path)
+    store.write(artifacts)
+    target = store.directory(artifacts.qualification_id) / "qualification-result.json"
+    target.write_bytes(target.read_bytes() + b" ")
+    with pytest.raises(StudyArtifactError, match="result canonical bytes changed"):
+        verify_v0_3_qualification_artifacts(tmp_path, artifacts.qualification_id)
+
+
 def test_v0_3_qualification_id_changes_with_selectivity_bytes() -> None:
     first = build_v0_3_qualification_artifacts(_run(), _context())
     changed_bytes = canonical_json_bytes({"primary_percentile": "0.80"})

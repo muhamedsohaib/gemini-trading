@@ -9,8 +9,8 @@ permissions:
   contents: read
 
 jobs:
-  verify-red:
-    if: "${{ github.event.head_commit.message == 'test: verify RED v0.3 entry selectivity behavior' }}"
+  verify-green:
+    if: "${{ github.event.head_commit.message == 'test: verify GREEN v0.3 entry selectivity behavior' }}"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2
@@ -23,12 +23,8 @@ jobs:
         with:
           python-version: '3.12'
       - run: uv sync --all-groups --frozen
-      - name: Verify expected behavior RED
+      - name: Verify focused GREEN
         run: |
-          set +e
-          uv run pytest -q tests/unit/strategy/test_entry_selectivity.py > /tmp/red.txt 2>&1
-          status=$?
-          set -e
-          cat /tmp/red.txt
-          test "$status" -ne 0
-          grep -F "entry_selectivity must define EntrySelectivityPolicy" /tmp/red.txt
+          uv run pytest -q tests/unit/strategy/test_entry_selectivity.py
+          uv run ruff check src/gemini_trading/strategy/entry_selectivity.py tests/unit/strategy/test_entry_selectivity.py
+          uv run pyright src/gemini_trading/strategy/entry_selectivity.py tests/unit/strategy/test_entry_selectivity.py

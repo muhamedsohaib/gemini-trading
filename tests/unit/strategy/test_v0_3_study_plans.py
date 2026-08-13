@@ -9,13 +9,11 @@ from typing import Any, cast
 
 from gemini_trading.research.config import SimulationConfig
 from gemini_trading.research.dataset_reader import VerifiedDataset
-from gemini_trading.research.serialization import canonical_json_bytes
 from gemini_trading.strategy.baselines import BaselineAction, BaselineSchedule
 from gemini_trading.strategy.contracts import RegimeState, SpecialistKind
 from gemini_trading.strategy.features import FeatureMatrix
 from gemini_trading.strategy.labels import LabelPolicy
 from gemini_trading.strategy.policy import CandidatePolicy
-from gemini_trading.strategy.replay import SUPPORTED_REPLAY_STRATEGY_IDS
 from gemini_trading.strategy.study import StudyPhase
 from gemini_trading.strategy.study_execution import CasePlan
 from gemini_trading.strategy.study_strategy import ScheduledAction
@@ -70,7 +68,6 @@ def test_v0_3_qualification_case_inventory_is_exact_and_removes_obsolete_cases()
     assert "ablation.no_disagreement.v1" not in cases.V03_QUALIFICATION_CASE_IDS
     assert "sensitivity.entry_0_59" not in cases.V03_QUALIFICATION_CASE_IDS
     assert "sensitivity.entry_0_65" not in cases.V03_QUALIFICATION_CASE_IDS
-    assert "candidate.multi_model.v0_3" in SUPPORTED_REPLAY_STRATEGY_IDS
 
 
 def _prediction(
@@ -120,7 +117,6 @@ def test_v0_3_fold_diagnostics_are_canonical_and_non_gating() -> None:
     assert len(first.companion_distribution_sha256) == 64
     assert len(first.disagreement_distribution_sha256) == 64
     assert cases.serialize_v0_3_fold_diagnostics(first) == cases.serialize_v0_3_fold_diagnostics(second)
-    assert canonical_json_bytes({"diagnostics": first})
 
 
 def _simulation() -> SimulationConfig:

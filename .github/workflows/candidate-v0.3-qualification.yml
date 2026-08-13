@@ -36,7 +36,7 @@ jobs:
     env:
       GEMINI_TRADING_MODE: research
       OUTPUT_ROOT: /tmp/candidate-v0-3-output
-      BUNDLE_ROOT: /tmp/candidate-v0-3-bundle
+      BUNDLE_ROOT: /tmp/candidate-v0.3-bundle
       SOURCE_COMMIT: ${{ inputs.source_commit }}
       DATASET_RUN_ID: ${{ inputs.dataset_run_id }}
       DATASET_ID: ${{ inputs.dataset_id }}
@@ -191,7 +191,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: candidate-v0.3-qualification-${{ github.run_id }}
-          path: /tmp/candidate-v0-3-bundle/
+          path: /tmp/candidate-v0.3-bundle/
           if-no-files-found: error
           retention-days: 90
           compression-level: 6

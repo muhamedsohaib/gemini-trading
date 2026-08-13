@@ -18,7 +18,6 @@ from gemini_trading.strategy.calibration_evidence import (
     build_calibration_diagnostics,
     calibration_evidence_complete,
 )
-from gemini_trading.strategy.contracts import SpecialistKind
 from gemini_trading.strategy.determinism import TrendDeterminismReceipt
 from gemini_trading.strategy.entry_selectivity import (
     EntrySelectivityPolicy,
@@ -47,6 +46,7 @@ from gemini_trading.strategy.qualification_v0_3 import (
     V03QualificationReport,
     evaluate_v0_3_development_qualification,
 )
+from gemini_trading.strategy.splits import WalkForwardFold
 from gemini_trading.strategy.study import StudyCaseEvidence, StudyPhase
 from gemini_trading.strategy.study_execution import (
     StudyExecutor,
@@ -174,11 +174,11 @@ def _positive_profit(executor: StudyExecutor, key: tuple[StudyPhase, int | None,
 
 def _fold_oos_returns(
     executor: StudyExecutor,
-    fold: object,
+    fold: WalkForwardFold,
     case_id: str,
 ) -> tuple[Decimal, ...]:
-    fold_number = getattr(fold, "fold_number")
-    development_test = getattr(fold, "development_test")
+    fold_number = fold.fold_number
+    development_test = fold.development_test
     key = (StudyPhase.DEVELOPMENT, fold_number, case_id)
     evidence = executor.evidence[key]
     plan = executor.plans[key]

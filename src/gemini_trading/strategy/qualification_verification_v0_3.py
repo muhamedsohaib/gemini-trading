@@ -11,6 +11,7 @@ from typing import cast
 
 from gemini_trading.research.serialization import canonical_json_bytes
 from gemini_trading.research.verification import ResearchVerificationService
+from gemini_trading.strategy.contracts import SpecialistKind
 from gemini_trading.strategy.entry_selectivity import (
     EntrySelectivityPolicy,
     EntryThresholdArtifact,
@@ -28,8 +29,8 @@ from gemini_trading.strategy.qualification_artifacts_v0_3 import (
 )
 from gemini_trading.strategy.qualification_execution_v0_3 import qualification_case_ids
 from gemini_trading.strategy.qualification_v0_3 import (
-    SelectivityReplayReceipt,
     V03_QUALIFICATION_GATE_IDS,
+    SelectivityReplayReceipt,
 )
 from gemini_trading.strategy.study import StudyCaseEvidence, StudyPhase
 

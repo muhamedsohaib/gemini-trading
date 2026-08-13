@@ -9,7 +9,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import cast
 
-from gemini_trading.research.serialization import canonical_json_bytes
+from gemini_trading.research.serialization import canonical_json_bytes, canonical_jsonl_bytes
 from gemini_trading.research.verification import ResearchVerificationService
 from gemini_trading.strategy.contracts import SpecialistKind
 from gemini_trading.strategy.entry_selectivity import (
@@ -28,6 +28,9 @@ from gemini_trading.strategy.qualification_artifacts_v0_3 import (
     verify_v0_3_qualification_artifacts,
 )
 from gemini_trading.strategy.qualification_execution_v0_3 import qualification_case_ids
+from gemini_trading.strategy.qualification_replay_v0_3 import (
+    replay_candidate_v0_3_qualification,
+)
 from gemini_trading.strategy.qualification_v0_3 import (
     V03_QUALIFICATION_GATE_IDS,
     SelectivityReplayReceipt,
@@ -169,7 +172,9 @@ def _verify_locked_identities(mapping: dict[str, bytes]) -> None:
         raise StudyArtifactError("v0.3 qualification selectivity identity is not bound")
 
 
-def _verify_report(mapping: dict[str, bytes], artifacts: V03QualificationArtifacts) -> None:
+def _verify_report_inventory(
+    mapping: dict[str, bytes], artifacts: V03QualificationArtifacts
+) -> None:
     try:
         report_obj: object = json.loads(mapping["qualification-report.json"])
     except json.JSONDecodeError:
@@ -190,7 +195,7 @@ def verify_candidate_v0_3_qualification(
     *,
     expected_commit: str,
 ) -> V03QualificationArtifacts:
-    """Verify Stage 1, portable v0.3 evidence, thresholds, and every experiment offline."""
+    """Recompute Stage 1, split, cases, thresholds, bootstrap, and report provider-free."""
 
     artifacts = verify_v0_3_qualification_artifacts(root, qualification_id)
     if artifacts.context.code_commit != expected_commit:
@@ -210,12 +215,13 @@ def verify_candidate_v0_3_qualification(
     }
     if len(thresholds) != 72 or observed_threshold_keys != expected_threshold_keys:
         raise StudyArtifactError("v0.3 qualification threshold inventory is incomplete")
-    if not all(replay_entry_threshold_artifact(item).exact_match for item in thresholds):
+    threshold_receipts = tuple(replay_entry_threshold_artifact(item) for item in thresholds)
+    if not all(item.exact_match for item in threshold_receipts):
         raise StudyArtifactError("v0.3 qualification threshold replay mismatch")
     diagnostics = parse_fold_diagnostics(mapping["fold-diagnostics.jsonl"])
     if tuple(item.fold_number for item in diagnostics) != tuple(range(1, 13)):
         raise StudyArtifactError("v0.3 qualification fold diagnostic inventory is incomplete")
-    _verify_report(mapping, artifacts)
+    _verify_report_inventory(mapping, artifacts)
 
     handoff_path = (
         Path(root)
@@ -255,6 +261,31 @@ def verify_candidate_v0_3_qualification(
             raise StudyArtifactError(
                 "v0.3 qualification referenced experiment verification changed"
             )
+
+    replay = replay_candidate_v0_3_qualification(
+        root=Path(root),
+        dataset_id=artifacts.context.dataset_id,
+        records=records,
+        threshold_receipts=threshold_receipts,
+        artifact_files=mapping,
+    )
+    if replay.development_plan_bytes != mapping["development-plan.json"]:
+        raise StudyArtifactError("v0.3 qualification development split replay mismatch")
+    if canonical_json_bytes(asdict(replay.bootstrap)) != mapping["bootstrap.json"]:
+        raise StudyArtifactError("v0.3 qualification bootstrap replay mismatch")
+    expected_gates = canonical_jsonl_bytes(asdict(item) for item in replay.report.gates)
+    if expected_gates != mapping["qualification-gates.jsonl"]:
+        raise StudyArtifactError("v0.3 qualification gate replay mismatch")
+    expected_report = canonical_json_bytes(
+        {
+            "classification": replay.report.classification.value,
+            "gate_ids": tuple(item.gate_id for item in replay.report.gates),
+        }
+    )
+    if expected_report != mapping["qualification-report.json"]:
+        raise StudyArtifactError("v0.3 qualification report replay mismatch")
+    if replay.report.classification is not artifacts.classification:
+        raise StudyArtifactError("v0.3 qualification replay classification changed")
     return artifacts
 
 

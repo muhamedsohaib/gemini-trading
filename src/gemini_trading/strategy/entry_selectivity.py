@@ -44,7 +44,7 @@ class EntrySelectivityPolicy:
             raise ValueError("minimum eligible scores must be positive")
 
     @classmethod
-    def locked_v0_3(cls) -> "EntrySelectivityPolicy":
+    def locked_v0_3(cls) -> EntrySelectivityPolicy:
         """Return the preregistered Candidate v0.3 entry-selectivity contract."""
 
         return cls(

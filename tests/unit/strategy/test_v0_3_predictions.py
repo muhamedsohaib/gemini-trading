@@ -135,8 +135,14 @@ def test_v0_3_context_reuses_unchanged_verified_bundle_and_builds_six_thresholds
         "fit_verified_prediction_bundle",
         fake_fit_verified_prediction_bundle,
     )
-    monkeypatch.setattr(module, "predict_raw", lambda *_args, **_kwargs: 0.0)
-    monkeypatch.setattr(module, "apply_platt", lambda *_args, **_kwargs: Decimal("0.60"))
+    def fake_predict_raw(_model: object, _values: object) -> float:
+        return 0.0
+
+    def fake_apply_platt(_platt: object, _score: float) -> Decimal:
+        return Decimal("0.60")
+
+    monkeypatch.setattr(module, "predict_raw", fake_predict_raw)
+    monkeypatch.setattr(module, "apply_platt", fake_apply_platt)
 
     kwargs = {
         "phase": StudyPhase.DEVELOPMENT,

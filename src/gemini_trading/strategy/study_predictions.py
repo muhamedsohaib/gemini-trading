@@ -8,7 +8,11 @@ from decimal import Decimal
 from typing import cast
 
 from gemini_trading.domain.candle import Candle
-from gemini_trading.strategy.arbitration import ArbitrationInput, MultiModelArbiter
+from gemini_trading.strategy.arbitration import (
+    ArbitrationInput,
+    ArbitrationOverlay,
+    MultiModelArbiter,
+)
 from gemini_trading.strategy.baselines import BaselineAction
 from gemini_trading.strategy.calibration import (
     ExpectedReturnMap,
@@ -175,9 +179,22 @@ def candidate_events(
     delayed: bool = False,
     invert_probabilities: bool = False,
     volume_ablation: bool = False,
+    entry_thresholds: Mapping[SpecialistKind, Decimal] | None = None,
+    companion_disagreement_diagnostic_only: bool = False,
 ) -> tuple[tuple[int, ScheduledAction], ...]:
     """Convert calibrated predictions into a deterministic long-or-cash schedule."""
 
+    if entry_thresholds is not None:
+        required_specialists = {SpecialistKind.TREND, SpecialistKind.MEAN_REVERSION}
+        if set(entry_thresholds) != required_specialists:
+            raise ValueError("entry_thresholds must contain exactly both specialists")
+        if any(
+            not threshold.is_finite()
+            or threshold < Decimal("0")
+            or threshold > Decimal("1")
+            for threshold in entry_thresholds.values()
+        ):
+            raise ValueError("entry thresholds must be finite probabilities")
     arbiter = MultiModelArbiter(policy)
     currently_long = False
     active_specialist: SpecialistKind | None = None
@@ -224,29 +241,42 @@ def candidate_events(
         stretch_active = matrix.value_for(index, "close_zscore_24") <= Decimal(
             "-0.75"
         ) or matrix.value_for(index, "drawdown_from_high_24") >= Decimal("0.02")
-        decision = arbiter.decide(
-            ArbitrationInput(
-                candle_index=index,
-                regime=source_item.regime.state,
-                trend_probability=trend_probability,
-                trend_expected_gross_return=trend_expected,
-                mean_reversion_probability=mean_probability,
-                mean_reversion_expected_gross_return=mean_expected,
-                currently_long=currently_long,
-                active_specialist=active_specialist,
-                hold_age=hold_age,
-                cooldown_remaining=cooldown,
-                indeterminate_streak=indeterminate_streak,
-                entry_price=entry_price,
-                highest_close_since_entry=highest_close,
-                current_close=candle.close,
-                current_low=candle.low,
-                atr24=matrix.value_for(index, "atr_24"),
-                current_stop=current_stop,
-                stretch_active=stretch_active,
-                base_hurdle_bps=label_policy.hurdle_bps,
-            )
+        source = ArbitrationInput(
+            candle_index=index,
+            regime=source_item.regime.state,
+            trend_probability=trend_probability,
+            trend_expected_gross_return=trend_expected,
+            mean_reversion_probability=mean_probability,
+            mean_reversion_expected_gross_return=mean_expected,
+            currently_long=currently_long,
+            active_specialist=active_specialist,
+            hold_age=hold_age,
+            cooldown_remaining=cooldown,
+            indeterminate_streak=indeterminate_streak,
+            entry_price=entry_price,
+            highest_close_since_entry=highest_close,
+            current_close=candle.close,
+            current_low=candle.low,
+            atr24=matrix.value_for(index, "atr_24"),
+            current_stop=current_stop,
+            stretch_active=stretch_active,
+            base_hurdle_bps=label_policy.hurdle_bps,
         )
+        if entry_thresholds is None:
+            decision = arbiter.decide(source)
+        else:
+            if source_item.regime.state is RegimeState.TRENDING:
+                active_entry_threshold = entry_thresholds[SpecialistKind.TREND]
+            elif source_item.regime.state is RegimeState.RANGING:
+                active_entry_threshold = entry_thresholds[SpecialistKind.MEAN_REVERSION]
+            else:
+                active_entry_threshold = None
+            overlay = ArbitrationOverlay(
+                entry_probability_threshold=active_entry_threshold,
+                enforce_companion_probability=not companion_disagreement_diagnostic_only,
+                enforce_disagreement=not companion_disagreement_diagnostic_only,
+            )
+            decision = arbiter.decide(source, overlay)
         if decision.action is StrategyAction.ENTER_LONG:
             events.append((index, ScheduledAction.ENTER_LONG))
             currently_long = True

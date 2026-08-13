@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   repair:
-    if: "${{ github.event.head_commit.message == 'chore: repair v0.3 replay typing' }}"
+    if: "${{ github.event.head_commit.message == 'chore: repair v0.3 replay typing retry' }}"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2
@@ -70,6 +70,16 @@ jobs:
               '        rows = _rows(\n'
               '            store.read_artifact(record.experiment_id, "account-series.jsonl"),\n'
               '            "account series",\n'
+              '        )\n'
+              '    except (OSError, ValueError):\n',
+          )
+          text = text.replace(
+              '        simulation_raw = (\n'
+              '            _case_directory(store, primary_record) / "simulation-config.json"\n'
+              '        ).read_bytes()\n'
+              '    except OSError:\n',
+              '        simulation_raw = store.read_artifact(\n'
+              '            primary_record.experiment_id, "simulation-config.json"\n'
               '        )\n'
               '    except (OSError, ValueError):\n',
           )

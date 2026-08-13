@@ -9,6 +9,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import cast
 
+from gemini_trading.research.config import serialize_simulation_config
 from gemini_trading.research.serialization import canonical_json_bytes, canonical_jsonl_bytes
 from gemini_trading.research.verification import ResearchVerificationService
 from gemini_trading.strategy.contracts import SpecialistKind
@@ -27,7 +28,11 @@ from gemini_trading.strategy.qualification_artifacts_v0_3 import (
     parse_fold_diagnostics,
     verify_v0_3_qualification_artifacts,
 )
-from gemini_trading.strategy.qualification_execution_v0_3 import qualification_case_ids
+from gemini_trading.strategy.qualification_execution_v0_3 import (
+    V03_INITIAL_CASH,
+    locked_v0_3_simulation_config,
+    qualification_case_ids,
+)
 from gemini_trading.strategy.qualification_replay_v0_3 import (
     replay_candidate_v0_3_qualification,
 )
@@ -145,7 +150,9 @@ def _case_records(raw: bytes) -> tuple[StudyCaseEvidence, ...]:
     return tuple(records)
 
 
-def _verify_locked_identities(mapping: dict[str, bytes]) -> None:
+def _verify_locked_identities(
+    mapping: dict[str, bytes], artifacts: V03QualificationArtifacts
+) -> None:
     expected_policy = serialize_candidate_policy(CandidatePolicy.locked_v0_3())
     if mapping["policy.json"] != expected_policy:
         raise StudyArtifactError("v0.3 qualification policy is not the locked candidate")
@@ -159,10 +166,16 @@ def _verify_locked_identities(mapping: dict[str, bytes]) -> None:
     if not isinstance(config_obj, dict):
         raise StudyArtifactError("v0.3 qualification configuration is invalid")
     config = cast(dict[str, object], config_obj)
+    expected_simulation_sha = hashlib.sha256(
+        serialize_simulation_config(locked_v0_3_simulation_config())
+    ).hexdigest()
     if (
         config.get("schema_version") != "candidate-v0.3-qualification-config-v1"
+        or config.get("dataset_id") != artifacts.context.dataset_id
         or config.get("development_start") != "2018-01-01T00:00:00Z"
         or config.get("development_end_exclusive") != "2026-08-01T00:00:00Z"
+        or config.get("initial_cash") != str(V03_INITIAL_CASH)
+        or config.get("simulation_sha256") != expected_simulation_sha
         or config.get("strategy_id") != "candidate.multi_model.v0_3"
         or config.get("policy_version") != "candidate-multi-model-v0.3"
     ):
@@ -201,7 +214,7 @@ def verify_candidate_v0_3_qualification(
     if artifacts.context.code_commit != expected_commit:
         raise StudyArtifactError("v0.3 qualification verification source commit changed")
     mapping = dict(artifacts.files)
-    _verify_locked_identities(mapping)
+    _verify_locked_identities(mapping, artifacts)
 
     thresholds = parse_entry_threshold_artifacts(mapping["entry-thresholds.jsonl"])
     expected_threshold_keys = {

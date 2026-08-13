@@ -70,6 +70,36 @@ _SIMPLE_IDS = (
     "mean_reversion_z24.v1",
 )
 _SPECIALIST_IDS = ("trend.specialist.v1", "mean_reversion.specialist.v1")
+V03_INITIAL_CASH = Decimal("10000")
+
+
+def locked_v0_3_simulation_config() -> SimulationConfig:
+    """Return the exact frozen simulation/cost assumptions for Candidate v0.3."""
+
+    return SimulationConfig.official(
+        maker_fee_rate=Decimal("0.001"),
+        taker_fee_rate=Decimal("0.001"),
+        half_spread_bps=Decimal("5"),
+        slippage_bps=Decimal("10"),
+        latency_bars=0,
+        price_tick=Decimal("0.01"),
+        quantity_step=Decimal("0.000001"),
+        min_quantity=Decimal("0.000001"),
+        min_notional=Decimal("5"),
+        max_volume_participation=Decimal("0.01"),
+    )
+
+
+def validate_v0_3_qualification_parameters(
+    simulation: SimulationConfig,
+    initial_cash: Decimal,
+) -> None:
+    """Fail closed unless Candidate v0.3 uses the exact preregistered economics."""
+
+    if simulation != locked_v0_3_simulation_config():
+        raise StudyArtifactError("v0.3 qualification simulation configuration changed")
+    if initial_cash != V03_INITIAL_CASH:
+        raise StudyArtifactError("v0.3 qualification initial cash changed")
 
 
 @dataclass(frozen=True, slots=True)
@@ -399,10 +429,7 @@ def execute_candidate_v0_3_qualification(
     policy = CandidatePolicy.locked_v0_3()
     selectivity = EntrySelectivityPolicy.locked_v0_3()
     _validate_inputs(dataset=dataset, handoff=handoff, policy=policy, code_commit=code_commit)
-    if not simulation.promotable:
-        raise StudyArtifactError("v0.3 qualification requires promotable simulation evidence")
-    if not initial_cash.is_finite() or initial_cash <= _ZERO:
-        raise StudyArtifactError("v0.3 qualification initial cash must be finite and positive")
+    validate_v0_3_qualification_parameters(simulation, initial_cash)
 
     registry = FeatureRegistry.locked_v0_1()
     matrix = registry.compute(dataset.candles, segments=dataset.segment_manifest)
@@ -547,9 +574,12 @@ def execute_candidate_v0_3_qualification(
 
 
 __all__ = [
+    "V03_INITIAL_CASH",
     "AggregatePathMetrics",
     "V03QualificationRun",
     "aggregate_path_metrics",
     "execute_candidate_v0_3_qualification",
+    "locked_v0_3_simulation_config",
     "qualification_case_ids",
+    "validate_v0_3_qualification_parameters",
 ]

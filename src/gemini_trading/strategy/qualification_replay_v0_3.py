@@ -214,7 +214,9 @@ def _case_directory(store: LocalResearchStore, record: StudyCaseEvidence) -> Pat
 
 def _metrics(store: LocalResearchStore, record: StudyCaseEvidence) -> _StoredMetrics:
     try:
-        mapping = _mapping((_case_directory(store, record) / "metrics.json").read_bytes(), "metrics")
+        mapping = _mapping(
+            (_case_directory(store, record) / "metrics.json").read_bytes(), "metrics"
+        )
     except OSError:
         raise StudyArtifactError("v0.3 replay metrics artifact is missing") from None
     return _StoredMetrics(

@@ -116,7 +116,9 @@ def test_v0_3_fold_diagnostics_are_canonical_and_non_gating() -> None:
     )
     assert len(first.companion_distribution_sha256) == 64
     assert len(first.disagreement_distribution_sha256) == 64
-    assert cases.serialize_v0_3_fold_diagnostics(first) == cases.serialize_v0_3_fold_diagnostics(second)
+    assert cases.serialize_v0_3_fold_diagnostics(
+        first
+    ) == cases.serialize_v0_3_fold_diagnostics(second)
 
 
 def _simulation() -> SimulationConfig:
@@ -185,7 +187,14 @@ def test_prepare_v0_3_phase_uses_q75_primary_q70_q80_neighbors_and_half_floor_ab
 
     dataset = cast(
         VerifiedDataset,
-        SimpleNamespace(candles=(SimpleNamespace(), SimpleNamespace(), SimpleNamespace(), SimpleNamespace())),
+        SimpleNamespace(
+            candles=(
+                SimpleNamespace(),
+                SimpleNamespace(),
+                SimpleNamespace(),
+                SimpleNamespace(),
+            )
+        ),
     )
     plans: dict[tuple[StudyPhase, int | None, str], CasePlan] = {}
     plans_module.prepare_v0_3_phase(
@@ -205,8 +214,10 @@ def test_prepare_v0_3_phase_uses_q75_primary_q70_q80_neighbors_and_half_floor_ab
     assert tuple(key[2] for key in plans) == cases.V03_QUALIFICATION_CASE_IDS
     primary = plans[(StudyPhase.DEVELOPMENT, 1, "candidate.multi_model.v0_3")]
     assert primary.strategy.strategy_id == "candidate.multi_model.v0_3"
-    assert plans[(StudyPhase.DEVELOPMENT, 1, "cost.1_5x")].simulation.taker_fee_rate == Decimal("0.0015")
-    assert plans[(StudyPhase.DEVELOPMENT, 1, "cost.2x")].simulation.taker_fee_rate == Decimal("0.002")
+    one_half = plans[(StudyPhase.DEVELOPMENT, 1, "cost.1_5x")]
+    double = plans[(StudyPhase.DEVELOPMENT, 1, "cost.2x")]
+    assert one_half.simulation.taker_fee_rate == Decimal("0.0015")
+    assert double.simulation.taker_fee_rate == Decimal("0.002")
 
     threshold_calls = [
         cast(dict[SpecialistKind, Decimal], call["entry_thresholds"])

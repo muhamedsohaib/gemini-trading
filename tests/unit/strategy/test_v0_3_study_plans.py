@@ -157,6 +157,7 @@ def test_prepare_v0_3_phase_uses_q75_primary_q70_q80_neighbors_and_half_floor_ab
 ) -> None:
     cases, plans_module = _modules()
     calls: list[dict[str, object]] = []
+    comparison_calls: list[dict[str, object]] = []
 
     def fake_candidate_events(
         _bundle: object, **kwargs: object
@@ -164,7 +165,8 @@ def test_prepare_v0_3_phase_uses_q75_primary_q70_q80_neighbors_and_half_floor_ab
         calls.append(dict(kwargs))
         return ((0, ScheduledAction.ENTER_LONG), (1, ScheduledAction.EXIT_TO_CASH))
 
-    def no_events(*_args: object, **_kwargs: object) -> tuple[tuple[int, ScheduledAction], ...]:
+    def no_events(*_args: object, **kwargs: object) -> tuple[tuple[int, ScheduledAction], ...]:
+        comparison_calls.append(dict(kwargs))
         return ()
 
     monkeypatch.setattr(plans_module, "candidate_events", fake_candidate_events)
@@ -200,7 +202,8 @@ def test_prepare_v0_3_phase_uses_q75_primary_q70_q80_neighbors_and_half_floor_ab
                 SimpleNamespace(),
                 SimpleNamespace(),
                 SimpleNamespace(),
-            )
+            ),
+            segment_manifest=SimpleNamespace(boundary_indices=(3,)),
         ),
     )
     plans: dict[tuple[StudyPhase, int | None, str], CasePlan] = {}
@@ -245,3 +248,8 @@ def test_prepare_v0_3_phase_uses_q75_primary_q70_q80_neighbors_and_half_floor_ab
         for call in calls
         if call.get("entry_thresholds") is not None
     )
+    assert all(call.get("segment_boundary_indices") == (3,) for call in calls)
+    assert all(call.get("latency_bars") == 0 for call in calls)
+    assert comparison_calls
+    assert all(call.get("segment_boundary_indices") == (3,) for call in comparison_calls)
+    assert all(call.get("latency_bars") == 0 for call in comparison_calls)

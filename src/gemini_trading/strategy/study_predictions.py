@@ -84,6 +84,47 @@ def _close_long_before_discontinuity(
     events.append((previous_index, ScheduledAction.EXIT_TO_CASH))
 
 
+def _validate_segment_boundary_inputs(
+    segment_boundary_indices: tuple[int, ...],
+    latency_bars: int,
+) -> None:
+    if isinstance(latency_bars, bool) or latency_bars < 0:
+        raise ValueError("latency_bars must be a non-negative integer")
+    if segment_boundary_indices != tuple(sorted(set(segment_boundary_indices))):
+        raise ValueError("segment boundary indices must be unique and ordered")
+    if any(isinstance(index, bool) or index < 1 for index in segment_boundary_indices):
+        raise ValueError("segment boundary indices must be positive integers")
+
+
+def _crossed_segment_boundaries(
+    previous_index: int,
+    index: int,
+    segment_boundary_indices: tuple[int, ...],
+) -> tuple[int, ...]:
+    return tuple(
+        boundary
+        for boundary in segment_boundary_indices
+        if previous_index < boundary <= index
+    )
+
+
+def _force_cash_before_segment_boundary(
+    events: list[tuple[int, ScheduledAction]],
+    boundary_index: int,
+    latency_bars: int,
+) -> None:
+    """Ensure next-candle orders cannot carry noncash state into a segment."""
+
+    safe_decision_index = boundary_index - 2 - latency_bars
+    events[:] = [event for event in events if event[0] <= safe_decision_index]
+    if safe_decision_index < 0:
+        return
+    if events and events[-1] == (safe_decision_index, ScheduledAction.ENTER_LONG):
+        events.pop()
+    if events and events[-1][1] is ScheduledAction.ENTER_LONG:
+        events.append((safe_decision_index, ScheduledAction.EXIT_TO_CASH))
+
+
 def fit_prediction_bundle(
     *,
     phase: StudyPhase,
@@ -181,6 +222,8 @@ def candidate_events(
     volume_ablation: bool = False,
     entry_thresholds: Mapping[SpecialistKind, Decimal] | None = None,
     companion_disagreement_diagnostic_only: bool = False,
+    segment_boundary_indices: tuple[int, ...] = (),
+    latency_bars: int = 0,
 ) -> tuple[tuple[int, ScheduledAction], ...]:
     """Convert calibrated predictions into a deterministic long-or-cash schedule."""
 
@@ -193,6 +236,7 @@ def candidate_events(
             for threshold in entry_thresholds.values()
         ):
             raise ValueError("entry thresholds must be finite probabilities")
+    _validate_segment_boundary_inputs(segment_boundary_indices, latency_bars)
     arbiter = MultiModelArbiter(policy)
     currently_long = False
     active_specialist: SpecialistKind | None = None
@@ -207,10 +251,25 @@ def candidate_events(
 
     for position, item in enumerate(bundle.predictions):
         index = item.candle_index
-        contiguous = previous_index is None or index == previous_index + 1
+        crossed_boundaries = (
+            ()
+            if previous_index is None
+            else _crossed_segment_boundaries(
+                previous_index,
+                index,
+                segment_boundary_indices,
+            )
+        )
+        contiguous = (
+            previous_index is None
+            or (index == previous_index + 1 and not crossed_boundaries)
+        )
+        if crossed_boundaries:
+            for boundary in crossed_boundaries:
+                _force_cash_before_segment_boundary(events, boundary, latency_bars)
+        elif not contiguous and currently_long:
+            _close_long_before_discontinuity(events, cast(int, previous_index))
         if not contiguous:
-            if currently_long:
-                _close_long_before_discontinuity(events, cast(int, previous_index))
             currently_long = False
             active_specialist = None
             hold_age = 0
@@ -307,6 +366,11 @@ def candidate_events(
         last = bundle.predictions[-1].candle_index
         events = [event for event in events if event[0] != last]
         events.append((last, ScheduledAction.EXIT_TO_CASH))
+    if bundle.predictions:
+        last = bundle.predictions[-1].candle_index
+        for boundary in segment_boundary_indices:
+            if last < boundary <= last + 1 + latency_bars:
+                _force_cash_before_segment_boundary(events, boundary, latency_bars)
     return tuple(sorted(events))
 
 
@@ -316,15 +380,31 @@ def threshold_events(
     specialist: SpecialistKind,
     require_ranging_stretch: bool = False,
     matrix: FeatureMatrix,
+    segment_boundary_indices: tuple[int, ...] = (),
+    latency_bars: int = 0,
 ) -> tuple[tuple[int, ScheduledAction], ...]:
     """Build one deterministic specialist-only comparison schedule."""
 
+    _validate_segment_boundary_inputs(segment_boundary_indices, latency_bars)
     long = False
     events: list[tuple[int, ScheduledAction]] = []
     previous_index: int | None = None
     for item in bundle.predictions:
         index = item.candle_index
-        if previous_index is not None and index != previous_index + 1:
+        crossed_boundaries = (
+            ()
+            if previous_index is None
+            else _crossed_segment_boundaries(
+                previous_index,
+                index,
+                segment_boundary_indices,
+            )
+        )
+        if crossed_boundaries:
+            for boundary in crossed_boundaries:
+                _force_cash_before_segment_boundary(events, boundary, latency_bars)
+            long = False
+        elif previous_index is not None and index != previous_index + 1:
             if long:
                 _close_long_before_discontinuity(events, previous_index)
             long = False
@@ -350,6 +430,11 @@ def threshold_events(
         previous_index = index
     if long and bundle.predictions:
         events.append((bundle.predictions[-1].candle_index, ScheduledAction.EXIT_TO_CASH))
+    if bundle.predictions:
+        last = bundle.predictions[-1].candle_index
+        for boundary in segment_boundary_indices:
+            if last < boundary <= last + 1 + latency_bars:
+                _force_cash_before_segment_boundary(events, boundary, latency_bars)
     return tuple(sorted(dict(events).items()))
 
 
@@ -359,14 +444,30 @@ def baseline_events(
     indices: tuple[int, ...],
     allowed_regimes: Mapping[int, RegimeState] | None = None,
     required_regime: RegimeState | None = None,
+    segment_boundary_indices: tuple[int, ...] = (),
+    latency_bars: int = 0,
 ) -> tuple[tuple[int, ScheduledAction], ...]:
     """Convert a provider-free baseline action series into a simulation schedule."""
 
+    _validate_segment_boundary_inputs(segment_boundary_indices, latency_bars)
     events: list[tuple[int, ScheduledAction]] = []
     long = False
     previous_index: int | None = None
     for index in indices:
-        if previous_index is not None and index != previous_index + 1:
+        crossed_boundaries = (
+            ()
+            if previous_index is None
+            else _crossed_segment_boundaries(
+                previous_index,
+                index,
+                segment_boundary_indices,
+            )
+        )
+        if crossed_boundaries:
+            for boundary in crossed_boundaries:
+                _force_cash_before_segment_boundary(events, boundary, latency_bars)
+            long = False
+        elif previous_index is not None and index != previous_index + 1:
             if long:
                 _close_long_before_discontinuity(events, previous_index)
             long = False
@@ -385,6 +486,11 @@ def baseline_events(
         previous_index = index
     if long and indices:
         events.append((indices[-1], ScheduledAction.EXIT_TO_CASH))
+    if indices:
+        last = indices[-1]
+        for boundary in segment_boundary_indices:
+            if last < boundary <= last + 1 + latency_bars:
+                _force_cash_before_segment_boundary(events, boundary, latency_bars)
     return tuple(sorted(dict(events).items()))
 
 

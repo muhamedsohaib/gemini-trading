@@ -102,9 +102,7 @@ def _crossed_segment_boundaries(
     segment_boundary_indices: tuple[int, ...],
 ) -> tuple[int, ...]:
     return tuple(
-        boundary
-        for boundary in segment_boundary_indices
-        if previous_index < boundary <= index
+        boundary for boundary in segment_boundary_indices if previous_index < boundary <= index
     )
 
 
@@ -260,9 +258,8 @@ def candidate_events(
                 segment_boundary_indices,
             )
         )
-        contiguous = (
-            previous_index is None
-            or (index == previous_index + 1 and not crossed_boundaries)
+        contiguous = previous_index is None or (
+            index == previous_index + 1 and not crossed_boundaries
         )
         if crossed_boundaries:
             for boundary in crossed_boundaries:

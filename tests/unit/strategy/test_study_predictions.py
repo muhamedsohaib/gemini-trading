@@ -165,7 +165,9 @@ def test_candidate_schedule_resets_before_verified_segment_boundary(
             pass
 
         def decide(self, source: ArbitrationInput, _overlay: object = None) -> SimpleNamespace:
-            action = StrategyAction.REMAIN_LONG if source.currently_long else StrategyAction.ENTER_LONG
+            action = (
+                StrategyAction.REMAIN_LONG if source.currently_long else StrategyAction.ENTER_LONG
+            )
             return SimpleNamespace(
                 action=action,
                 active_specialist=SpecialistKind.TREND,

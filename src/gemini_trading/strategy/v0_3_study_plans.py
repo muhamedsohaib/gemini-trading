@@ -76,6 +76,8 @@ def _candidate(
     matrix: FeatureMatrix,
     label_policy: LabelPolicy,
     policy: CandidatePolicy,
+    segment_boundary_indices: tuple[int, ...],
+    latency_bars: int,
     delayed: bool = False,
     invert_probabilities: bool = False,
     volume_ablation: bool = False,
@@ -94,6 +96,8 @@ def _candidate(
         volume_ablation=volume_ablation,
         entry_thresholds=thresholds,
         companion_disagreement_diagnostic_only=True,
+        segment_boundary_indices=segment_boundary_indices,
+        latency_bars=latency_bars,
     )
 
 
@@ -118,6 +122,10 @@ def prepare_v0_3_phase(
         raise StudyArtifactError("v0.3 qualification case preparation is development-fold only")
     if not indices or indices != tuple(sorted(set(indices))):
         raise StudyArtifactError("v0.3 qualification requires ordered unique decision indices")
+    if dataset.segment_manifest is None:
+        raise StudyArtifactError("v0.3 qualification requires candle segment evidence")
+    segment_boundary_indices = dataset.segment_manifest.boundary_indices
+    latency_bars = simulation.latency_bars
     expected_baselines = {
         "cash.v1",
         "buy_hold.v1",
@@ -130,7 +138,7 @@ def prepare_v0_3_phase(
 
     evaluation_end_exclusive = min(
         len(dataset.candles),
-        indices[-1] + 2 + simulation.latency_bars,
+        indices[-1] + 2 + latency_bars,
     )
     q70 = Decimal("0.70")
     q75 = Decimal("0.75")
@@ -142,6 +150,8 @@ def prepare_v0_3_phase(
         matrix=matrix,
         label_policy=label_policy,
         policy=policy,
+        segment_boundary_indices=segment_boundary_indices,
+        latency_bars=latency_bars,
     )
     regimes = {item.candle_index: item.regime.state for item in context.bundle.predictions}
     event_by_case: dict[str, tuple[tuple[int, ScheduledAction], ...]] = {
@@ -150,24 +160,32 @@ def prepare_v0_3_phase(
             context.bundle,
             specialist=SpecialistKind.TREND,
             matrix=matrix,
+            segment_boundary_indices=segment_boundary_indices,
+            latency_bars=latency_bars,
         ),
         "mean_reversion.specialist.v1": threshold_events(
             context.bundle,
             specialist=SpecialistKind.MEAN_REVERSION,
             require_ranging_stretch=True,
             matrix=matrix,
+            segment_boundary_indices=segment_boundary_indices,
+            latency_bars=latency_bars,
         ),
         "trend.ema_20_50.gated.v1": baseline_events(
             actions=baseline_schedules["ema_20_50.v1"].actions,
             indices=indices,
             allowed_regimes=regimes,
             required_regime=RegimeState.TRENDING,
+            segment_boundary_indices=segment_boundary_indices,
+            latency_bars=latency_bars,
         ),
         "ranging.mean_reversion_z24.gated.v1": baseline_events(
             actions=baseline_schedules["mean_reversion_z24.v1"].actions,
             indices=indices,
             allowed_regimes=regimes,
             required_regime=RegimeState.RANGING,
+            segment_boundary_indices=segment_boundary_indices,
+            latency_bars=latency_bars,
         ),
         "ablation.no_percentile_selectivity.v1": _candidate(
             context,
@@ -176,6 +194,8 @@ def prepare_v0_3_phase(
             matrix=matrix,
             label_policy=label_policy,
             policy=policy,
+            segment_boundary_indices=segment_boundary_indices,
+            latency_bars=latency_bars,
         ),
         "ablation.no_volume.v1": _candidate(
             context,
@@ -184,6 +204,8 @@ def prepare_v0_3_phase(
             matrix=matrix,
             label_policy=label_policy,
             policy=policy,
+            segment_boundary_indices=segment_boundary_indices,
+            latency_bars=latency_bars,
             volume_ablation=True,
         ),
         "ablation.no_protection.v1": _candidate(
@@ -197,6 +219,8 @@ def prepare_v0_3_phase(
                 initial_stop_atr=Decimal("100"),
                 trailing_stop_atr=Decimal("100"),
             ),
+            segment_boundary_indices=segment_boundary_indices,
+            latency_bars=latency_bars,
         ),
         "control.delayed_features.v1": _candidate(
             context,
@@ -205,6 +229,8 @@ def prepare_v0_3_phase(
             matrix=matrix,
             label_policy=label_policy,
             policy=policy,
+            segment_boundary_indices=segment_boundary_indices,
+            latency_bars=latency_bars,
             delayed=True,
         ),
         "control.shuffled_labels.v1": _candidate(
@@ -214,6 +240,8 @@ def prepare_v0_3_phase(
             matrix=matrix,
             label_policy=label_policy,
             policy=policy,
+            segment_boundary_indices=segment_boundary_indices,
+            latency_bars=latency_bars,
             invert_probabilities=True,
         ),
         "cost.1_5x": base_events,
@@ -225,6 +253,8 @@ def prepare_v0_3_phase(
             matrix=matrix,
             label_policy=label_policy,
             policy=policy,
+            segment_boundary_indices=segment_boundary_indices,
+            latency_bars=latency_bars,
         ),
         "sensitivity.entry_percentile_0_80": _candidate(
             context,
@@ -233,6 +263,8 @@ def prepare_v0_3_phase(
             matrix=matrix,
             label_policy=label_policy,
             policy=policy,
+            segment_boundary_indices=segment_boundary_indices,
+            latency_bars=latency_bars,
         ),
         "sensitivity.exit_0_42": _candidate(
             context,
@@ -241,6 +273,8 @@ def prepare_v0_3_phase(
             matrix=matrix,
             label_policy=label_policy,
             policy=replace(policy, exit_probability=Decimal("0.42")),
+            segment_boundary_indices=segment_boundary_indices,
+            latency_bars=latency_bars,
         ),
         "sensitivity.exit_0_48": _candidate(
             context,
@@ -249,6 +283,8 @@ def prepare_v0_3_phase(
             matrix=matrix,
             label_policy=label_policy,
             policy=replace(policy, exit_probability=Decimal("0.48")),
+            segment_boundary_indices=segment_boundary_indices,
+            latency_bars=latency_bars,
         ),
         "sensitivity.max_hold_12": _candidate(
             context,
@@ -257,6 +293,8 @@ def prepare_v0_3_phase(
             matrix=matrix,
             label_policy=label_policy,
             policy=replace(policy, maximum_hold_candles=12),
+            segment_boundary_indices=segment_boundary_indices,
+            latency_bars=latency_bars,
         ),
         "sensitivity.max_hold_24": _candidate(
             context,
@@ -265,6 +303,8 @@ def prepare_v0_3_phase(
             matrix=matrix,
             label_policy=label_policy,
             policy=replace(policy, maximum_hold_candles=24),
+            segment_boundary_indices=segment_boundary_indices,
+            latency_bars=latency_bars,
         ),
         "sensitivity.initial_stop_2_0": _candidate(
             context,
@@ -273,6 +313,8 @@ def prepare_v0_3_phase(
             matrix=matrix,
             label_policy=label_policy,
             policy=replace(policy, initial_stop_atr=Decimal("2.0")),
+            segment_boundary_indices=segment_boundary_indices,
+            latency_bars=latency_bars,
         ),
         "sensitivity.initial_stop_3_0": _candidate(
             context,
@@ -281,6 +323,8 @@ def prepare_v0_3_phase(
             matrix=matrix,
             label_policy=label_policy,
             policy=replace(policy, initial_stop_atr=Decimal("3.0")),
+            segment_boundary_indices=segment_boundary_indices,
+            latency_bars=latency_bars,
         ),
         "sensitivity.cooldown_1": _candidate(
             context,
@@ -289,6 +333,8 @@ def prepare_v0_3_phase(
             matrix=matrix,
             label_policy=label_policy,
             policy=replace(policy, cooldown_candles=1),
+            segment_boundary_indices=segment_boundary_indices,
+            latency_bars=latency_bars,
         ),
         "sensitivity.cooldown_3": _candidate(
             context,
@@ -297,6 +343,8 @@ def prepare_v0_3_phase(
             matrix=matrix,
             label_policy=label_policy,
             policy=replace(policy, cooldown_candles=3),
+            segment_boundary_indices=segment_boundary_indices,
+            latency_bars=latency_bars,
         ),
     }
     event_by_case["control.shuffled_labels.seed_1799"] = event_by_case["control.shuffled_labels.v1"]
@@ -306,6 +354,8 @@ def prepare_v0_3_phase(
         event_by_case[baseline_id] = baseline_events(
             actions=baseline_schedules[baseline_id].actions,
             indices=indices,
+            segment_boundary_indices=segment_boundary_indices,
+            latency_bars=latency_bars,
         )
 
     if set(event_by_case) != set(V03_QUALIFICATION_CASE_IDS):

@@ -14,14 +14,13 @@ from gemini_trading.data.errors import CandleValidationError
 from gemini_trading.domain.instrument import Instrument
 from gemini_trading.domain.timeframe import Timeframe
 
-_SCHEMA_VERSION_V3 = "exchange-closure-manifest-v3"
-_SCHEMA_VERSION_V4 = "exchange-closure-manifest-v4"
+_SCHEMA_VERSION = "exchange-closure-manifest-v3"
 _FIXED_PATH = Path("config/market-data/sealed-btcusdt-4h-exchange-closures.json")
 _FIXED_SHA256 = (
     "a028bd367ac51b85cca3fab24a28b794fc35ea2d9f73b6f39d681eafa66a31f5"  # pragma: allowlist secret
 )
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
-_MANIFEST_FIELDS_V3 = {
+_MANIFEST_FIELDS = {
     "schema_version",
     "provider",
     "instrument",
@@ -30,7 +29,6 @@ _MANIFEST_FIELDS_V3 = {
     "end_time",
     "closures",
 }
-_MANIFEST_FIELDS_V4 = {*_MANIFEST_FIELDS_V3, "source_manifest_sha256"}
 _INSTRUMENT_FIELDS = {"symbol", "base_asset", "quote_asset"}
 _CLOSURE_FIELDS = {
     "closure_id",
@@ -77,15 +75,6 @@ def _string(mapping: dict[str, object], key: str) -> str:
     return value
 
 
-def _nullable_sha256(mapping: dict[str, object], key: str) -> str | None:
-    value = mapping.get(key)
-    if value is None:
-        return None
-    if not isinstance(value, str) or _SHA256_PATTERN.fullmatch(value) is None:
-        _fail(f"exchange closure field is invalid: {key}")
-    return value
-
-
 def _integer(mapping: dict[str, object], key: str) -> int:
     value = mapping.get(key)
     if isinstance(value, bool) or not isinstance(value, int):
@@ -122,12 +111,12 @@ def _require_utc(value: datetime, field_name: str) -> None:
 
 @dataclass(frozen=True, slots=True)
 class PartialCandleDeclaration:
-    """One provider row that closed before its declared timeframe boundary."""
+    """One exact provider row that closed before its declared timeframe boundary."""
 
     open_time: datetime
     actual_close_time: datetime
     expected_close_time: datetime
-    provider_row_sha256: str | None
+    provider_row_sha256: str
     exclusion_reason: str
 
     def __post_init__(self) -> None:
@@ -136,10 +125,7 @@ class PartialCandleDeclaration:
         _require_utc(self.expected_close_time, "partial candle expected_close_time")
         if not self.open_time < self.actual_close_time < self.expected_close_time:
             _fail("exchange closure partial candle boundaries are invalid")
-        if (
-            self.provider_row_sha256 is not None
-            and _SHA256_PATTERN.fullmatch(self.provider_row_sha256) is None
-        ):
+        if _SHA256_PATTERN.fullmatch(self.provider_row_sha256) is None:
             _fail("exchange closure partial candle provider-row SHA-256 is invalid")
         if not self.exclusion_reason.strip():
             _fail("exchange closure partial candle exclusion reason must not be empty")
@@ -147,7 +133,7 @@ class PartialCandleDeclaration:
 
 @dataclass(frozen=True, slots=True)
 class ExchangeClosure:
-    """One exact canonical outage containing unavailable candle slots."""
+    """One exact canonical outage containing an excluded partial slot and absent slots."""
 
     closure_id: str
     canonical_gap_start: datetime
@@ -157,7 +143,7 @@ class ExchangeClosure:
     fully_missing_candle_count: int
     reason_code: str
     governance_reference: str
-    partial_candle: PartialCandleDeclaration | None
+    partial_candle: PartialCandleDeclaration
 
     def __post_init__(self) -> None:
         if not self.closure_id.strip():
@@ -176,13 +162,13 @@ class ExchangeClosure:
 
     @property
     def missing_start(self) -> datetime:
-        """Compatibility alias used by segment validation."""
+        """Compatibility alias used by v2 segment validation until v3 migration."""
 
         return self.fully_missing_start
 
     @property
     def missing_candle_count(self) -> int:
-        """Compatibility alias used by existing evidence consumers."""
+        """Compatibility alias used by v2 evidence until v3 migration."""
 
         return self.fully_missing_candle_count
 
@@ -198,10 +184,9 @@ class ExchangeClosureManifest:
     start_time: datetime
     end_time: datetime
     closures: tuple[ExchangeClosure, ...]
-    source_manifest_sha256: str | None = None
 
     def __post_init__(self) -> None:
-        if self.schema_version not in {_SCHEMA_VERSION_V3, _SCHEMA_VERSION_V4}:
+        if self.schema_version != _SCHEMA_VERSION:
             _fail("unsupported exchange closure manifest schema")
         if not self.provider.strip():
             _fail("exchange closure provider must not be empty")
@@ -212,38 +197,16 @@ class ExchangeClosureManifest:
         if not self.closures:
             _fail("exchange closure manifest must contain a closure")
 
-        if self.schema_version == _SCHEMA_VERSION_V3:
-            if self.source_manifest_sha256 is not None:
-                _fail("v3 exchange closure manifest cannot reference a source manifest")
-            if any(item.partial_candle is None for item in self.closures):
-                _fail("v3 exchange closure manifest requires one partial candle per closure")
-            if any(
-                item.partial_candle is not None and item.partial_candle.provider_row_sha256 is None
-                for item in self.closures
-            ):
-                _fail("v3 exchange closure partial rows require provider-row SHA-256")
-        else:
-            if self.timeframe is not Timeframe.H1:
-                _fail("v4 exchange closure manifest requires 1h timeframe")
-            if (
-                self.source_manifest_sha256 is None
-                or _SHA256_PATTERN.fullmatch(self.source_manifest_sha256) is None
-            ):
-                _fail("v4 exchange closure source-manifest SHA-256 is invalid")
-
         closure_ids = tuple(item.closure_id for item in self.closures)
         if len(closure_ids) != len(set(closure_ids)):
             _fail("duplicate exchange closure ID")
 
-        partials = tuple(
-            item.partial_candle for item in self.closures if item.partial_candle is not None
-        )
-        partial_opens = tuple(item.open_time for item in partials)
+        partial_opens = tuple(item.partial_candle.open_time for item in self.closures)
         if len(partial_opens) != len(set(partial_opens)):
             _fail("duplicate exchange closure partial candle open")
 
         provider_row_digests = tuple(
-            item.provider_row_sha256 for item in partials if item.provider_row_sha256 is not None
+            item.partial_candle.provider_row_sha256 for item in self.closures
         )
         if len(provider_row_digests) != len(set(provider_row_digests)):
             _fail("duplicate exchange closure provider-row SHA-256")
@@ -267,6 +230,16 @@ class ExchangeClosureManifest:
                 <= self.end_time
             ):
                 _fail("exchange closure is outside the request window")
+            if closure.partial_candle.open_time != closure.canonical_gap_start:
+                _fail("exchange closure partial candle does not match canonical gap start")
+
+            expected_close = (
+                closure.canonical_gap_start + self.timeframe.duration - timedelta(milliseconds=1)
+            )
+            if closure.partial_candle.expected_close_time != expected_close:
+                _fail("exchange closure partial candle expected close mismatch")
+            if closure.fully_missing_start != closure.canonical_gap_start + self.timeframe.duration:
+                _fail("exchange closure fully missing start must follow the partial slot")
 
             expected_unavailable = (
                 closure.resumed_open - closure.canonical_gap_start
@@ -278,34 +251,8 @@ class ExchangeClosureManifest:
             ) // self.timeframe.duration
             if expected_fully_missing != closure.fully_missing_candle_count:
                 _fail("exchange closure fully-missing candle count mismatch")
-
-            partial = closure.partial_candle
-            if partial is not None:
-                if partial.open_time != closure.canonical_gap_start:
-                    _fail("exchange closure partial candle does not match canonical gap start")
-                expected_close = (
-                    closure.canonical_gap_start
-                    + self.timeframe.duration
-                    - timedelta(milliseconds=1)
-                )
-                if partial.expected_close_time != expected_close:
-                    _fail("exchange closure partial candle expected close mismatch")
-                if closure.fully_missing_start != (
-                    closure.canonical_gap_start + self.timeframe.duration
-                ):
-                    _fail("exchange closure fully missing start must follow the partial slot")
-                if closure.unavailable_candle_count != closure.fully_missing_candle_count + 1:
-                    _fail("exchange closure candle counts are inconsistent")
-            else:
-                if self.schema_version != _SCHEMA_VERSION_V4:
-                    _fail("exchange closure partial candle is required")
-                if closure.fully_missing_start != closure.canonical_gap_start:
-                    _fail("full-missing-only closure must start at canonical gap start")
-                if closure.fully_missing_candle_count < 1:
-                    _fail("full-missing-only closure must contain a missing candle")
-                if closure.unavailable_candle_count != closure.fully_missing_candle_count:
-                    _fail("exchange closure candle counts are inconsistent")
-
+            if closure.unavailable_candle_count != closure.fully_missing_candle_count + 1:
+                _fail("exchange closure candle counts are inconsistent")
             if previous is not None and closure.canonical_gap_start <= previous.resumed_open:
                 _fail("exchange closure entries overlap or touch")
             previous = closure
@@ -339,9 +286,7 @@ def _closure_payload(closure: ExchangeClosure) -> dict[str, object]:
         "fully_missing_candle_count": closure.fully_missing_candle_count,
         "reason_code": closure.reason_code,
         "governance_reference": closure.governance_reference,
-        "partial_candle": (
-            None if closure.partial_candle is None else _partial_payload(closure.partial_candle)
-        ),
+        "partial_candle": _partial_payload(closure.partial_candle),
     }
 
 
@@ -355,59 +300,21 @@ def serialize_exchange_closure_manifest(manifest: ExchangeClosureManifest) -> by
         "timeframe": manifest.timeframe.value,
         "start_time": _format_datetime(manifest.start_time),
         "end_time": _format_datetime(manifest.end_time),
+        "closures": [_closure_payload(item) for item in manifest.closures],
     }
-    if manifest.schema_version == _SCHEMA_VERSION_V4:
-        payload["source_manifest_sha256"] = manifest.source_manifest_sha256
-    payload["closures"] = [_closure_payload(item) for item in manifest.closures]
     serialized = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
     return f"{serialized}\n".encode()
 
 
-def _load_partial(
-    mapping: dict[str, object], schema_version: str
-) -> PartialCandleDeclaration | None:
-    raw_partial = mapping.get("partial_candle")
-    if raw_partial is None:
-        if schema_version != _SCHEMA_VERSION_V4:
-            _fail("exchange closure partial candle must be an object")
-        return None
-    partial_mapping = _mapping(raw_partial, "partial candle")
-    _exact_fields(partial_mapping, _PARTIAL_FIELDS, "partial candle")
-    provider_row_sha256 = _nullable_sha256(partial_mapping, "provider_row_sha256")
-    if schema_version == _SCHEMA_VERSION_V3 and provider_row_sha256 is None:
-        _fail("exchange closure partial candle provider-row SHA-256 is invalid")
-    return PartialCandleDeclaration(
-        open_time=_utc(_string(partial_mapping, "open_time"), "partial open_time"),
-        actual_close_time=_utc(
-            _string(partial_mapping, "actual_close_time"),
-            "partial actual_close_time",
-        ),
-        expected_close_time=_utc(
-            _string(partial_mapping, "expected_close_time"),
-            "partial expected_close_time",
-        ),
-        provider_row_sha256=provider_row_sha256,
-        exclusion_reason=_string(partial_mapping, "exclusion_reason"),
-    )
-
-
 def load_exchange_closure_manifest(raw: bytes) -> ExchangeClosureManifest:
-    """Parse canonical v3/v4 closure bytes and reject alternate encodings."""
+    """Parse canonical v3 closure bytes and reject unsupported fields or encodings."""
 
     try:
         loaded: object = json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError):
         _fail("exchange closure manifest is not valid JSON")
     mapping = _mapping(loaded, "manifest")
-    schema_version = _string(mapping, "schema_version")
-    if schema_version == _SCHEMA_VERSION_V3:
-        _exact_fields(mapping, _MANIFEST_FIELDS_V3, "manifest")
-        source_manifest_sha256 = None
-    elif schema_version == _SCHEMA_VERSION_V4:
-        _exact_fields(mapping, _MANIFEST_FIELDS_V4, "manifest")
-        source_manifest_sha256 = _string(mapping, "source_manifest_sha256")
-    else:
-        _fail("unsupported exchange closure manifest schema")
+    _exact_fields(mapping, _MANIFEST_FIELDS, "manifest")
 
     instrument_mapping = _mapping(mapping.get("instrument"), "instrument")
     _exact_fields(instrument_mapping, _INSTRUMENT_FIELDS, "instrument")
@@ -425,6 +332,8 @@ def load_exchange_closure_manifest(raw: bytes) -> ExchangeClosureManifest:
     closures: list[ExchangeClosure] = []
     for closure_mapping in closure_mappings:
         _exact_fields(closure_mapping, _CLOSURE_FIELDS, "entry")
+        partial_mapping = _mapping(closure_mapping.get("partial_candle"), "partial candle")
+        _exact_fields(partial_mapping, _PARTIAL_FIELDS, "partial candle")
         closures.append(
             ExchangeClosure(
                 closure_id=_string(closure_mapping, "closure_id"),
@@ -439,13 +348,25 @@ def load_exchange_closure_manifest(raw: bytes) -> ExchangeClosureManifest:
                 fully_missing_candle_count=_integer(closure_mapping, "fully_missing_candle_count"),
                 reason_code=_string(closure_mapping, "reason_code"),
                 governance_reference=_string(closure_mapping, "governance_reference"),
-                partial_candle=_load_partial(closure_mapping, schema_version),
+                partial_candle=PartialCandleDeclaration(
+                    open_time=_utc(_string(partial_mapping, "open_time"), "partial open_time"),
+                    actual_close_time=_utc(
+                        _string(partial_mapping, "actual_close_time"),
+                        "partial actual_close_time",
+                    ),
+                    expected_close_time=_utc(
+                        _string(partial_mapping, "expected_close_time"),
+                        "partial expected_close_time",
+                    ),
+                    provider_row_sha256=_string(partial_mapping, "provider_row_sha256"),
+                    exclusion_reason=_string(partial_mapping, "exclusion_reason"),
+                ),
             )
         )
 
     try:
         manifest = ExchangeClosureManifest(
-            schema_version=schema_version,
+            schema_version=_string(mapping, "schema_version"),
             provider=_string(mapping, "provider"),
             instrument=Instrument(
                 _string(instrument_mapping, "symbol"),
@@ -456,7 +377,6 @@ def load_exchange_closure_manifest(raw: bytes) -> ExchangeClosureManifest:
             start_time=_utc(_string(mapping, "start_time"), "start_time"),
             end_time=_utc(_string(mapping, "end_time"), "end_time"),
             closures=tuple(closures),
-            source_manifest_sha256=source_manifest_sha256,
         )
     except ValueError as error:
         raise CandleValidationError("exchange closure manifest values are invalid") from error

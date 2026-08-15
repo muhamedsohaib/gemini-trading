@@ -25,8 +25,8 @@ def test_v0_4_stage1_derives_exact_hourly_scope_from_frozen_source_evidence() ->
     source, source_raw = load_fixed_btcusdt_closure_manifest(_PROJECT_ROOT)
     hourly, hourly_raw = build_v0_4_closure_manifest(_PROJECT_ROOT)
 
-    assert V04_STAGE1_START == datetime(2018, 1, 1, tzinfo=UTC)
-    assert V04_STAGE1_END_EXCLUSIVE == datetime(2026, 8, 1, tzinfo=UTC)
+    assert datetime(2018, 1, 1, tzinfo=UTC) == V04_STAGE1_START
+    assert datetime(2026, 8, 1, tzinfo=UTC) == V04_STAGE1_END_EXCLUSIVE
     assert hourly.schema_version == "exchange-closure-manifest-v4"
     assert hourly.provider == "binance_spot"
     assert hourly.instrument == source.instrument

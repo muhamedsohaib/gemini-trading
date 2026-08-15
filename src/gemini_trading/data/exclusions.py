@@ -11,7 +11,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Never, NoReturn, cast
 
 from gemini_trading.data.errors import CandleValidationError
-from gemini_trading.data.exchange_closures import ExchangeClosureManifest, PartialCandleDeclaration
+from gemini_trading.data.exchange_closures import ExchangeClosureManifest
 from gemini_trading.data.normalization.binance_klines import normalize_binance_klines
 from gemini_trading.domain.candle import Candle
 from gemini_trading.domain.dataset import RawPage
@@ -309,16 +309,6 @@ def _validate_page_identity(
             _fail("raw page interval does not match exclusion manifest")
 
 
-def _partial_declarations(
-    manifest: ExchangeClosureManifest,
-) -> dict[datetime, tuple[str, PartialCandleDeclaration]]:
-    return {
-        partial.open_time: (closure.closure_id, partial)
-        for closure in manifest.closures
-        if (partial := closure.partial_candle) is not None
-    }
-
-
 def match_and_exclude_partial_candles(
     pages: Sequence[RawPage],
     normalized_pages: Sequence[Sequence[Candle]],
@@ -329,7 +319,9 @@ def match_and_exclude_partial_candles(
     """Match every declared partial row exactly and exclude it once from canonical data."""
 
     _validate_page_identity(pages, normalized_pages, closure_manifest, server_time)
-    declarations = _partial_declarations(closure_manifest)
+    declarations = {
+        closure.partial_candle.open_time: closure for closure in closure_manifest.closures
+    }
     matches: dict[str, CandleExclusion] = {}
     canonical: list[Candle] = []
     seen_open_times: set[datetime] = set()
@@ -367,22 +359,19 @@ def match_and_exclude_partial_candles(
             )
             row_hash = hashlib.sha256(canonical_binance_row_bytes(row)).hexdigest()
             if declaration is not None:
-                closure_id, partial = declaration
+                partial = declaration.partial_candle
                 if candle.close_time != partial.actual_close_time:
                     _fail("declared partial candle actual close mismatch")
                 if expected_close != partial.expected_close_time:
                     _fail("declared partial candle expected close mismatch")
-                if (
-                    partial.provider_row_sha256 is not None
-                    and row_hash != partial.provider_row_sha256
-                ):
+                if row_hash != partial.provider_row_sha256:
                     _fail("declared partial candle provider-row SHA-256 mismatch")
                 if candle.close_time >= server_time:
                     _fail("declared partial candle is not closed at the server snapshot")
-                if closure_id in matches:
+                if declaration.closure_id in matches:
                     _fail("declared partial candle appears more than once")
-                matches[closure_id] = CandleExclusion(
-                    closure_id=closure_id,
+                matches[declaration.closure_id] = CandleExclusion(
+                    closure_id=declaration.closure_id,
                     raw_page_sequence=page.sequence,
                     raw_page_sha256=page.response_sha256,
                     row_index=row_index,
@@ -405,7 +394,9 @@ def match_and_exclude_partial_candles(
     if not seen_open_times or min(seen_open_times) != closure_manifest.start_time:
         _fail("raw evidence does not begin at the exclusion request window")
     missing_ids = tuple(
-        closure_id for closure_id, _partial in declarations.values() if closure_id not in matches
+        closure.closure_id
+        for closure in closure_manifest.closures
+        if closure.closure_id not in matches
     )
     if missing_ids:
         _fail("declared partial candle is missing from raw evidence: " + ",".join(missing_ids))
@@ -430,14 +421,3 @@ def match_and_exclude_partial_candles(
             exclusions=ordered_exclusions,
         ),
     )
-
-
-__all__ = [
-    "CandleExclusion",
-    "CandleExclusionManifest",
-    "CandleExclusionResult",
-    "canonical_binance_row_bytes",
-    "load_candle_exclusion_manifest",
-    "match_and_exclude_partial_candles",
-    "serialize_candle_exclusion_manifest",
-]

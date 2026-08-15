@@ -307,7 +307,7 @@ def _load_partial(value: object) -> V04PartialCandleDeclaration | None:
         expected_close_time=_parse_utc(
             _string(mapping, "expected_close_time"), "partial expected_close_time"
         ),
-        provider_row_sha256=cast(str | None, raw_digest),
+        provider_row_sha256=raw_digest,
         exclusion_reason=_string(mapping, "exclusion_reason"),
     )
 

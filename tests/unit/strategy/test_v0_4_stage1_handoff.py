@@ -195,22 +195,17 @@ def test_v0_4_handoff_rejects_wrong_derived_counts_and_boundaries() -> None:
         _valid_handoff(segment_boundary_indices=shape.segment_boundary_indices[:-1])
 
 
-def test_v0_4_handoff_rejects_exclusion_for_full_missing_only_closure() -> None:
+def test_v0_4_handoff_rejects_exclusion_for_unknown_closure() -> None:
     shape = _expected_shape()
-    full_missing_only = next(
-        closure_id
-        for closure_id in shape.closure_ids
-        if closure_id not in set(shape.partial_closure_ids)
-    )
     rows = (
         *_excluded_rows(shape),
         ExcludedProviderRow(
-            closure_id=full_missing_only,
-            provider_row_sha256=hashlib.sha256(full_missing_only.encode()).hexdigest(),
+            closure_id="not-a-declared-v0-4-closure",
+            provider_row_sha256=hashlib.sha256(b"unknown").hexdigest(),
         ),
     )
     with pytest.raises(DatasetHandoffError, match="excluded provider rows"):
-        _valid_handoff(excluded_provider_rows=rows)
+        _valid_handoff(excluded_provider_rows=rows, exclusion_count=len(rows))
 
 
 def test_v0_4_handoff_rejects_inventory_root_mismatch() -> None:

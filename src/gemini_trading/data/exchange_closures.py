@@ -218,8 +218,7 @@ class ExchangeClosureManifest:
             if any(item.partial_candle is None for item in self.closures):
                 _fail("v3 exchange closure manifest requires one partial candle per closure")
             if any(
-                item.partial_candle is not None
-                and item.partial_candle.provider_row_sha256 is None
+                item.partial_candle is not None and item.partial_candle.provider_row_sha256 is None
                 for item in self.closures
             ):
                 _fail("v3 exchange closure partial rows require provider-row SHA-256")
@@ -244,9 +243,7 @@ class ExchangeClosureManifest:
             _fail("duplicate exchange closure partial candle open")
 
         provider_row_digests = tuple(
-            item.provider_row_sha256
-            for item in partials
-            if item.provider_row_sha256 is not None
+            item.provider_row_sha256 for item in partials if item.provider_row_sha256 is not None
         )
         if len(provider_row_digests) != len(set(provider_row_digests)):
             _fail("duplicate exchange closure provider-row SHA-256")
@@ -366,7 +363,9 @@ def serialize_exchange_closure_manifest(manifest: ExchangeClosureManifest) -> by
     return f"{serialized}\n".encode()
 
 
-def _load_partial(mapping: dict[str, object], schema_version: str) -> PartialCandleDeclaration | None:
+def _load_partial(
+    mapping: dict[str, object], schema_version: str
+) -> PartialCandleDeclaration | None:
     raw_partial = mapping.get("partial_candle")
     if raw_partial is None:
         if schema_version != _SCHEMA_VERSION_V4:

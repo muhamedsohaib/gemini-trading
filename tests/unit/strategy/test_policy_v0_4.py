@@ -1,7 +1,7 @@
 """Candidate v0.4 policy identity and multi-timeframe contract tests."""
 
-from importlib import import_module, util
 from decimal import Decimal
+from importlib import import_module, util
 
 import pytest
 
@@ -44,7 +44,9 @@ def test_approved_candidate_policy_accepts_only_exact_v0_4_identity_pair() -> No
 
 def test_locked_v0_4_multitimeframe_adjunct_is_exact_and_bounded() -> None:
     module_name = "gemini_trading.strategy.v0_4_policy"
-    assert util.find_spec(module_name) is not None, "Candidate v0.4 adjunct policy module is missing"
+    assert util.find_spec(module_name) is not None, (
+        "Candidate v0.4 adjunct policy module is missing"
+    )
     module = import_module(module_name)
     policy_type = getattr(module, "V04MultiTimeframePolicy")
     policy = policy_type.locked()

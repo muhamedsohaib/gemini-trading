@@ -130,11 +130,16 @@ class V04Stage1ExpectedShape:
             _fail("Candidate v0.4 expected segment count mismatch")
         if len(self.segment_boundary_indices) != self.closure_count:
             _fail("Candidate v0.4 expected segment boundary count mismatch")
-        if self.segment_boundary_indices != tuple(sorted(set(self.segment_boundary_indices))):
+        if self.segment_boundary_indices != tuple(
+            sorted(set(self.segment_boundary_indices))
+        ):
             _fail("Candidate v0.4 expected segment boundaries are invalid")
         if self.candle_count < 1:
             _fail("Candidate v0.4 expected candle count must be positive")
-        if (self.first_open_time, self.last_open_time) != (_START_TEXT, _LAST_OPEN_TEXT):
+        if (self.first_open_time, self.last_open_time) != (
+            _START_TEXT,
+            _LAST_OPEN_TEXT,
+        ):
             _fail("Candidate v0.4 expected candle boundaries changed")
 
 
@@ -142,7 +147,9 @@ def expected_v0_4_stage1_shape(project_root: Path) -> V04Stage1ExpectedShape:
     """Derive exact Stage 1 counts and segment boundaries without using price data."""
 
     closure_manifest, _ = build_v0_4_closure_manifest(project_root)
-    total_slots = (V04_STAGE1_END_EXCLUSIVE - V04_STAGE1_START) // timedelta(hours=1)
+    total_slots = (
+        V04_STAGE1_END_EXCLUSIVE - V04_STAGE1_START
+    ) // timedelta(hours=1)
     cumulative_unavailable = 0
     boundaries: list[int] = []
     for closure in closure_manifest.closures:
@@ -283,13 +290,18 @@ class V04DatasetHandoffManifest:
         for boundary in self.segment_boundary_indices:
             _require_positive_int(boundary, "segment boundary index")
         _require_positive_int(self.candle_count, "candle count")
-        if (self.first_open_time, self.last_open_time) != (_START_TEXT, _LAST_OPEN_TEXT):
+        if (self.first_open_time, self.last_open_time) != (
+            _START_TEXT,
+            _LAST_OPEN_TEXT,
+        ):
             _fail("Candidate v0.4 handoff candle boundary mismatch")
         if self.replay_status != "completed" or self.verification_status != "verified":
             _fail("Candidate v0.4 handoff is not verified")
         if not self.files:
             _fail("Candidate v0.4 handoff file inventory is empty")
-        if tuple(item.path for item in self.files) != tuple(sorted(item.path for item in self.files)):
+        if tuple(item.path for item in self.files) != tuple(
+            sorted(item.path for item in self.files)
+        ):
             _fail("Candidate v0.4 handoff file inventory is not sorted")
         if len({item.path for item in self.files}) != len(self.files):
             _fail("duplicate Candidate v0.4 artifact-relative path")

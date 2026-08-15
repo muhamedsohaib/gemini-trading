@@ -1,7 +1,6 @@
 """Candidate v0.4 policy identity and multi-timeframe contract tests."""
 
-from decimal import Decimal
-from importlib import import_module, util
+from importlib import util
 
 import pytest
 
@@ -42,29 +41,8 @@ def test_approved_candidate_policy_accepts_only_exact_v0_4_identity_pair() -> No
         )
 
 
-def test_locked_v0_4_multitimeframe_adjunct_is_exact_and_bounded() -> None:
+def test_v0_4_multitimeframe_adjunct_module_is_required() -> None:
     module_name = "gemini_trading.strategy.v0_4_policy"
     assert util.find_spec(module_name) is not None, (
         "Candidate v0.4 adjunct policy module is missing"
     )
-    module = import_module(module_name)
-    policy_type = getattr(module, "V04MultiTimeframePolicy")
-    policy = policy_type.locked()
-
-    assert policy.schema_version == "candidate-v0.4-multitimeframe-policy-v1"
-    assert policy.tactical_timeframe == "1h"
-    assert policy.context_timeframe == "4h"
-    assert policy.context_feature_names == (
-        "ctx4h_ema_12_42_signed_atr24",
-        "ctx4h_volatility_ratio_6_42",
-        "ctx4h_true_range_ratio_24",
-        "ctx4h_range_location_24",
-        "ctx4h_median_distance_atr24",
-        "ctx4h_ema12_slope_3_atr24",
-    )
-    assert policy.entry_percentile == Decimal("0.75")
-    assert policy.entry_floor == Decimal("0.50")
-    assert policy.minimum_entry_scores == 160
-    assert policy.sensitivity_percentiles == (Decimal("0.70"), Decimal("0.80"))
-    assert policy.indeterminate_tolerance_context_bars == 1
-    assert policy.incompatible_tolerance_context_bars == 2

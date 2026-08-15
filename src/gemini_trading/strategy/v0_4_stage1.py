@@ -443,11 +443,11 @@ def build_v0_4_closure_manifest(
 
 
 __all__ = [
+    "V04_STAGE1_END_EXCLUSIVE",
+    "V04_STAGE1_START",
     "V04ExchangeClosure",
     "V04ExchangeClosureManifest",
     "V04PartialCandleDeclaration",
-    "V04_STAGE1_END_EXCLUSIVE",
-    "V04_STAGE1_START",
     "build_v0_4_closure_manifest",
     "load_v0_4_closure_manifest",
     "serialize_v0_4_closure_manifest",

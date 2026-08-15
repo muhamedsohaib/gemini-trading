@@ -27,6 +27,7 @@ jobs:
           uv run ruff format --check --diff
           src/gemini_trading/strategy/policy.py
           src/gemini_trading/strategy/v0_4_policy.py
+          src/gemini_trading/cli/strategy.py
           tests/unit/strategy/test_policy_v0_3.py
           tests/unit/strategy/test_policy_v0_4.py
           tests/unit/cli/test_strategy_v0_3.py
@@ -35,6 +36,7 @@ jobs:
           uv run ruff check
           src/gemini_trading/strategy/policy.py
           src/gemini_trading/strategy/v0_4_policy.py
+          src/gemini_trading/cli/strategy.py
           tests/unit/strategy/test_policy_v0_3.py
           tests/unit/strategy/test_policy_v0_4.py
           tests/unit/cli/test_strategy_v0_3.py
@@ -43,6 +45,7 @@ jobs:
           uv run pyright
           src/gemini_trading/strategy/policy.py
           src/gemini_trading/strategy/v0_4_policy.py
+          src/gemini_trading/cli/strategy.py
           tests/unit/strategy/test_policy_v0_3.py
           tests/unit/strategy/test_policy_v0_4.py
           tests/unit/cli/test_strategy_v0_3.py

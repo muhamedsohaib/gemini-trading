@@ -392,18 +392,22 @@ def _integer(mapping: dict[str, object], key: str) -> int:
 
 def _strings(mapping: dict[str, object], key: str) -> tuple[str, ...]:
     value = mapping.get(key)
-    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+    if not isinstance(value, list):
         _fail(f"invalid Candidate v0.4 handoff field: {key}")
-    return tuple(cast(list[str], value))
+    raw_values = cast(list[object], value)
+    if not all(isinstance(item, str) for item in raw_values):
+        _fail(f"invalid Candidate v0.4 handoff field: {key}")
+    return tuple(cast(list[str], raw_values))
 
 
 def _integers(mapping: dict[str, object], key: str) -> tuple[int, ...]:
     value = mapping.get(key)
-    if not isinstance(value, list) or not all(
-        isinstance(item, int) and not isinstance(item, bool) for item in value
-    ):
+    if not isinstance(value, list):
         _fail(f"invalid Candidate v0.4 handoff field: {key}")
-    return tuple(cast(list[int], value))
+    raw_values = cast(list[object], value)
+    if not all(isinstance(item, int) and not isinstance(item, bool) for item in raw_values):
+        _fail(f"invalid Candidate v0.4 handoff field: {key}")
+    return tuple(cast(list[int], raw_values))
 
 
 def _excluded_rows(mapping: dict[str, object]) -> tuple[ExcludedProviderRow, ...]:

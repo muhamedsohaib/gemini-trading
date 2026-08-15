@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 from typing import Protocol, cast
 
@@ -50,9 +51,9 @@ class _DatasetManifest(Protocol):
 
 
 def _module() -> object:
-    from gemini_trading.strategy import v0_4_stage1_handoff
+    from gemini_trading.strategy import v0_4_dataset
 
-    return v0_4_stage1_handoff
+    return v0_4_dataset
 
 
 def _sha(raw: bytes) -> str:
@@ -214,18 +215,16 @@ def test_v0_4_verifier_rejects_full_missing_only_closure_as_exclusion(tmp_path: 
         for closure_id in shape.closure_ids
         if closure_id not in set(shape.partial_closure_ids)
     )
-    rows = handoff.excluded_provider_rows + (
+    rows = (
+        *handoff.excluded_provider_rows[:-1],
         ExcludedProviderRow(
             closure_id=full_missing_only,
             provider_row_sha256=hashlib.sha256(b"fabricated").hexdigest(),
         ),
     )
-    tampered = V04DatasetHandoffManifest(
-        **{
-            **handoff.__dict__,
-            "excluded_provider_rows": rows,
-            "exclusion_count": len(rows),
-        }
+    tampered = replace(
+        handoff,
+        excluded_provider_rows=rows,
     )
     with pytest.raises(DatasetHandoffError, match="partial closure"):
         _verifier()(

@@ -1,14 +1,25 @@
 """Candidate v0.4 policy identity and multi-timeframe contract tests."""
 
+from collections.abc import Callable
 from importlib import util
+from typing import cast
 
 import pytest
 
 from gemini_trading.strategy.policy import CandidatePolicy, approved_candidate_policy
 
 
+def _locked_v0_4() -> CandidatePolicy:
+    constructor = cast(
+        Callable[[], CandidatePolicy] | None,
+        vars(CandidatePolicy).get("locked_v0_4"),
+    )
+    assert constructor is not None, "Candidate v0.4 policy constructor is missing"
+    return constructor()
+
+
 def test_locked_v0_4_translates_real_time_contract_to_hourly_policy() -> None:
-    policy = CandidatePolicy.locked_v0_4()
+    policy = _locked_v0_4()
 
     assert policy.strategy_id == "candidate.multi_model.v0_4"
     assert policy.policy_version == "candidate-multi-model-v0.4"
@@ -32,7 +43,7 @@ def test_approved_candidate_policy_accepts_only_exact_v0_4_identity_pair() -> No
         "candidate.multi_model.v0_4",
         "candidate-multi-model-v0.4",
     )
-    assert policy == CandidatePolicy.locked_v0_4()
+    assert policy == _locked_v0_4()
 
     with pytest.raises(ValueError, match="identity pair"):
         approved_candidate_policy(

@@ -12,7 +12,7 @@ from gemini_trading.strategy.policy import CandidatePolicy, approved_candidate_p
 def _locked_v0_4() -> CandidatePolicy:
     constructor = cast(
         Callable[[], CandidatePolicy] | None,
-        vars(CandidatePolicy).get("locked_v0_4"),
+        getattr(CandidatePolicy, "locked_v0_4", None),
     )
     assert constructor is not None, "Candidate v0.4 policy constructor is missing"
     return constructor()

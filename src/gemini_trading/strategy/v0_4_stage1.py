@@ -233,7 +233,12 @@ class V04ExchangeClosureManifest:
             _fail("v0.4 hourly closure entries must be ordered")
         previous: V04ExchangeClosure | None = None
         for closure in self.closures:
-            if not self.start_time <= closure.canonical_gap_start < closure.resumed_open <= self.end_time:
+            if (
+                not self.start_time
+                <= closure.canonical_gap_start
+                < closure.resumed_open
+                <= self.end_time
+            ):
                 _fail("v0.4 hourly closure lies outside the development window")
             if previous is not None and closure.canonical_gap_start <= previous.resumed_open:
                 _fail("v0.4 hourly closure entries overlap or touch")

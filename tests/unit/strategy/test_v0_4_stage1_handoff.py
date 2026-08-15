@@ -18,7 +18,7 @@ from gemini_trading.strategy.handoff import (
 )
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
-_MODULE_NAME = "gemini_trading.strategy.v0_4_stage1"
+_MODULE_NAME = "gemini_trading.strategy.v0_4_stage1_handoff"
 
 
 class _ExpectedShape(Protocol):

@@ -50,7 +50,7 @@ def test_v0_4_stage1_derives_exact_hourly_scope_from_frozen_source_evidence() ->
     assert hourly.timeframe.value == "1h"
     assert hourly.start_time == stage1.V04_STAGE1_START
     assert hourly.end_time == stage1.V04_STAGE1_END_EXCLUSIVE
-    assert hourly.source_manifest_sha256 == hashlib.sha256(source_raw).hexdigest()
+    assert getattr(hourly, "source_manifest_sha256", None) == hashlib.sha256(source_raw).hexdigest()
     assert tuple(item.closure_id for item in hourly.closures) == tuple(
         item.closure_id for item in source.closures
     )

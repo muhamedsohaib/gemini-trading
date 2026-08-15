@@ -405,9 +405,7 @@ def match_and_exclude_partial_candles(
     if not seen_open_times or min(seen_open_times) != closure_manifest.start_time:
         _fail("raw evidence does not begin at the exclusion request window")
     missing_ids = tuple(
-        closure_id
-        for closure_id, _partial in declarations.values()
-        if closure_id not in matches
+        closure_id for closure_id, _partial in declarations.values() if closure_id not in matches
     )
     if missing_ids:
         _fail("declared partial candle is missing from raw evidence: " + ",".join(missing_ids))

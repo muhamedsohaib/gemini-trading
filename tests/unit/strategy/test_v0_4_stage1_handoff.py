@@ -202,7 +202,8 @@ def test_v0_4_handoff_rejects_exclusion_for_full_missing_only_closure() -> None:
         for closure_id in shape.closure_ids
         if closure_id not in set(shape.partial_closure_ids)
     )
-    rows = _excluded_rows(shape) + (
+    rows = (
+        *_excluded_rows(shape),
         ExcludedProviderRow(
             closure_id=full_missing_only,
             provider_row_sha256=hashlib.sha256(full_missing_only.encode()).hexdigest(),

@@ -130,9 +130,7 @@ class V04Stage1ExpectedShape:
             _fail("Candidate v0.4 expected segment count mismatch")
         if len(self.segment_boundary_indices) != self.closure_count:
             _fail("Candidate v0.4 expected segment boundary count mismatch")
-        if self.segment_boundary_indices != tuple(
-            sorted(set(self.segment_boundary_indices))
-        ):
+        if self.segment_boundary_indices != tuple(sorted(set(self.segment_boundary_indices))):
             _fail("Candidate v0.4 expected segment boundaries are invalid")
         if self.candle_count < 1:
             _fail("Candidate v0.4 expected candle count must be positive")
@@ -147,9 +145,7 @@ def expected_v0_4_stage1_shape(project_root: Path) -> V04Stage1ExpectedShape:
     """Derive exact Stage 1 counts and segment boundaries without using price data."""
 
     closure_manifest, _ = build_v0_4_closure_manifest(project_root)
-    total_slots = (
-        V04_STAGE1_END_EXCLUSIVE - V04_STAGE1_START
-    ) // timedelta(hours=1)
+    total_slots = (V04_STAGE1_END_EXCLUSIVE - V04_STAGE1_START) // timedelta(hours=1)
     cumulative_unavailable = 0
     boundaries: list[int] = []
     for closure in closure_manifest.closures:
@@ -281,10 +277,10 @@ class V04DatasetHandoffManifest:
             _fail("Candidate v0.4 handoff excluded provider rows mismatch")
         if len(set(excluded_hashes)) != len(excluded_hashes):
             _fail("duplicate Candidate v0.4 handoff excluded row digest")
-        if (
-            len(self.segment_boundary_indices) != self.closure_count
-            or self.segment_boundary_indices
-            != tuple(sorted(set(self.segment_boundary_indices)))
+        if len(
+            self.segment_boundary_indices
+        ) != self.closure_count or self.segment_boundary_indices != tuple(
+            sorted(set(self.segment_boundary_indices))
         ):
             _fail("Candidate v0.4 handoff segment boundaries mismatch")
         for boundary in self.segment_boundary_indices:

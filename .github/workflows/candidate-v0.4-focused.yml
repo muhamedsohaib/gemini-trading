@@ -28,6 +28,7 @@ jobs:
           src/gemini_trading/strategy/policy.py
           src/gemini_trading/strategy/v0_4_policy.py
           src/gemini_trading/strategy/v0_4_stage1.py
+          src/gemini_trading/strategy/v0_4_stage1_handoff.py
           src/gemini_trading/cli/strategy.py
           src/gemini_trading/data/exchange_closures.py
           src/gemini_trading/data/exclusions.py
@@ -44,6 +45,7 @@ jobs:
           src/gemini_trading/strategy/policy.py
           src/gemini_trading/strategy/v0_4_policy.py
           src/gemini_trading/strategy/v0_4_stage1.py
+          src/gemini_trading/strategy/v0_4_stage1_handoff.py
           src/gemini_trading/cli/strategy.py
           src/gemini_trading/data/exchange_closures.py
           src/gemini_trading/data/exclusions.py
@@ -60,6 +62,7 @@ jobs:
           src/gemini_trading/strategy/policy.py
           src/gemini_trading/strategy/v0_4_policy.py
           src/gemini_trading/strategy/v0_4_stage1.py
+          src/gemini_trading/strategy/v0_4_stage1_handoff.py
           src/gemini_trading/cli/strategy.py
           src/gemini_trading/data/exchange_closures.py
           src/gemini_trading/data/exclusions.py

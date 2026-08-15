@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Callable
-from dataclasses import replace
 from importlib import import_module
 from pathlib import Path
 from typing import Protocol, cast
@@ -214,6 +213,5 @@ def test_v0_4_handoff_rejects_exclusion_for_full_missing_only_closure() -> None:
 
 
 def test_v0_4_handoff_rejects_inventory_root_mismatch() -> None:
-    handoff = _valid_handoff()
     with pytest.raises(DatasetHandoffError, match="inventory root"):
-        replace(cast(object, handoff), inventory_root_sha256="f" * 64)
+        _valid_handoff(inventory_root_sha256="f" * 64)

@@ -34,6 +34,18 @@ _V0_2_POLICY_SHA256 = "".join(
         "3d33c9aa",
     )
 )
+_V0_3_POLICY_SHA256 = "".join(
+    (
+        "1379795e",
+        "1ec8a5d1",
+        "98c7efc3",
+        "c1ed09aa",
+        "dc6d6224",
+        "62d93e86",
+        "c868b548",
+        "df482f17",
+    )
+)
 
 
 def _policy_sha256(policy: CandidatePolicy) -> str:
@@ -43,6 +55,7 @@ def _policy_sha256(policy: CandidatePolicy) -> str:
 def test_previous_candidate_policy_bytes_remain_frozen() -> None:
     assert _policy_sha256(CandidatePolicy.locked_v0_1()) == _V0_1_POLICY_SHA256
     assert _policy_sha256(CandidatePolicy.locked_v0_2()) == _V0_2_POLICY_SHA256
+    assert _policy_sha256(CandidatePolicy.locked_v0_3()) == _V0_3_POLICY_SHA256
 
 
 def test_locked_v0_3_changes_only_candidate_identity_from_v0_2() -> None:

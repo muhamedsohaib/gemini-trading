@@ -234,9 +234,180 @@ def build_entry_threshold_artifact(
     )
 
 
+_V0_4_ALLOWED_PERCENTILES = (
+    Decimal("0.70"),
+    Decimal("0.75"),
+    Decimal("0.80"),
+)
+_V0_4_THRESHOLD_FLOOR = Decimal("0.50")
+_V0_4_MINIMUM_ELIGIBLE_SCORES = 160
+
+
+@dataclass(frozen=True, slots=True)
+class V04EntryThresholdArtifact:
+    """Immutable Candidate v0.4 regime-matched threshold evidence."""
+
+    schema_version: str
+    fold_number: int
+    specialist: SpecialistKind
+    percentile: Decimal
+    eligible_indices: tuple[int, ...]
+    eligible_scores: tuple[Decimal, ...]
+    raw_quantile: Decimal
+    effective_threshold: Decimal
+    eligible_rows_sha256: str
+    score_vector_sha256: str
+
+    def __post_init__(self) -> None:
+        if self.schema_version != "candidate-v0.4-entry-threshold-v1":
+            raise ValueError("unsupported Candidate v0.4 entry threshold schema")
+
+        if isinstance(self.fold_number, bool) or self.fold_number < 1:
+            raise ValueError("fold_number must be positive")
+
+        if self.specialist not in (
+            SpecialistKind.TREND,
+            SpecialistKind.MEAN_REVERSION,
+        ):
+            raise ValueError("unsupported Candidate v0.4 threshold specialist")
+
+        if self.percentile not in _V0_4_ALLOWED_PERCENTILES:
+            raise ValueError("Candidate v0.4 threshold percentile changed")
+
+        if self.eligible_indices != tuple(sorted(set(self.eligible_indices))):
+            raise ValueError("eligible_indices must be unique and ordered")
+
+        if len(self.eligible_indices) < _V0_4_MINIMUM_ELIGIBLE_SCORES:
+            raise ValueError("Candidate v0.4 threshold requires 160 eligible scores")
+
+        if len(self.eligible_indices) != len(self.eligible_scores):
+            raise ValueError("eligible score alignment changed")
+
+        if any(
+            not value.is_finite() or value < _ZERO or value > _ONE for value in self.eligible_scores
+        ):
+            raise ValueError("eligible scores must be finite and within [0, 1]")
+
+        for value in (
+            self.raw_quantile,
+            self.effective_threshold,
+        ):
+            if not value.is_finite() or value < _ZERO or value > _ONE:
+                raise ValueError("entry thresholds must be finite and within [0, 1]")
+
+        if self.effective_threshold < _V0_4_THRESHOLD_FLOOR:
+            raise ValueError("Candidate v0.4 threshold floor changed")
+
+        if self.effective_threshold < self.raw_quantile:
+            raise ValueError("effective threshold cannot be below raw quantile")
+
+        if len(self.eligible_rows_sha256) != 64 or len(self.score_vector_sha256) != 64:
+            raise ValueError("entry threshold identities must be SHA-256 digests")
+
+
+def _validate_v0_4_policy(policy: CandidatePolicy) -> None:
+    if policy != CandidatePolicy.locked_v0_4():
+        raise StudyArtifactError("entry selectivity requires exact Candidate v0.4 policy")
+
+
+def build_v0_4_entry_threshold_artifact(
+    *,
+    fold_number: int,
+    specialist: SpecialistKind,
+    percentile: Decimal,
+    eligible_indices: tuple[int, ...],
+    calibrated_probabilities: Mapping[int, Decimal],
+    policy: CandidatePolicy,
+) -> V04EntryThresholdArtifact:
+    """Build one v0.4 threshold from an explicit regime-matched domain."""
+
+    _validate_v0_4_policy(policy)
+
+    if isinstance(fold_number, bool) or fold_number < 1:
+        raise StudyArtifactError("entry threshold fold_number must be positive")
+
+    if specialist not in (
+        SpecialistKind.TREND,
+        SpecialistKind.MEAN_REVERSION,
+    ):
+        raise StudyArtifactError("unsupported specialist for Candidate v0.4 entry selectivity")
+
+    if eligible_indices != tuple(sorted(set(eligible_indices))):
+        raise StudyArtifactError("eligible indices must be unique and ordered")
+
+    if any(isinstance(index, bool) or index < 0 for index in eligible_indices):
+        raise StudyArtifactError("eligible indices must be non-negative integers")
+
+    if set(calibrated_probabilities) != set(eligible_indices):
+        raise StudyArtifactError("probability keys must match eligible indices exactly")
+
+    if percentile not in _V0_4_ALLOWED_PERCENTILES:
+        raise StudyArtifactError("entry percentile is not preregistered for Candidate v0.4")
+
+    if len(eligible_indices) < _V0_4_MINIMUM_ELIGIBLE_SCORES:
+        raise StudyArtifactError(
+            "entry selectivity requires at least 160 eligible calibration scores"
+        )
+
+    probabilities: dict[int, Decimal] = {}
+
+    for index in eligible_indices:
+        value = calibrated_probabilities[index]
+
+        if not value.is_finite() or value < _ZERO or value > _ONE:
+            raise StudyArtifactError("calibrated probabilities must be finite and within [0, 1]")
+
+        probabilities[index] = value
+
+    eligible_scores = tuple(probabilities[index] for index in eligible_indices)
+
+    raw_quantile = linear_quantile(
+        eligible_scores,
+        percentile,
+    )
+    effective_threshold = max(
+        raw_quantile,
+        _V0_4_THRESHOLD_FLOOR,
+    )
+
+    eligible_rows_sha256 = _sha256(
+        {
+            "schema_version": "candidate-v0.4-entry-eligible-rows-v1",
+            "fold_number": fold_number,
+            "specialist": specialist.value,
+            "eligible_indices": eligible_indices,
+        }
+    )
+
+    score_vector_sha256 = _sha256(
+        {
+            "schema_version": "candidate-v0.4-entry-score-vector-v1",
+            "fold_number": fold_number,
+            "specialist": specialist.value,
+            "eligible_indices": eligible_indices,
+            "eligible_scores": eligible_scores,
+        }
+    )
+
+    return V04EntryThresholdArtifact(
+        schema_version="candidate-v0.4-entry-threshold-v1",
+        fold_number=fold_number,
+        specialist=specialist,
+        percentile=percentile,
+        eligible_indices=eligible_indices,
+        eligible_scores=eligible_scores,
+        raw_quantile=raw_quantile,
+        effective_threshold=effective_threshold,
+        eligible_rows_sha256=eligible_rows_sha256,
+        score_vector_sha256=score_vector_sha256,
+    )
+
+
 __all__ = [
     "EntrySelectivityPolicy",
     "EntryThresholdArtifact",
+    "V04EntryThresholdArtifact",
     "build_entry_threshold_artifact",
+    "build_v0_4_entry_threshold_artifact",
     "linear_quantile",
 ]

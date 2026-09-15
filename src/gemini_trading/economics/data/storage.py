@@ -132,7 +132,9 @@ class LocalEconomicEvidenceStore:
 
         if target.exists():
             if target.read_bytes() != payload:
-                raise EconomicStorageError("immutable raw evidence path already contains different bytes")
+                raise EconomicStorageError(
+                    "immutable raw evidence path already contains different bytes"
+                )
         else:
             try:
                 with target.open("xb") as handle:

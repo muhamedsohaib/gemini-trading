@@ -164,9 +164,7 @@ def test_revisioned_bundle_build_replay_verify_and_asof_visibility(tmp_path: Pat
             raw_sha256=macro_revision.sha256,
         ),
     )
-    inventory = RawEvidenceInventory(
-        (market_day_1, market_day_2, macro_initial, macro_revision)
-    )
+    inventory = RawEvidenceInventory((market_day_1, market_day_2, macro_initial, macro_revision))
 
     built = build_economic_dataset(
         registry=_registry(),

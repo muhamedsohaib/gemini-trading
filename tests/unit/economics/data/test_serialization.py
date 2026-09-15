@@ -180,7 +180,9 @@ def test_series_registry_serialization_is_sorted_and_deterministic() -> None:
     registry = _registry()
 
     first = serialize_series_registry(registry)
-    second = serialize_series_registry(EconomicSeriesRegistry(tuple(reversed(registry.definitions))))
+    second = serialize_series_registry(
+        EconomicSeriesRegistry(tuple(reversed(registry.definitions)))
+    )
 
     assert first == second
     rows = [json.loads(line) for line in first.decode("utf-8").splitlines()]

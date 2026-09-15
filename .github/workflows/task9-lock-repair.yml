@@ -3,14 +3,13 @@ name: Task 9 Lock Repair
 on:
   push:
     branches:
-      - feature/economic-data-fabric-v1
+      - "feature/economic-data-fabric-v1"
 
 permissions:
   contents: write
 
 jobs:
   repair-lock:
-    if: github.actor != 'github-actions[bot]' || github.event.head_commit.message != 'chore: upgrade locked pip past PYSEC-2026-3721'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2

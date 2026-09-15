@@ -29,7 +29,7 @@ def _format_decimal(value: Decimal) -> str:
 
 def _json_line(payload: dict[str, object]) -> bytes:
     encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
-    return f"{encoded}\n".encode("utf-8")
+    return f"{encoded}\n".encode()
 
 
 def observation_identity_key(

@@ -164,9 +164,7 @@ def test_changing_observation_value_changes_dataset_id() -> None:
 def test_changing_available_time_changes_dataset_id() -> None:
     first = _dataset()
     second = _dataset(
-        observations=_observations(
-            macro_available_time=datetime(2026, 8, 12, 12, 31, tzinfo=UTC)
-        )
+        observations=_observations(macro_available_time=datetime(2026, 8, 12, 12, 31, tzinfo=UTC))
     )
 
     assert first.manifest.dataset_id != second.manifest.dataset_id
@@ -204,9 +202,10 @@ def test_manifest_binds_counts_ranges_and_component_hashes() -> None:
     assert manifest.maximum_observation_time == datetime(2026, 8, 12, 12, 29, tzinfo=UTC)
     assert manifest.minimum_available_time == datetime(2026, 8, 12, 12, 30, tzinfo=UTC)
     assert manifest.maximum_available_time == datetime(2026, 8, 12, 12, 30, tzinfo=UTC)
-    assert manifest.canonical_observations_sha256 == sha256(
-        dataset.canonical_observation_bytes
-    ).hexdigest()
+    assert (
+        manifest.canonical_observations_sha256
+        == sha256(dataset.canonical_observation_bytes).hexdigest()
+    )
     assert manifest.series_registry_sha256 == sha256(dataset.series_registry_bytes).hexdigest()
     assert manifest.raw_inventory_root_sha256 == dataset.raw_inventory.inventory_root_sha256
     assert len(manifest.dataset_id) == 64

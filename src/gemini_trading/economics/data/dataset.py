@@ -23,7 +23,6 @@ from gemini_trading.economics.data.series import (
     RevisionPolicy,
 )
 from gemini_trading.economics.data.storage import (
-    ECONOMIC_RAW_RECEIPT_SCHEMA_V1,
     RawEvidenceInventory,
     RawEvidenceReceipt,
 )

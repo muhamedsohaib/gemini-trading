@@ -39,11 +39,11 @@ def verify_economic_bundle(root: Path) -> EconomicDatasetManifest:
 
     declared_paths = {receipt.relative_path for receipt in dataset.raw_inventory.receipts}
     raw_root = root / "raw"
-    actual_paths = (
-        {path.relative_to(root).as_posix() for path in raw_root.rglob("*") if path.is_file()}
-        if raw_root.is_dir()
-        else set()
-    )
+    actual_paths: set[str] = set()
+    if raw_root.is_dir():
+        actual_paths = {
+            path.relative_to(root).as_posix() for path in raw_root.rglob("*") if path.is_file()
+        }
     undeclared = actual_paths - declared_paths
     if undeclared:
         raise EconomicVerificationError(

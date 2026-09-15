@@ -9,6 +9,7 @@ import pytest
 
 from gemini_trading.economics.data.dataset import (
     ECONOMIC_DATASET_SCHEMA_V1,
+    EconomicDataset,
     EconomicDatasetError,
     build_economic_dataset,
     load_economic_bundle,
@@ -73,6 +74,7 @@ def _observations(
     *,
     macro_value: Decimal = Decimal("324.100"),
     macro_available_time: datetime = datetime(2026, 8, 12, 12, 30, tzinfo=UTC),
+    macro_vintage_time: datetime = datetime(2026, 8, 12, 12, 30, tzinfo=UTC),
 ) -> tuple[EconomicObservation, ...]:
     market_payload = b"market-release"
     macro_payload = b"macro-release"
@@ -97,7 +99,7 @@ def _observations(
             series_id="macro.us.cpi.all_items.index",
             observation_time=datetime(2026, 7, 1, tzinfo=UTC),
             available_time=macro_available_time,
-            vintage_time=macro_available_time,
+            vintage_time=macro_vintage_time,
             retrieved_time=datetime(2026, 8, 12, 12, 31, tzinfo=UTC),
             source_id="fixture.macro.v1",
             value=macro_value,
@@ -132,7 +134,7 @@ def _dataset(
     registry: EconomicSeriesRegistry | None = None,
     observations: tuple[EconomicObservation, ...] | None = None,
     inventory: RawEvidenceInventory | None = None,
-):
+) -> EconomicDataset:
     return build_economic_dataset(
         registry=_registry() if registry is None else registry,
         observations=_observations() if observations is None else observations,
@@ -161,12 +163,13 @@ def test_changing_observation_value_changes_dataset_id() -> None:
     assert first.manifest.dataset_id != second.manifest.dataset_id
 
 
-def test_changing_available_time_changes_dataset_id() -> None:
+def test_changing_available_time_alone_changes_dataset_id() -> None:
     first = _dataset()
     second = _dataset(
         observations=_observations(macro_available_time=datetime(2026, 8, 12, 12, 31, tzinfo=UTC))
     )
 
+    assert first.observations[0].vintage_time == second.observations[0].vintage_time
     assert first.manifest.dataset_id != second.manifest.dataset_id
 
 
@@ -174,6 +177,25 @@ def test_changing_registry_semantics_changes_dataset_id() -> None:
     first = _dataset()
     second = _dataset(registry=_registry(macro_title="US CPI All Urban Consumers"))
 
+    assert first.manifest.dataset_id != second.manifest.dataset_id
+
+
+def test_changing_raw_inventory_identity_changes_dataset_id() -> None:
+    macro = _receipt(
+        source_id="fixture.macro.v1",
+        receipt_id="macro-release-alias",
+        payload=b"macro-release",
+    )
+    market = _receipt(
+        source_id="fixture.market.v1",
+        receipt_id="market-release",
+        payload=b"market-release",
+    )
+
+    first = _dataset()
+    second = _dataset(inventory=RawEvidenceInventory((macro, market)))
+
+    assert first.raw_inventory.raw_digests == second.raw_inventory.raw_digests
     assert first.manifest.dataset_id != second.manifest.dataset_id
 
 
@@ -211,19 +233,22 @@ def test_manifest_binds_counts_ranges_and_component_hashes() -> None:
     assert len(manifest.dataset_id) == 64
 
 
+def _write_raw_source(dataset: EconomicDataset, raw_source: Path) -> None:
+    payloads = {
+        "macro-release": b"macro-release",
+        "market-release": b"market-release",
+    }
+    for receipt in dataset.raw_inventory.receipts:
+        target = raw_source / receipt.relative_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(payloads[receipt.receipt_id])
+
+
 def test_write_and_load_bundle_round_trip_exact_identity(tmp_path: Path) -> None:
     dataset = _dataset()
     raw_source = tmp_path / "source"
     bundle = tmp_path / "bundle"
-
-    for receipt, payload in zip(
-        dataset.raw_inventory.receipts,
-        (b"macro-release", b"market-release"),
-        strict=True,
-    ):
-        target = raw_source / receipt.relative_path
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(payload)
+    _write_raw_source(dataset, raw_source)
 
     written = write_economic_bundle(bundle, dataset, raw_source_root=raw_source)
     loaded = load_economic_bundle(bundle)
@@ -245,15 +270,7 @@ def test_write_bundle_refuses_conflicting_existing_canonical_bytes(tmp_path: Pat
     dataset = _dataset()
     raw_source = tmp_path / "source"
     bundle = tmp_path / "bundle"
-
-    for receipt, payload in zip(
-        dataset.raw_inventory.receipts,
-        (b"macro-release", b"market-release"),
-        strict=True,
-    ):
-        target = raw_source / receipt.relative_path
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(payload)
+    _write_raw_source(dataset, raw_source)
 
     conflicting = bundle / "canonical" / "observations.jsonl"
     conflicting.parent.mkdir(parents=True, exist_ok=True)
@@ -261,3 +278,5 @@ def test_write_bundle_refuses_conflicting_existing_canonical_bytes(tmp_path: Pat
 
     with pytest.raises(EconomicDatasetError, match="conflicting existing bytes"):
         write_economic_bundle(bundle, dataset, raw_source_root=raw_source)
+
+    assert not (bundle / "manifest.json").exists()

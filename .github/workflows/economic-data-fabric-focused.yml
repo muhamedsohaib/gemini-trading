@@ -31,7 +31,19 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync --all-groups --frozen
-      - run: uv run ruff format --check --diff src/gemini_trading/economics tests/unit/economics
-      - run: uv run ruff check src/gemini_trading/economics tests/unit/economics
-      - run: uv run pyright src/gemini_trading/economics tests/unit/economics
-      - run: uv run pytest tests/unit/economics -v
+      - run: >-
+          uv run ruff format --check --diff
+          src/gemini_trading/economics
+          tests/unit/economics
+          tests/integration/economics
+      - run: >-
+          uv run ruff check
+          src/gemini_trading/economics
+          tests/unit/economics
+          tests/integration/economics
+      - run: >-
+          uv run pyright
+          src/gemini_trading/economics
+          tests/unit/economics
+          tests/integration/economics
+      - run: uv run pytest tests/unit/economics tests/integration/economics -v

@@ -1,0 +1,50 @@
+name: Economic Data Fabric Focused Verification
+
+on:
+  pull_request:
+    paths:
+      - "src/gemini_trading/economics/**"
+      - "tests/unit/economics/**"
+      - "tests/integration/economics/**"
+      - "docs/architecture/economic-forecasting-source-of-truth.md"
+      - "docs/operations/economic-data-fabric-v1.md"
+      - "docs/superpowers/specs/2026-09-15-economic-data-fabric-v1-design.md"
+      - "docs/superpowers/plans/2026-09-15-economic-data-fabric-v1.md"
+      - ".github/workflows/economic-data-fabric-focused.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: economic-data-fabric-focused-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  economic-data-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.11.25"
+          enable-cache: true
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --frozen
+      - run: >-
+          uv run ruff format --check --diff
+          src/gemini_trading/economics
+          tests/unit/economics
+          tests/integration/economics
+      - run: >-
+          uv run ruff check
+          src/gemini_trading/economics
+          tests/unit/economics
+          tests/integration/economics
+      - run: >-
+          uv run pyright
+          src/gemini_trading/economics
+          tests/unit/economics
+          tests/integration/economics
+      - run: uv run pytest tests/unit/economics tests/integration/economics -v

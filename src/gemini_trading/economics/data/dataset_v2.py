@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from hashlib import sha256
+from pathlib import Path
 from typing import Final
 
 from gemini_trading.economics.data.availability import EconomicAvailabilityEvidence
@@ -368,10 +369,75 @@ def build_economic_dataset_v2(
     )
 
 
+def _manifest_payload_v2(manifest: EconomicDatasetManifestV2) -> dict[str, object]:
+    payload = _identity_payload(
+        canonical_observations_sha256=manifest.canonical_observations_sha256,
+        publication_events_sha256=manifest.publication_events_sha256,
+        availability_evidence_sha256=manifest.availability_evidence_sha256,
+        series_registry_sha256=manifest.series_registry_sha256,
+        raw_inventory_root_sha256=manifest.raw_inventory_root_sha256,
+        observation_count=manifest.observation_count,
+        publication_event_count=manifest.publication_event_count,
+        availability_evidence_count=manifest.availability_evidence_count,
+        series_count=manifest.series_count,
+        minimum_observation_time=manifest.minimum_observation_time,
+        maximum_observation_time=manifest.maximum_observation_time,
+        minimum_reference_period_start=manifest.minimum_reference_period_start,
+        maximum_reference_period_end=manifest.maximum_reference_period_end,
+        minimum_exact_available_time=manifest.minimum_exact_available_time,
+        maximum_exact_available_time=manifest.maximum_exact_available_time,
+    )
+    payload["dataset_id"] = manifest.dataset_id
+    return payload
+
+
+def _write_immutable_v2(path: Path, payload: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists():
+        if path.read_bytes() != payload:
+            raise EconomicDatasetV2Error(f"conflicting existing bytes: {path}")
+        return
+    with path.open("xb") as handle:
+        handle.write(payload)
+
+
+def write_economic_bundle_v2(
+    root: Path,
+    dataset: EconomicDatasetV2,
+    *,
+    raw_source_root: Path,
+) -> EconomicDatasetManifestV2:
+    planned: list[tuple[Path, bytes]] = []
+    for receipt in dataset.raw_inventory.receipts:
+        source = raw_source_root / receipt.relative_path
+        if not source.is_file():
+            raise EconomicDatasetV2Error(f"raw evidence source is missing: {receipt.relative_path}")
+        payload = source.read_bytes()
+        if len(payload) != receipt.byte_length or sha256(payload).hexdigest() != receipt.sha256:
+            raise EconomicDatasetV2Error(
+                f"raw evidence source digest mismatch: {receipt.relative_path}"
+            )
+        planned.append((root / receipt.relative_path, payload))
+    planned.extend(
+        (
+            (root / "registry" / "series.jsonl", dataset.series_registry_bytes),
+            (root / "canonical" / "observations-v2.jsonl", dataset.canonical_observation_bytes),
+            (root / "events" / "publication-events.jsonl", dataset.publication_event_bytes),
+            (root / "availability" / "evidence.jsonl", dataset.availability_evidence_bytes),
+            (root / "inventory" / "raw-evidence.jsonl", dataset.raw_inventory.canonical_bytes),
+            (root / "manifest.json", canonical_json_bytes(_manifest_payload_v2(dataset.manifest))),
+        )
+    )
+    for target, payload in planned:
+        _write_immutable_v2(target, payload)
+    return dataset.manifest
+
+
 __all__ = [
     "ECONOMIC_DATASET_SCHEMA_V2",
     "EconomicDatasetManifestV2",
     "EconomicDatasetV2",
     "EconomicDatasetV2Error",
     "build_economic_dataset_v2",
+    "write_economic_bundle_v2",
 ]

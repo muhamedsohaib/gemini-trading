@@ -79,7 +79,7 @@ def _publication_payload(row: EconomicPublicationEvent) -> dict[str, object]:
         "consumer_class": row.consumer_class,
         "availability_channel": row.availability_channel,
         "availability_precision": row.availability_precision.value,
-        "availability_evidence_ids": list(row.availability_evidence_ids),
+        "availability_evidence_ids": sorted(row.availability_evidence_ids),
         "availability_evidence_id": row.availability_evidence_id,
         "availability_status": row.availability_status.value,
         "publication_sequence": row.publication_sequence.value,

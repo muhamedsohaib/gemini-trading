@@ -152,3 +152,9 @@ def test_duplicate_logical_identities_fail_closed() -> None:
     row = _observation()
     with pytest.raises(EconomicDataError, match="duplicate"):
         serialize_observations_v2((row, row))
+
+
+def test_publication_evidence_id_order_is_canonical() -> None:
+    first = _event(availability_evidence_ids=("a", "b"), availability_evidence_id="a")
+    second = _event(availability_evidence_ids=("b", "a"), availability_evidence_id="a")
+    assert serialize_publication_events((first,)) == serialize_publication_events((second,))

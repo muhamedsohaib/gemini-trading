@@ -16,7 +16,8 @@ _EXACT = {
 
 
 class _ObservationDataset(Protocol):
-    observations: tuple[EconomicObservationV2, ...]
+    @property
+    def observations(self) -> tuple[EconomicObservationV2, ...]: ...
 
 
 def _aware_utc(cutoff: datetime) -> datetime:

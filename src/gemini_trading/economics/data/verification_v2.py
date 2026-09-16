@@ -50,7 +50,7 @@ def verify_economic_bundle_v2(root: Path) -> EconomicDatasetManifestV2:
 
     declared_paths = {receipt.relative_path for receipt in dataset.raw_inventory.receipts}
     raw_root = root / "raw"
-    actual_paths = (
+    actual_paths: set[str] = (
         {path.relative_to(root).as_posix() for path in raw_root.rglob("*") if path.is_file()}
         if raw_root.is_dir()
         else set()

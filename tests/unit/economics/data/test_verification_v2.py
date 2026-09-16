@@ -7,15 +7,14 @@ from gemini_trading.economics.data.verification_v2 import (
     EconomicVerificationV2Error,
     verify_economic_bundle_v2,
 )
-from tests.unit.economics.data import test_dataset_v2 as fixtures
-from tests.unit.economics.data.test_replay_v2 import _materialize_raw
+from tests.support.economic_v2 import build_revision, materialize_raw
 
 
 def _bundle(tmp_path: Path) -> Path:
-    dataset = fixtures._build_revision()
+    dataset = build_revision()
     raw_source = tmp_path / "source"
     bundle = tmp_path / "bundle"
-    _materialize_raw(raw_source, dataset)
+    materialize_raw(raw_source, dataset)
     write_economic_bundle_v2(bundle, dataset, raw_source_root=raw_source)
     return bundle
 

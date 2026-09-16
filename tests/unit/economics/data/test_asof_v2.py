@@ -1,6 +1,6 @@
+from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
-from types import SimpleNamespace
 
 import pytest
 
@@ -50,8 +50,13 @@ def _row(**overrides: object) -> EconomicObservationV2:
     return EconomicObservationV2(**values)  # type: ignore[arg-type]
 
 
-def _dataset(*rows: EconomicObservationV2) -> object:
-    return SimpleNamespace(observations=tuple(rows))
+@dataclass(frozen=True, slots=True)
+class _DatasetView:
+    observations: tuple[EconomicObservationV2, ...]
+
+
+def _dataset(*rows: EconomicObservationV2) -> _DatasetView:
+    return _DatasetView(observations=tuple(rows))
 
 
 def test_exact_release_boundary_is_closed_on_right() -> None:

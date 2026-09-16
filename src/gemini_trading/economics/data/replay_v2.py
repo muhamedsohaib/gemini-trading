@@ -12,12 +12,11 @@ from gemini_trading.economics.data.availability import (
     AvailabilityStatus,
     EconomicAvailabilityEvidence,
 )
-from gemini_trading.economics.data.dataset import _jsonl, _load_inventory, _load_registry
 from gemini_trading.economics.data.dataset_v2 import (
     EconomicDatasetV2,
     EconomicDatasetV2Error,
-    _manifest_payload_v2,
     build_economic_dataset_v2,
+    economic_dataset_manifest_payload_v2,
 )
 from gemini_trading.economics.data.observation_v2 import EconomicObservationV2
 from gemini_trading.economics.data.publication import (
@@ -25,7 +24,76 @@ from gemini_trading.economics.data.publication import (
     PublicationSequence,
     RevisionClass,
 )
+from gemini_trading.economics.data.series import (
+    EconomicDomain,
+    EconomicSeriesDefinition,
+    EconomicSeriesRegistry,
+    RevisionPolicy,
+)
+from gemini_trading.economics.data.storage import (
+    RawEvidenceInventory,
+    RawEvidenceReceipt,
+)
 from gemini_trading.research.serialization import canonical_json_bytes
+
+
+def _jsonl_v2(path: Path) -> tuple[dict[str, object], ...]:
+    if not path.is_file():
+        raise EconomicDatasetV2Error(f"economic v2 bundle file is missing: {path.name}")
+    rows: list[dict[str, object]] = []
+    try:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            loaded: object = json.loads(line)
+            if not isinstance(loaded, dict):
+                raise EconomicDatasetV2Error("economic v2 JSONL row must be an object")
+            rows.append(cast(dict[str, object], loaded))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        raise EconomicDatasetV2Error(f"economic v2 bundle JSON is invalid: {path.name}") from None
+    if not rows:
+        raise EconomicDatasetV2Error(f"economic v2 bundle file is empty: {path.name}")
+    return tuple(rows)
+
+
+def _load_registry_v2(path: Path) -> EconomicSeriesRegistry:
+    definitions: list[EconomicSeriesDefinition] = []
+    for row in _jsonl_v2(path):
+        try:
+            definitions.append(
+                EconomicSeriesDefinition(
+                    schema_version=str(row["schema_version"]),
+                    series_id=str(row["series_id"]),
+                    title=str(row["title"]),
+                    domain=EconomicDomain(str(row["domain"])),
+                    unit=str(row["unit"]),
+                    scale=Decimal(str(row["scale"])),
+                    frequency=str(row["frequency"]),
+                    observation_semantics=str(row["observation_semantics"]),
+                    availability_semantics=str(row["availability_semantics"]),
+                    revision_policy=RevisionPolicy(str(row["revision_policy"])),
+                )
+            )
+        except (KeyError, ValueError, ArithmeticError):
+            raise EconomicDatasetV2Error("economic series registry row is invalid") from None
+    return EconomicSeriesRegistry(tuple(definitions))
+
+
+def _load_inventory_v2(path: Path) -> RawEvidenceInventory:
+    receipts: list[RawEvidenceReceipt] = []
+    for row in _jsonl_v2(path):
+        try:
+            receipts.append(
+                RawEvidenceReceipt(
+                    schema_version=str(row["schema_version"]),
+                    source_id=str(row["source_id"]),
+                    receipt_id=str(row["receipt_id"]),
+                    relative_path=str(row["relative_path"]),
+                    byte_length=int(cast(int | str, row["byte_length"])),
+                    sha256=str(row["sha256"]),
+                )
+            )
+        except (KeyError, ValueError, ArithmeticError):
+            raise EconomicDatasetV2Error("economic raw inventory row is invalid") from None
+    return RawEvidenceInventory(tuple(receipts))
 
 
 def _parse_utc(value: object, field_name: str) -> datetime:
@@ -60,7 +128,7 @@ def _optional_str(value: object) -> str | None:
 
 def _load_evidence(path: Path) -> tuple[EconomicAvailabilityEvidence, ...]:
     rows: list[EconomicAvailabilityEvidence] = []
-    for row in _jsonl(path):
+    for row in _jsonl_v2(path):
         try:
             rows.append(
                 EconomicAvailabilityEvidence(
@@ -94,11 +162,12 @@ def _load_evidence(path: Path) -> tuple[EconomicAvailabilityEvidence, ...]:
 
 def _load_events(path: Path) -> tuple[EconomicPublicationEvent, ...]:
     events: list[EconomicPublicationEvent] = []
-    for row in _jsonl(path):
+    for row in _jsonl_v2(path):
         try:
-            evidence_ids = row["availability_evidence_ids"]
-            if not isinstance(evidence_ids, list):
+            raw_evidence_ids = row["availability_evidence_ids"]
+            if not isinstance(raw_evidence_ids, list):
                 raise ValueError("availability_evidence_ids must be a list")
+            evidence_ids = cast(list[object], raw_evidence_ids)
             events.append(
                 EconomicPublicationEvent(
                     schema_version=str(row["schema_version"]),
@@ -138,7 +207,7 @@ def _load_events(path: Path) -> tuple[EconomicPublicationEvent, ...]:
 
 def _load_observations(path: Path) -> tuple[EconomicObservationV2, ...]:
     observations: list[EconomicObservationV2] = []
-    for row in _jsonl(path):
+    for row in _jsonl_v2(path):
         try:
             observations.append(
                 EconomicObservationV2(
@@ -181,7 +250,7 @@ def _load_observations(path: Path) -> tuple[EconomicObservationV2, ...]:
     return tuple(observations)
 
 
-def _validate_raw(root: Path, inventory) -> None:  # type: ignore[no-untyped-def]
+def _validate_raw(root: Path, inventory: RawEvidenceInventory) -> None:
     for receipt in inventory.receipts:
         path = root / receipt.relative_path
         if not path.is_file():
@@ -201,11 +270,11 @@ def replay_economic_bundle_v2(root: Path) -> EconomicDatasetV2:
     inventory_path = root / "inventory" / "raw-evidence.jsonl"
     manifest_path = root / "manifest.json"
 
-    registry = _load_registry(registry_path)
+    registry = _load_registry_v2(registry_path)
     observations = _load_observations(observations_path)
     events = _load_events(events_path)
     evidence = _load_evidence(evidence_path)
-    inventory = _load_inventory(inventory_path)
+    inventory = _load_inventory_v2(inventory_path)
     _validate_raw(root, inventory)
     dataset = build_economic_dataset_v2(
         registry=registry,
@@ -231,7 +300,9 @@ def replay_economic_bundle_v2(root: Path) -> EconomicDatasetV2:
         loaded = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError):
         raise EconomicDatasetV2Error("economic v2 bundle manifest is invalid JSON") from None
-    expected = json.loads(canonical_json_bytes(_manifest_payload_v2(dataset.manifest)))
+    expected = json.loads(
+        canonical_json_bytes(economic_dataset_manifest_payload_v2(dataset.manifest))
+    )
     if loaded != expected:
         raise EconomicDatasetV2Error("economic v2 bundle manifest does not match dataset identity")
     return dataset

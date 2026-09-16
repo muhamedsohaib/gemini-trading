@@ -1,4 +1,5 @@
-from datetime import UTC, datetime
+from dataclasses import replace
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from hashlib import sha256
 
@@ -396,5 +397,129 @@ def test_raw_inventory_change_changes_dataset_identity() -> None:
             ("observation-1", _OBS_1),
             ("extra", extra_payload),
         ),
+    )
+    assert changed.manifest.dataset_id != base.manifest.dataset_id
+
+
+def test_observation_event_sequence_mismatch_fails_closed() -> None:
+    row = _observation()
+    object.__setattr__(row, "publication_sequence", PublicationSequence.OTHER)
+    with pytest.raises(EconomicDatasetV2Error, match="publication sequence"):
+        build_economic_dataset_v2(
+            registry=_registry(),
+            observations=(row,),
+            publication_events=(_event(),),
+            availability_evidence=(_evidence(),),
+            raw_inventory=_inventory(
+                ("availability-1", _AVAIL_1),
+                ("event-1", _EVENT_1),
+                ("observation-1", _OBS_1),
+            ),
+        )
+
+
+def test_observation_event_revision_class_mismatch_fails_closed() -> None:
+    row = _observation()
+    object.__setattr__(row, "revision_class", RevisionClass.OTHER)
+    with pytest.raises(EconomicDatasetV2Error, match="revision class"):
+        build_economic_dataset_v2(
+            registry=_registry(),
+            observations=(row,),
+            publication_events=(_event(),),
+            availability_evidence=(_evidence(),),
+            raw_inventory=_inventory(
+                ("availability-1", _AVAIL_1),
+                ("event-1", _EVENT_1),
+                ("observation-1", _OBS_1),
+            ),
+        )
+
+
+def test_observation_event_available_time_mismatch_fails_closed() -> None:
+    row = _observation()
+    assert row.available_time is not None
+    object.__setattr__(row, "available_time", row.available_time + timedelta(minutes=1))
+    with pytest.raises(EconomicDatasetV2Error, match="admitted availability"):
+        build_economic_dataset_v2(
+            registry=_registry(),
+            observations=(row,),
+            publication_events=(_event(),),
+            availability_evidence=(_evidence(),),
+            raw_inventory=_inventory(
+                ("availability-1", _AVAIL_1),
+                ("event-1", _EVENT_1),
+                ("observation-1", _OBS_1),
+            ),
+        )
+
+
+def test_missing_observation_raw_ancestry_fails_closed() -> None:
+    with pytest.raises(EconomicDatasetV2Error, match="observation is not closed"):
+        build_economic_dataset_v2(
+            registry=_registry(),
+            observations=(_observation(),),
+            publication_events=(_event(),),
+            availability_evidence=(_evidence(),),
+            raw_inventory=_inventory(
+                ("availability-1", _AVAIL_1),
+                ("event-1", _EVENT_1),
+            ),
+        )
+
+
+def test_cross_reference_period_predecessor_link_fails_closed() -> None:
+    dataset = _build_revision()
+    revised = next(
+        row for row in dataset.observations if row.revision_class is RevisionClass.ROUTINE_REVISION
+    )
+    changed = replace(
+        revised,
+        version_id="",
+        reference_period_start=date(2026, 6, 1),
+        reference_period_end=date(2026, 6, 30),
+    )
+    initial = next(
+        row for row in dataset.observations if row.revision_class is RevisionClass.INITIAL
+    )
+    with pytest.raises(EconomicDatasetV2Error, match="reference period"):
+        build_economic_dataset_v2(
+            registry=dataset.registry,
+            observations=(initial, changed),
+            publication_events=dataset.publication_events,
+            availability_evidence=dataset.availability_evidence,
+            raw_inventory=dataset.raw_inventory,
+        )
+
+
+def test_availability_timing_change_changes_dataset_identity() -> None:
+    base = _build_initial()
+    shifted = datetime(2026, 8, 13, 12, 30, tzinfo=UTC)
+    changed = build_economic_dataset_v2(
+        registry=_registry(),
+        observations=(_observation(when=shifted),),
+        publication_events=(_event(when=shifted),),
+        availability_evidence=(_evidence(when=shifted),),
+        raw_inventory=base.raw_inventory,
+    )
+    assert changed.manifest.dataset_id != base.manifest.dataset_id
+
+
+def test_event_lineage_change_changes_dataset_identity() -> None:
+    base = _build_revision()
+    revised_event = next(
+        event
+        for event in base.publication_events
+        if event.revision_class is RevisionClass.ROUTINE_REVISION
+    )
+    changed_event = replace(revised_event, predecessor_event_id=None)
+    changed = build_economic_dataset_v2(
+        registry=base.registry,
+        observations=base.observations,
+        publication_events=tuple(
+            changed_event if event.event_id == revised_event.event_id else event
+            for event in base.publication_events
+        ),
+        availability_evidence=base.availability_evidence,
+        raw_inventory=base.raw_inventory,
     )
     assert changed.manifest.dataset_id != base.manifest.dataset_id

@@ -369,7 +369,7 @@ def build_economic_dataset_v2(
     )
 
 
-def _manifest_payload_v2(manifest: EconomicDatasetManifestV2) -> dict[str, object]:
+def economic_dataset_manifest_payload_v2(manifest: EconomicDatasetManifestV2) -> dict[str, object]:
     payload = _identity_payload(
         canonical_observations_sha256=manifest.canonical_observations_sha256,
         publication_events_sha256=manifest.publication_events_sha256,
@@ -425,7 +425,10 @@ def write_economic_bundle_v2(
             (root / "events" / "publication-events.jsonl", dataset.publication_event_bytes),
             (root / "availability" / "evidence.jsonl", dataset.availability_evidence_bytes),
             (root / "inventory" / "raw-evidence.jsonl", dataset.raw_inventory.canonical_bytes),
-            (root / "manifest.json", canonical_json_bytes(_manifest_payload_v2(dataset.manifest))),
+            (
+                root / "manifest.json",
+                canonical_json_bytes(economic_dataset_manifest_payload_v2(dataset.manifest)),
+            ),
         )
     )
     for target, payload in planned:
@@ -439,5 +442,6 @@ __all__ = [
     "EconomicDatasetV2",
     "EconomicDatasetV2Error",
     "build_economic_dataset_v2",
+    "economic_dataset_manifest_payload_v2",
     "write_economic_bundle_v2",
 ]

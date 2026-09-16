@@ -6,7 +6,11 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Final
 
-from gemini_trading.economics.data.availability import EconomicAvailabilityEvidence
+from gemini_trading.economics.data.availability import (
+    AvailabilityPrecision,
+    AvailabilityStatus,
+    EconomicAvailabilityEvidence,
+)
 from gemini_trading.economics.data.observation_v2 import (
     EconomicObservationV2,
     economic_observation_version_id,
@@ -107,6 +111,65 @@ def _validate_event_graph(events: dict[str, EconomicPublicationEvent]) -> None:
             cursor = events[cursor].predecessor_event_id
 
 
+_EXACT_AVAILABILITY_PRECISIONS = frozenset(
+    {
+        AvailabilityPrecision.EXACT_SECOND,
+        AvailabilityPrecision.EXACT_MINUTE,
+        AvailabilityPrecision.EXACT_HOUR,
+    }
+)
+
+
+def _validate_resolved_event_evidence(
+    event: EconomicPublicationEvent,
+    evidence: dict[str, EconomicAvailabilityEvidence],
+) -> None:
+    admitted_id = event.availability_evidence_id
+    if admitted_id is None:
+        return
+    admitted = evidence.get(admitted_id)
+    if admitted is None:
+        raise EconomicDatasetV2Error("admitted availability evidence is missing")
+    if (
+        admitted.publication_event_id != event.event_id
+        or admitted.consumer_class != event.consumer_class
+        or admitted.availability_channel != event.availability_channel
+        or admitted.availability_precision is not event.availability_precision
+        or admitted.available_time != event.available_time
+        or admitted.available_date != event.available_date
+    ):
+        raise EconomicDatasetV2Error(
+            "admitted availability evidence does not support event semantics"
+        )
+    if event.availability_status is not AvailabilityStatus.RESOLVED:
+        return
+    for evidence_id in event.availability_evidence_ids:
+        if evidence_id == admitted_id:
+            continue
+        item = evidence[evidence_id]
+        if (
+            item.consumer_class != event.consumer_class
+            or item.availability_channel != event.availability_channel
+        ):
+            continue
+        if (
+            event.availability_precision in _EXACT_AVAILABILITY_PRECISIONS
+            and item.availability_precision in _EXACT_AVAILABILITY_PRECISIONS
+            and item.available_time != event.available_time
+        ):
+            raise EconomicDatasetV2Error(
+                "resolved event has conflicting exact availability evidence"
+            )
+        if (
+            event.availability_precision is AvailabilityPrecision.DATE_ONLY
+            and item.availability_precision is AvailabilityPrecision.DATE_ONLY
+            and item.available_date != event.available_date
+        ):
+            raise EconomicDatasetV2Error(
+                "resolved event has conflicting date-only availability evidence"
+            )
+
+
 def _validate_evidence_closure(
     events: dict[str, EconomicPublicationEvent],
     evidence: dict[str, EconomicAvailabilityEvidence],
@@ -131,6 +194,7 @@ def _validate_evidence_closure(
         admitted = event.availability_evidence_id
         if admitted is not None and admitted not in evidence:
             raise EconomicDatasetV2Error("admitted availability evidence is missing")
+        _validate_resolved_event_evidence(event, evidence)
 
 
 def _validate_observation_closure(

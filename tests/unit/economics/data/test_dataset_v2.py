@@ -523,3 +523,66 @@ def test_event_lineage_change_changes_dataset_identity() -> None:
         raw_inventory=base.raw_inventory,
     )
     assert changed.manifest.dataset_id != base.manifest.dataset_id
+
+
+def test_resolved_event_admitted_evidence_must_match_selected_availability() -> None:
+    mismatched = _evidence(when=datetime(2026, 8, 12, 12, 31, tzinfo=UTC))
+    with pytest.raises(EconomicDatasetV2Error, match="admitted availability evidence"):
+        build_economic_dataset_v2(
+            registry=_registry(),
+            observations=(_observation(),),
+            publication_events=(_event(),),
+            availability_evidence=(mismatched,),
+            raw_inventory=_inventory(
+                ("availability-1", _AVAIL_1),
+                ("event-1", _EVENT_1),
+                ("observation-1", _OBS_1),
+            ),
+        )
+
+
+def test_resolved_event_rejects_competing_exact_evidence_for_same_channel() -> None:
+    competing = _evidence(
+        "evidence-2",
+        "event-1",
+        datetime(2026, 8, 12, 12, 31, tzinfo=UTC),
+        _AVAIL_2,
+    )
+    event = replace(_event(), availability_evidence_ids=("evidence-1", "evidence-2"))
+    with pytest.raises(EconomicDatasetV2Error, match="conflicting exact availability evidence"):
+        build_economic_dataset_v2(
+            registry=_registry(),
+            observations=(_observation(),),
+            publication_events=(event,),
+            availability_evidence=(_evidence(), competing),
+            raw_inventory=_inventory(
+                ("availability-1", _AVAIL_1),
+                ("availability-2", _AVAIL_2),
+                ("event-1", _EVENT_1),
+                ("observation-1", _OBS_1),
+            ),
+        )
+
+
+def test_resolved_event_allows_extra_date_only_evidence_without_promoting_it() -> None:
+    coarse = replace(
+        _evidence("evidence-2", "event-1", raw=_AVAIL_2),
+        availability_precision=AvailabilityPrecision.DATE_ONLY,
+        available_time=None,
+        available_date=date(2026, 8, 12),
+    )
+    event = replace(_event(), availability_evidence_ids=("evidence-1", "evidence-2"))
+    dataset = build_economic_dataset_v2(
+        registry=_registry(),
+        observations=(_observation(),),
+        publication_events=(event,),
+        availability_evidence=(_evidence(), coarse),
+        raw_inventory=_inventory(
+            ("availability-1", _AVAIL_1),
+            ("availability-2", _AVAIL_2),
+            ("event-1", _EVENT_1),
+            ("observation-1", _OBS_1),
+        ),
+    )
+    assert dataset.manifest.availability_evidence_count == 2
+    assert dataset.publication_events[0].availability_evidence_id == "evidence-1"

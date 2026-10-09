@@ -109,7 +109,7 @@ jobs:
           )
           assert_fixed_sealed_dataset_identity(handoff)
           PY
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: sealed-validated-dataset-${{ github.run_id }}
           path: /tmp/sealed-output/
@@ -171,7 +171,7 @@ jobs:
           pre_final_id = "${{ steps.prepare.outputs.pre_final_id }}"
           verify_pre_final_artifacts(LocalPreFinalStore(root).load(pre_final_id))
           PY
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: sealed-pre-final-${{ github.run_id }}
           path: /tmp/sealed-output/
@@ -346,7 +346,7 @@ jobs:
               "schema_version": "sealed-authorization-interruption-v1",
           }, separators=(",", ":"), sort_keys=True) + "\n")
           PY
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: sealed-final-access-${{ github.run_id }}
@@ -435,7 +435,7 @@ jobs:
               "schema_version": "sealed-interruption-v1",
           }, separators=(",", ":"), sort_keys=True) + "\n")
           PY
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: sealed-candidate-study-${{ github.run_id }}

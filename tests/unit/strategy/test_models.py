@@ -80,3 +80,109 @@ def test_training_selection_rejects_unknown_index() -> None:
             labels,
             (*indices, indices[-1] + 1),
         )
+
+
+def test_old_trend_trainer_v0_3_default_artifact_is_unchanged() -> None:
+    from gemini_trading.strategy.features import FeatureRegistry
+
+    matrix, labels, indices = deterministic_model_fixture()
+    trainer = TrendSpecialistTrainer(CandidatePolicy.locked_v0_3())
+
+    first = trainer.fit(matrix, labels, indices)
+    second = trainer.fit(matrix, labels, indices)
+
+    assert first.feature_names == (FeatureRegistry.locked_v0_1().trend_feature_names)
+    assert serialize_model_artifact(first) == serialize_model_artifact(second)
+
+
+def test_old_mean_reversion_trainer_v0_3_default_artifact_is_unchanged() -> None:
+    from gemini_trading.strategy.features import FeatureRegistry
+
+    matrix, labels, indices = deterministic_model_fixture()
+    trainer = MeanReversionSpecialistTrainer(CandidatePolicy.locked_v0_3())
+
+    first = trainer.fit(matrix, labels, indices)
+    second = trainer.fit(matrix, labels, indices)
+
+    assert first.feature_names == (FeatureRegistry.locked_v0_1().mean_reversion_feature_names)
+    assert serialize_model_artifact(first) == serialize_model_artifact(second)
+
+
+def test_trend_fit_accepts_explicit_feature_and_training_domain() -> None:
+    import numpy as np
+
+    from gemini_trading.strategy.features import FeatureRegistry
+
+    matrix, labels, indices = deterministic_model_fixture()
+    registry = FeatureRegistry.locked_v0_1()
+
+    feature_names = registry.trend_feature_names[:4]
+    selected = indices[20:300]
+
+    model = TrendSpecialistTrainer(CandidatePolicy.locked_v0_4()).fit(
+        matrix,
+        labels,
+        indices,
+        feature_names=feature_names,
+        eligible_indices=selected,
+    )
+
+    expected_means = np.mean(
+        np.asarray(
+            [
+                [float(matrix.value_for(index, name)) for name in feature_names]
+                for index in selected
+            ],
+            dtype=np.float64,
+        ),
+        axis=0,
+    )
+
+    assert model.feature_names == feature_names
+    assert tuple(float.fromhex(value) for value in model.mean_hex) == tuple(
+        float(value) for value in expected_means
+    )
+
+
+def test_mean_reversion_explicit_domain_bypasses_legacy_stretch_filter() -> None:
+    import numpy as np
+
+    from gemini_trading.strategy.features import FeatureRegistry
+
+    matrix, labels, indices = deterministic_model_fixture()
+    registry = FeatureRegistry.locked_v0_1()
+
+    feature_names = registry.mean_reversion_feature_names[:4]
+    selected = indices[20:300]
+
+    # Prove this explicit v0.4 domain contains rows that the
+    # legacy mean-reversion stretch filter would remove.
+    assert any(
+        matrix.value_for(index, "close_zscore_24") > Decimal("-0.75")
+        and matrix.value_for(index, "drawdown_from_high_24") < Decimal("0.02")
+        for index in selected
+    )
+
+    model = MeanReversionSpecialistTrainer(CandidatePolicy.locked_v0_4()).fit(
+        matrix,
+        labels,
+        indices,
+        feature_names=feature_names,
+        eligible_indices=selected,
+    )
+
+    expected_means = np.mean(
+        np.asarray(
+            [
+                [float(matrix.value_for(index, name)) for name in feature_names]
+                for index in selected
+            ],
+            dtype=np.float64,
+        ),
+        axis=0,
+    )
+
+    assert model.feature_names == feature_names
+    assert tuple(float.fromhex(value) for value in model.mean_hex) == tuple(
+        float(value) for value in expected_means
+    )

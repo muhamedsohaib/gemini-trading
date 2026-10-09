@@ -445,6 +445,89 @@ def _validate_candles(candles: tuple[Candle, ...]) -> None:
             raise ValueError("feature candle OHLC values are inconsistent")
 
 
+def compute_price_feature_basis(
+    candles: tuple[Candle, ...],
+    index: int,
+) -> dict[str, Decimal] | None:
+    """Compute established trailing price indicators without unrelated features."""
+
+    _validate_candles(candles)
+
+    if isinstance(index, bool) or index < 42 or index >= len(candles):
+        raise ValueError("price feature basis index requires 42 prior candles")
+
+    with localcontext(_CONTEXT):
+        try:
+            closes = tuple(candle.close for candle in candles)
+            current = candles[index]
+
+            local_closes = closes[index - 42 : index + 1]
+            ema12 = _ema_series(local_closes, 12)
+            ema42 = _ema_series(local_closes, 42)
+
+            true_ranges24 = _trailing_true_ranges(
+                candles,
+                index,
+                24,
+            )
+            atr24 = _mean(true_ranges24)
+
+            realized_volatility6 = _population_std(
+                _trailing_log_returns(
+                    closes,
+                    index,
+                    6,
+                )
+            )
+            realized_volatility42 = _population_std(
+                _trailing_log_returns(
+                    closes,
+                    index,
+                    42,
+                )
+            )
+
+            trailing24 = candles[index - 23 : index + 1]
+            high24 = max(candle.high for candle in trailing24)
+            low24 = min(candle.low for candle in trailing24)
+
+            median24 = _median(closes[index - 23 : index + 1])
+
+            return {
+                "atr_24": atr24,
+                "ema_spread_12_42": _safe_divide(
+                    ema12[-1] - ema42[-1],
+                    current.close,
+                ),
+                "trend_strength_12_42_atr24": _safe_divide(
+                    abs(ema12[-1] - ema42[-1]),
+                    atr24,
+                ),
+                "volatility_ratio_6_42": _safe_divide(
+                    realized_volatility6,
+                    realized_volatility42,
+                ),
+                "true_range_ratio_24": _safe_divide(
+                    true_ranges24[-1],
+                    atr24,
+                ),
+                "rolling_close_location_24": _safe_divide(
+                    current.close - low24,
+                    high24 - low24,
+                ),
+                "median_atr_distance_24": _safe_divide(
+                    current.close - median24,
+                    atr24,
+                ),
+                "ema_slope_12_3": _safe_divide(
+                    ema12[-1] - ema12[-4],
+                    current.close,
+                ),
+            }
+        except _IneligibleFeatureRow:
+            return None
+
+
 def _compute_values(candles: tuple[Candle, ...], index: int) -> dict[str, Decimal]:
     closes = tuple(candle.close for candle in candles)
     volumes = tuple(candle.volume for candle in candles)

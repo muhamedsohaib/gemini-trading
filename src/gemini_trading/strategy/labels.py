@@ -10,6 +10,7 @@ from gemini_trading.domain.order import OrderSide
 from gemini_trading.execution.simulator.costs import market_fill_costs
 from gemini_trading.execution.simulator.precision import round_fill_price
 from gemini_trading.research.config import SimulationConfig
+from gemini_trading.strategy.policy import CandidatePolicy
 
 _CONTEXT = Context(prec=34, rounding=ROUND_HALF_EVEN)
 _BASIS_POINTS = Decimal("10000")
@@ -249,6 +250,35 @@ class LabelPolicy:
             hurdle_bps=self.hurdle_bps,
             positive=net_return > hurdle_rate,
         )
+
+
+def label_exit_offset(policy: CandidatePolicy) -> int:
+    """Return decision-to-exit offset for next-candle label timing."""
+
+    return policy.label_horizon_candles + 1
+
+
+def build_labels(
+    candles: tuple[Candle, ...],
+    simulation: SimulationConfig,
+    policy: CandidatePolicy,
+    *,
+    eligible_indices: tuple[int, ...],
+    segments: CandleSegmentManifest | None = None,
+) -> LabelVector:
+    """Build labels using the candidate's preregistered held-candle horizon."""
+
+    label_policy = LabelPolicy(
+        schema_version="candidate-label-policy-v1",
+        simulation=simulation,
+        horizon_candles=policy.label_horizon_candles,
+        extra_hurdle_bps=policy.cost_hurdle_extra_bps,
+    )
+    return label_policy.build(
+        candles,
+        eligible_indices=eligible_indices,
+        segments=segments,
+    )
 
 
 def _validate_candles(candles: tuple[Candle, ...]) -> None:

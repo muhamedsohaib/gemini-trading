@@ -260,3 +260,158 @@ def test_threshold_artifact_rejects_old_candidate_identity() -> None:
             matrix=matrix,
             policy=CandidatePolicy.locked_v0_2(),
         )
+
+
+def _v0_4_probabilities(
+    count: int,
+    *,
+    start: str = "0.40",
+) -> dict[int, Decimal]:
+    base = Decimal(start)
+    return {index: base + Decimal(index) / Decimal("1000") for index in range(count)}
+
+
+def _v0_4_artifact(
+    *,
+    count: int = 160,
+    percentile: Decimal = Decimal("0.75"),
+    start: str = "0.40",
+    specialist: SpecialistKind = SpecialistKind.TREND,
+):
+    builder = _api("build_v0_4_entry_threshold_artifact")
+    indices = tuple(range(1000, 1000 + count))
+    probabilities = {
+        index: probability
+        for index, probability in zip(
+            indices,
+            _v0_4_probabilities(
+                count,
+                start=start,
+            ).values(),
+            strict=True,
+        )
+    }
+    return builder(
+        fold_number=3,
+        specialist=specialist,
+        percentile=percentile,
+        eligible_indices=indices,
+        calibrated_probabilities=probabilities,
+        policy=CandidatePolicy.locked_v0_4(),
+    )
+
+
+def test_v0_4_threshold_artifact_uses_explicit_regime_matched_q75_domain() -> None:
+    artifact = _v0_4_artifact()
+
+    assert artifact.schema_version == "candidate-v0.4-entry-threshold-v1"
+    assert artifact.fold_number == 3
+    assert artifact.specialist is SpecialistKind.TREND
+    assert artifact.percentile == Decimal("0.75")
+    assert artifact.eligible_indices == tuple(range(1000, 1160))
+    assert len(artifact.eligible_scores) == 160
+
+    # n=160 -> q75 position is
+    # (160 - 1) * 0.75 = 119.25
+    # scores run 0.400 .. 0.559.
+    assert artifact.raw_quantile == Decimal("0.51925")
+    assert artifact.effective_threshold == Decimal("0.51925")
+
+    assert len(artifact.eligible_rows_sha256) == 64
+    assert len(artifact.score_vector_sha256) == 64
+
+
+@pytest.mark.parametrize(
+    "percentile",
+    (
+        Decimal("0.70"),
+        Decimal("0.75"),
+        Decimal("0.80"),
+    ),
+)
+def test_v0_4_threshold_artifact_allows_only_locked_percentiles(
+    percentile: Decimal,
+) -> None:
+    artifact = _v0_4_artifact(
+        percentile=percentile,
+    )
+    assert artifact.percentile == percentile
+
+
+def test_v0_4_threshold_artifact_rejects_nonregistered_percentile() -> None:
+    with pytest.raises(
+        StudyArtifactError,
+        match="preregistered",
+    ):
+        _v0_4_artifact(
+            percentile=Decimal("0.72"),
+        )
+
+
+def test_v0_4_threshold_artifact_requires_160_regime_matched_scores() -> None:
+    with pytest.raises(
+        StudyArtifactError,
+        match="160 eligible calibration scores",
+    ):
+        _v0_4_artifact(count=159)
+
+
+def test_v0_4_threshold_artifact_applies_half_probability_floor() -> None:
+    artifact = _v0_4_artifact(
+        start="0.10",
+    )
+
+    assert artifact.raw_quantile == Decimal("0.21925")
+    assert artifact.effective_threshold == Decimal("0.50")
+
+
+def test_v0_4_threshold_artifact_is_mapping_order_deterministic() -> None:
+    builder = _api("build_v0_4_entry_threshold_artifact")
+
+    indices = tuple(range(1000, 1160))
+    ordered = {
+        index: Decimal("0.40") + Decimal(offset) / Decimal("1000")
+        for offset, index in enumerate(indices)
+    }
+    reversed_mapping = dict(reversed(tuple(ordered.items())))
+
+    first = builder(
+        fold_number=3,
+        specialist=SpecialistKind.TREND,
+        percentile=Decimal("0.75"),
+        eligible_indices=indices,
+        calibrated_probabilities=ordered,
+        policy=CandidatePolicy.locked_v0_4(),
+    )
+    second = builder(
+        fold_number=3,
+        specialist=SpecialistKind.TREND,
+        percentile=Decimal("0.75"),
+        eligible_indices=indices,
+        calibrated_probabilities=reversed_mapping,
+        policy=CandidatePolicy.locked_v0_4(),
+    )
+
+    assert first == second
+    assert first.eligible_rows_sha256 == second.eligible_rows_sha256
+    assert first.score_vector_sha256 == second.score_vector_sha256
+
+
+def test_v0_4_threshold_artifact_rejects_non_v0_4_policy() -> None:
+    builder = _api("build_v0_4_entry_threshold_artifact")
+
+    indices = tuple(range(160))
+    probabilities = _v0_4_probabilities(160)
+
+    with pytest.raises(
+        StudyArtifactError,
+        match=r"Candidate v0\.4",
+    ):
+        builder(
+            fold_number=1,
+            specialist=SpecialistKind.TREND,
+            percentile=Decimal("0.75"),
+            eligible_indices=indices,
+            calibrated_probabilities=probabilities,
+            policy=CandidatePolicy.locked_v0_3(),
+        )

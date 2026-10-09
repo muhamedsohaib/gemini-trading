@@ -319,6 +319,29 @@ class CandidatePolicy:
             policy_version="candidate-multi-model-v0.3",
         )
 
+    @classmethod
+    def locked_v0_4(cls) -> "CandidatePolicy":
+        """Return the separately governed Candidate v0.4 hourly policy identity."""
+
+        return replace(
+            cls.locked_v0_3(),
+            schema_version="candidate-strategy-policy-v4",
+            strategy_id="candidate.multi_model.v0_4",
+            policy_version="candidate-multi-model-v0.4",
+            timeframe="1h",
+            label_horizon_candles=12,
+            maximum_feature_lookback_candles=42,
+            minimum_hold_candles=8,
+            maximum_hold_candles=72,
+            cooldown_candles=8,
+            purge_candles=12,
+            embargo_candles=12,
+            calibration_minimum_observations=800,
+            calibration_minimum_positive=160,
+            calibration_minimum_negative=160,
+            bootstrap_block_candles=168,
+        )
+
 
 def approved_candidate_policy(strategy_id: str, policy_version: str) -> CandidatePolicy:
     """Return an exact approved Candidate policy or reject an unapproved identity pair."""
@@ -338,6 +361,11 @@ def approved_candidate_policy(strategy_id: str, policy_version: str) -> Candidat
         and policy_version == "candidate-multi-model-v0.3"
     ):
         return CandidatePolicy.locked_v0_3()
+    if (
+        strategy_id == "candidate.multi_model.v0_4"
+        and policy_version == "candidate-multi-model-v0.4"
+    ):
+        return CandidatePolicy.locked_v0_4()
     raise ValueError("candidate strategy and policy identity pair is not approved")
 
 

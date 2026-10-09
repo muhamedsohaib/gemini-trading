@@ -281,13 +281,20 @@ class TrendSpecialistTrainer:
         matrix: FeatureMatrix,
         labels: LabelVector,
         training_indices: tuple[int, ...],
+        *,
+        feature_names: tuple[str, ...] | None = None,
+        eligible_indices: tuple[int, ...] | None = None,
     ) -> LinearModelArtifact:
         registry = FeatureRegistry.locked_v0_1()
+        selected = training_indices if eligible_indices is None else eligible_indices
+        selected_feature_names = (
+            registry.trend_feature_names if feature_names is None else feature_names
+        )
         prepared = _prepare_matrix(
             matrix,
             labels,
-            training_indices,
-            registry.trend_feature_names,
+            selected,
+            selected_feature_names,
         )
         estimator = cast(
             Any,
@@ -343,19 +350,37 @@ class MeanReversionSpecialistTrainer:
         matrix: FeatureMatrix,
         labels: LabelVector,
         training_indices: tuple[int, ...],
+        *,
+        feature_names: tuple[str, ...] | None = None,
+        eligible_indices: tuple[int, ...] | None = None,
     ) -> BoostedTreeArtifact:
-        selected = tuple(
-            candle_index
-            for candle_index in training_indices
-            if matrix.value_for(candle_index, "close_zscore_24") <= Decimal("-0.75")
-            or matrix.value_for(candle_index, "drawdown_from_high_24") >= Decimal("0.02")
-        )
         registry = FeatureRegistry.locked_v0_1()
+        selected = (
+            tuple(
+                candle_index
+                for candle_index in training_indices
+                if matrix.value_for(
+                    candle_index,
+                    "close_zscore_24",
+                )
+                <= Decimal("-0.75")
+                or matrix.value_for(
+                    candle_index,
+                    "drawdown_from_high_24",
+                )
+                >= Decimal("0.02")
+            )
+            if eligible_indices is None
+            else eligible_indices
+        )
+        selected_feature_names = (
+            registry.mean_reversion_feature_names if feature_names is None else feature_names
+        )
         prepared = _prepare_matrix(
             matrix,
             labels,
             selected,
-            registry.mean_reversion_feature_names,
+            selected_feature_names,
         )
         estimator = cast(
             Any,

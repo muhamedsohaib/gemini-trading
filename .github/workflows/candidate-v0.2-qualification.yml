@@ -41,7 +41,7 @@ jobs:
       DATASET_RUN_ID: ${{ inputs.dataset_run_id }}
       DATASET_ID: ${{ inputs.dataset_id }}
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v7.0.1
         with:
           ref: ${{ inputs.source_commit }}
           fetch-depth: 0

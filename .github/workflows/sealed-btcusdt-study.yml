@@ -37,7 +37,7 @@ jobs:
       GEMINI_TRADING_MODE: research
       OUTPUT_ROOT: /tmp/sealed-output
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v7.0.1
         with:
           ref: ${{ inputs.source_commit }}
           fetch-depth: 0
@@ -127,7 +127,7 @@ jobs:
       GEMINI_TRADING_MODE: research
       OUTPUT_ROOT: /tmp/sealed-output
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v7.0.1
         with:
           ref: ${{ inputs.source_commit }}
           fetch-depth: 0
@@ -192,7 +192,7 @@ jobs:
     steps:
       - name: Reject workflow reruns
         run: test "${GITHUB_RUN_ATTEMPT}" = "1"
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v7.0.1
         with:
           ref: ${{ inputs.source_commit }}
           fetch-depth: 0
@@ -364,7 +364,7 @@ jobs:
       GEMINI_TRADING_MODE: research
       OUTPUT_ROOT: /tmp/sealed-output
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v7.0.1
         with:
           ref: ${{ inputs.source_commit }}
           fetch-depth: 0
